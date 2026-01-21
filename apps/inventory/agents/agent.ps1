@@ -1,7 +1,7 @@
 # TI-Agent v2.1 - Auto-Update + Bloqueio + Check-in + Notificação
-$API_URL        = "http://192.168.1.54:5001/api/checkin/"
-$UPDATE_URL     = "http://192.168.1.54:5001/api/agent/download/"
-$NOTIF_URL       = "http://192.168.1.54:5001/api/notifications/"
+$API_URL        = "http://192.168.100.247:5001/api/checkin/"
+$UPDATE_URL     = "http://192.168.100.247:5001/api/agent/download/"
+$NOTIF_URL       = "http://192.168.100.247:5001/api/notifications/"
 $AGENT_PATH     = "C:\Apps\TI-Agent\agent.ps1"
 $HOSTNAME       = $env:COMPUTERNAME
 $CURRENT_VERSION = "2.1"
@@ -163,22 +163,22 @@ function Send-Checkin {
     } catch { }
 }
 
-function Update-BlockedSites {
-    try {
-        $sites = Invoke-RestMethod -Uri "$API_URL`?host=$HOSTNAME" -Method GET -TimeoutSec 10
-        $h     = "$env:SYSTEMROOT\System32\drivers\etc\hosts"
-        $c     = Get-Content $h -Raw -ErrorAction SilentlyContinue
-        if ($c) {
-            $c = $c -replace '# BLOQUEADOS PELO TI[\s\S]*?# FIM BLOQUEIO',''
-            Set-Content -Path $h -Value $c.Trim() -Encoding ASCII
-        }
-        if ($sites.Count -gt 0) {
-            $blk = "# BLOQUEADOS PELO TI`n" + ($sites | ForEach-Object { "127.0.0.1 $_" }) -join "`n" + "`n# FIM BLOQUEIO"
-            Add-Content -Path $h -Value $blk -Encoding ASCII
-            Show-Notification -Title "TI-Agent" -Message "Hosts atualizados: $($sites.Count)"
-        }
-    } catch { }
-}
+#function Update-BlockedSites {
+#    try {
+#        $sites = Invoke-RestMethod -Uri "$API_URL`?host=$HOSTNAME" -Method GET -TimeoutSec 10
+#        $h     = "$env:SYSTEMROOT\System32\drivers\etc\hosts"
+#        $c     = Get-Content $h -Raw -ErrorAction SilentlyContinue
+#        if ($c) {
+#            $c = $c -replace '# BLOQUEADOS PELO TI[\s\S]*?# FIM BLOQUEIO',''
+#            Set-Content -Path $h -Value $c.Trim() -Encoding ASCII
+#        }
+#        if ($sites.Count -gt 0) {
+#            $blk = "# BLOQUEADOS PELO TI`n" + ($sites | ForEach-Object { "127.0.0.1 $_" }) -join "`n" + "`n# FIM BLOQUEIO"
+#            Add-Content -Path $h -Value $blk -Encoding ASCII
+#            Show-Notification -Title "TI-Agent" -Message "Hosts atualizados: $($sites.Count)"
+#        }
+#    } catch { }
+#}
 
 function Fetch-Notifications {
     try {
@@ -193,7 +193,7 @@ function Fetch-Notifications {
 Update-Agent
 while ($true) {
     Send-Checkin
-    Update-BlockedSites
+#    Update-BlockedSites
     Fetch-Notifications
     Start-Sleep -Seconds 300
 }
