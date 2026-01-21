@@ -17,13 +17,42 @@ function Get-CurrentVersion {
 function Update-Agent {
     try {
         $local = Get-CurrentVersion
-        if ($local -ne $CURRENT_VERSION) {
-            Invoke-WebRequest -Uri $UPDATE_URL -OutFile "$AGENT_PATH.new" -UseBasicParsing -TimeoutSec 15
-            Move-Item -Path "$AGENT_PATH.new" -Destination $AGENT_PATH -Force
-            Restart-Service "TI-Agent" -Force
-            exit 0
+        if (-not $local) { $local = "0.0.0" }
+
+        $info = Invoke-RestMethod -Uri $VERSION_URL -TimeoutSec 10
+
+        if ([version]$info.version -le [version]$local) {
+            return
         }
-    } catch { }
+
+        $tmp = "$AGENT_PATH.new"
+
+        Invoke-WebRequest `
+            -Uri $info.download_url `
+            -OutFile $tmp `
+            -UseBasicParsing `
+            -TimeoutSec 15
+
+        $hash = (Get-FileHash $tmp -Algorithm SHA256).Hash
+        if ($hash -ne $info.sha256) {
+            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+            return
+        }
+
+        Move-Item $tmp $AGENT_PATH -Force
+
+        if (Test-Path $NSSM_PATH) {
+            & $NSSM_PATH restart "TI-Agent"
+        } else {
+            Restart-Service "TI-Agent" -Force
+        }
+
+        exit
+    }
+    catch {
+        # falha silenciosa por design (agente nunca pode parar)
+        return
+    }
 }
 
 function Show-Notification {
