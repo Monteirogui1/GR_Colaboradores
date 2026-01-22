@@ -188,7 +188,7 @@ class AgentVersionView(View):
             sha256 = hashlib.sha256(content).hexdigest()
 
         return JsonResponse({
-            'version': '2.2',
+            'version': '2.4',
             'download_url': request.build_absolute_uri('/api/agent/download/'),
             'sha256': sha256,
         })
