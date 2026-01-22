@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     MachineCheckinView,
     RunCommandView,
-    AgentDownloadView, MachineNotificationView
+    AgentDownloadView, MachineNotificationView, AgentVersionView
 )
 
 urlpatterns = [
@@ -11,4 +11,5 @@ urlpatterns = [
 
     path('api/notifications/', MachineNotificationView.as_view(), name='machine-notifications'),
     path('agent/download/', AgentDownloadView.as_view(), name='agent_download'),
+    path('agent/version/', AgentVersionView.as_view(), name='agent_version'),
 ]

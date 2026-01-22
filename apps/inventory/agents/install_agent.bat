@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion
 
 set "AGENT_DIR=C:\Apps\TI-Agent"
-set "SERVER=http://192.168.1.54:5001"
+set "SERVER=http://192.168.100.247:5001"
 set "NSSM_URL=https://nssm.cc/release/nssm-2.24.zip"
 set "AGENT_PS=%AGENT_DIR%\agent.ps1"
 set "NSSM=%AGENT_DIR%\nssm.exe"
@@ -31,6 +31,8 @@ powershell -Command "Invoke-WebRequest -Uri '%SERVER%/api/agent/download/' -OutF
 :: Instalar serviço
 echo Instalando servico TI-Agent...
 "%NSSM%" install "TI-Agent" powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "%AGENT_PS%" >nul
+REM Diretório de trabalho (MUITO IMPORTANTE)
+"%NSSM%" set "TI-Agent" AppDirectory "%AGENT_DIR%" >nul
 "%NSSM%" set "TI-Agent" AppRestartDelay 5000 >nul
 "%NSSM%" start "TI-Agent" >nul
 

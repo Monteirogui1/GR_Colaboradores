@@ -14,10 +14,12 @@ class MachineGroup(models.Model):
 
 
 class Machine(models.Model):
+    loggedUser = models.CharField("loggedUser", max_length=200, blank=True)
     hostname        = models.CharField("Hostname", max_length=100, unique=True)
     ip_address      = models.GenericIPAddressField("IP")
     mac_address     = models.CharField("MAC Address", max_length=17, blank=True)
     os_version      = models.CharField("Versão do SO", max_length=100, blank=True)
+    tpm = models.JSONField("TpmInfo", null=True, blank=True)
 
     # RAM slots
     total_memory_slots = models.IntegerField("Slots Totais", null=True, blank=True)

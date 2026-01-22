@@ -1,10 +1,11 @@
-# TI-Agent v2.1 - Auto-Update + Bloqueio + Check-in + Notificação
+# TI-Agent v2.4 - Auto-Update + Bloqueio + Check-in + Notificação
 $API_URL        = "http://192.168.100.247:5001/api/checkin/"
 $UPDATE_URL     = "http://192.168.100.247:5001/api/agent/download/"
-$NOTIF_URL       = "http://192.168.100.247:5001/api/notifications/"
+$NOTIF_URL      = "http://192.168.100.247:5001/api/notifications/"
+$VERSION_URL    = "http://192.168.100.247:5001/api/agent/version/"
 $AGENT_PATH     = "C:\Apps\TI-Agent\agent.ps1"
 $HOSTNAME       = $env:COMPUTERNAME
-$CURRENT_VERSION = "2.1"
+$CURRENT_VERSION = "2.4"
 
 function Get-CurrentVersion {
     try {
@@ -70,6 +71,9 @@ function Show-Notification {
 }
 
 function Get-SystemInfo {
+    # Usuário logado
+    $loggedUser = ((Get-CimInstance Win32_ComputerSystem).UserName -split '\\')[-1]
+
     # MAC principal
     $primaryNet = Get-CimInstance Win32_NetworkAdapterConfiguration |
                   Where-Object { $_.IPEnabled } | Select-Object -First 1
@@ -106,7 +110,33 @@ function Get-SystemInfo {
     $net   = Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object IPEnabled
     $gpu   = Get-CimInstance Win32_VideoController | Select-Object -First 1
 
+    # TPM
+    try {
+        $tpm = Get-Tpm
+        $tpmInfo = [pscustomobject]@{
+            present          = $tpm.TpmPresent
+            ready            = $tpm.TpmReady
+            enabled          = $tpm.TpmEnabled
+            activated        = $tpm.TpmActivated
+            spec_version     = $tpm.SpecVersion
+            manufacturer     = $tpm.ManufacturerIdTxt
+            manufacturer_ver = $tpm.ManufacturerVersion
+        }
+    } catch {
+        $tpmInfo = [pscustomobject]@{
+            present          = $false
+            ready            = $false
+            enabled          = $false
+            activated        = $false
+            spec_version     = $null
+            manufacturer     = $null
+            manufacturer_ver = $null
+        }
+    }
+
     return [pscustomobject]@{
+        logged_user           = $loggedUser
+
         manufacturer           = $cs.Manufacturer
         model                  = $cs.Model
         serial_number          = $bios.SerialNumber
@@ -146,6 +176,9 @@ function Get-SystemInfo {
 
         antivirus_name         = $av.displayName
         av_state               = $av.productState
+
+        tpm                    = $tpmInfo
+
     }
 }
 

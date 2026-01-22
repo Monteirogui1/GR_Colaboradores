@@ -3,6 +3,7 @@ import re
 import json
 import datetime
 import logging
+import hashlib
 
 from django.views import View
 from django.http import JsonResponse, HttpResponse
@@ -47,6 +48,10 @@ class MachineCheckinView(View):
                     'ip_address': ip,
                     'is_online': True,
                     'last_seen': timezone.now(),
+
+                    'loggeduser': hw.get('logged_user'),
+
+                    'tpm': hw.get('tpm'),
 
                     'mac_address': hw.get('mac_address'),
                     'total_memory_slots': hw.get('total_memory_slots'),
@@ -156,13 +161,34 @@ class MachineNotificationView(View):
 
 class AgentDownloadView(View):
     def get(self, request):
-        file_path = os.path.join(
-            os.path.dirname(__file__), '..', 'agents', 'agent.ps1'
-        )
-        if not os.path.exists(file_path):
+        agent_path = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), 'agents', 'agent.ps1'
+        ))
+
+        if not os.path.exists(agent_path):
             return JsonResponse({'error': 'Agent file not found'}, status=404)
 
-        with open(file_path, 'rb') as f:
+        with open(agent_path, 'rb') as f:
             resp = HttpResponse(f.read(), content_type='text/plain')
             resp['Content-Disposition'] = 'attachment; filename="agent.ps1"'
             return resp
+
+
+class AgentVersionView(View):
+    def get(self, request):
+        agent_path = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), 'agents', 'agent.ps1'
+        ))
+
+        if not os.path.exists(agent_path):
+            return JsonResponse({'error': 'Agent file not found'}, status=404)
+
+        with open(agent_path, 'rb') as f:
+            content = f.read()
+            sha256 = hashlib.sha256(content).hexdigest()
+
+        return JsonResponse({
+            'version': '2.2',
+            'download_url': request.build_absolute_uri('/api/agent/download/'),
+            'sha256': sha256,
+        })

@@ -9,7 +9,7 @@ class MachineGroupAdmin(ImportExportMixin, admin.ModelAdmin):
 
 @admin.register(Machine)
 class MachineAdmin(ImportExportMixin, admin.ModelAdmin):
-    list_display    = ('hostname', 'ip_address', 'group', 'is_online', 'last_seen', 'ram_gb', 'disk_free_gb')
+    list_display    = ('hostname', 'loggedUser', 'TpmInfo', 'ip_address', 'group', 'is_online', 'last_seen', 'ram_gb', 'disk_free_gb')
     list_filter     = ('group', 'is_online', 'last_seen')
     search_fields   = ('hostname', 'ip_address')
     readonly_fields = ('last_seen',)
