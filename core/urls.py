@@ -10,6 +10,7 @@ urlpatterns = [
     path('', include('apps.categorias.urls',)),
     path('', include('apps.fornecedor.urls',)),
     path('', include('apps.marcas.urls',)),
+    path('', include('apps.ativos.urls')),
     path('api/', include('apps.inventory.urls')),
 
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
@@ -17,3 +18,5 @@ urlpatterns = [
     path('api/schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 
 ]
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -21,10 +21,19 @@
                 <!-- Dashboard -->
                 <li><a href="#"><span class="icon"><i class="bi bi-speedometer2"></i></span> Dashboard</a></li>
 
-                <li><a href="{% url 'categorias:categoria_list' %}"><span class="icon"><i class="bi bi-bookmarks"></i></span> Categorias</a></li>
-                <li><a href="{% url 'marcas:marca_list' %}"><span class="icon"><i class="bi bi-tags"></i></span> Marcas</a></li>
-                <li><a href="{% url 'fornecedores:fornecedores_list' %}"><span class="icon"><i class="bi bi-truck"></i></span> Fornecedores</a></li>
+                <li><a href="{% url 'categorias:categoria_list' %}"><span class="icon"><i
+                        class="bi bi-bookmarks"></i></span> Categorias</a></li>
+                <li><a href="{% url 'marcas:marca_list' %}"><span class="icon"><i class="bi bi-tags"></i></span> Marcas</a>
+                </li>
+                <li><a href="{% url 'fornecedores:fornecedores_list' %}"><span class="icon"><i class="bi bi-truck"></i></span>
+                    Fornecedores</a></li>
 
+                <li><a href="{% url 'ativos:status_list' %}"><span class="icon"><i class="bi bi-tag"></i></span> Status
+                    de Ativos</a></li>
+                <li><a href="{% url 'ativos:localizacao_list' %}"><span class="icon"><i
+                        class="bi bi-geo-alt"></i></span> Localizações</a></li>
+                <li><a href="{% url 'ativos:ativo_list' %}"><span class="icon"><i class="bi bi-box-seam"></i></span>
+                    Ativos</a></li>
 
                 <!-- Gestão de Máquinas -->
                 <li><a href="{% url 'inventario:machine_list' %}"><span class="icon"><i

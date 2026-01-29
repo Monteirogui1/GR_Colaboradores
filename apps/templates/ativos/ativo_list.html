@@ -1,0 +1,127 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}Ativos - ERP{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>Ativos da Empresa</h1>
+        <a href="{% url 'ativos:ativo_create' %}" class="btn btn-primary">Novo Ativo</a>
+    </div>
+
+    <!-- Formulário de filtros -->
+    <form method="get" class="filter-form">
+        <div class="form-group">
+            <label for="nome">Nome</label>
+            <input type="text" name="nome" id="nome" value="{{ request.GET.nome }}" class="form-control" placeholder="Digite o nome">
+        </div>
+        <div class="form-group">
+            <label for="etiqueta">Etiqueta</label>
+            <input type="text" name="etiqueta" id="etiqueta" value="{{ request.GET.etiqueta }}" class="form-control" placeholder="Ex: AT-001">
+        </div>
+        <div class="form-group">
+            <label for="categoria">Categoria</label>
+            <select name="categoria" id="categoria" class="form-control">
+                <option value="">Todas</option>
+                {% for cat in categorias %}
+                    <option value="{{ cat.id }}" {% if request.GET.categoria == cat.id|stringformat:"s" %}selected{% endif %}>
+                        {{ cat.nome }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="status">Status</label>
+            <select name="status" id="status" class="form-control">
+                <option value="">Todos</option>
+                {% for stat in status_ativos %}
+                    <option value="{{ stat.id }}" {% if request.GET.status == stat.id|stringformat:"s" %}selected{% endif %}>
+                        {{ stat.nome }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="localizacao">Localização</label>
+            <select name="localizacao" id="localizacao" class="form-control">
+                <option value="">Todas</option>
+                {% for loc in localizacoes %}
+                    <option value="{{ loc.id }}" {% if request.GET.localizacao == loc.id|stringformat:"s" %}selected{% endif %}>
+                        {{ loc.nome }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-buttons">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <a href="{% url 'ativos:ativo_list' %}" class="btn btn-secondary">Limpar</a>
+        </div>
+    </form>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Etiqueta</th>
+                <th>Nome</th>
+                <th>Categoria</th>
+                <th>Localização</th>
+                <th>Status</th>
+                <th>Data Compra</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ativo in ativos %}
+            <tr>
+                <td><strong>{{ ativo.etiqueta }}</strong></td>
+                <td>{{ ativo.nome }}</td>
+                <td>{{ ativo.categoria.nome|default:"-" }}</td>
+                <td>{{ ativo.localizacao.nome|default:"-" }}</td>
+                <td>
+                    <span style="color: {{ ativo.status.cor }};">●</span> {{ ativo.status.nome }}
+                </td>
+                <td>{{ ativo.data_compra|date:"d/m/Y"|default:"-" }}</td>
+                <td>
+                    <a href="{% url 'ativos:ativo_detail' ativo.id %}" class="btn btn-sm btn-primary">Ver</a>
+                    <a href="{% url 'ativos:ativo_update' ativo.id %}" class="btn btn-sm btn-edit">Editar</a>
+                    <button class="btn btn-sm btn-delete" data-id="{{ ativo.id }}">Excluir</button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="text-center">Nenhum ativo cadastrado.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Paginação -->
+    {% if is_paginated %}
+    <nav aria-label="Navegação de página">
+        <ul class="pagination">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1">Primeira</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                </li>
+            {% endif %}
+
+            <li class="page-item active">
+                <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+            </li>
+
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

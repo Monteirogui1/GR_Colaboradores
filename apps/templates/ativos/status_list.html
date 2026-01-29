@@ -1,0 +1,66 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}Status de Ativos - ERP{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>Status de Ativos</h1>
+        <a href="{% url 'ativos:status_create' %}" class="btn btn-primary">Novo Status</a>
+    </div>
+
+    <!-- Formulário de filtros -->
+    <form method="get" class="filter-form">
+        <div class="form-group">
+            <label for="nome">Nome</label>
+            <input type="text" name="nome" id="nome" value="{{ request.GET.nome }}" class="form-control" placeholder="Digite o nome">
+        </div>
+        <div class="form-group">
+            <label for="ativo">Ativo</label>
+            <select name="ativo" id="ativo" class="form-control">
+                <option value="">Todos</option>
+                <option value="true" {% if request.GET.ativo == "true" %}selected{% endif %}>Sim</option>
+                <option value="false" {% if request.GET.ativo == "false" %}selected{% endif %}>Não</option>
+            </select>
+        </div>
+        <div class="filter-buttons">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <a href="{% url 'ativos:status_list' %}" class="btn btn-secondary">Limpar</a>
+        </div>
+    </form>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Cor</th>
+                <th>Descrição</th>
+                <th>Ativo</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for status in status_list %}
+            <tr>
+                <td>
+                    <span style="color: {{ status.cor }};">●</span> {{ status.nome }}
+                </td>
+                <td>
+                    <div style="width: 30px; height: 30px; background-color: {{ status.cor }}; border-radius: 5px; border: 1px solid #ddd;"></div>
+                </td>
+                <td>{{ status.descricao|default:"-" }}</td>
+                <td>{{ status.is_active|yesno:"Sim,Não" }}</td>
+                <td>
+                    <a href="{% url 'ativos:status_update' status.id %}" class="btn btn-sm btn-edit">Editar</a>
+                    <button class="btn btn-sm btn-delete" data-id="{{ status.id }}">Excluir</button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center">Nenhum status cadastrado.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

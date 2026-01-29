@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'apps.categorias',
     'apps.marcas',
     'apps.fornecedor',
+    'apps.ativos'
 ]
 
 MIDDLEWARE = [

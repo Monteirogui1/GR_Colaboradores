@@ -1,0 +1,341 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}Editar Ativo - ERP{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>Editar Ativo: {{ ativo.etiqueta }}</h1>
+        <div class="filter-buttons">
+            <a href="{% url 'ativos:ativo_detail' ativo.id %}" class="btn btn-primary">Ver Detalhes</a>
+            <a href="{% url 'ativos:ativo_list' %}" class="btn btn-secondary">Voltar</a>
+        </div>
+    </div>
+
+    <!-- Formulário do Ativo -->
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <!-- Informações Básicas -->
+        <div class="detail-card">
+            <h2>Informações Básicas</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    {{ form.nome.label_tag }}
+                    {{ form.nome }}
+                    {% if form.nome.errors %}
+                        <div class="text-danger">{{ form.nome.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.etiqueta.label_tag }}
+                    {{ form.etiqueta }}
+                    {% if form.etiqueta.errors %}
+                        <div class="text-danger">{{ form.etiqueta.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.numero_serie.label_tag }}
+                    {{ form.numero_serie }}
+                    {% if form.numero_serie.errors %}
+                        <div class="text-danger">{{ form.numero_serie.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.codigo_referencia.label_tag }}
+                    {{ form.codigo_referencia }}
+                    {% if form.codigo_referencia.errors %}
+                        <div class="text-danger">{{ form.codigo_referencia.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.status.label_tag }}
+                    {{ form.status }}
+                    {% if form.status.errors %}
+                        <div class="text-danger">{{ form.status.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Relacionamentos -->
+        <div class="detail-card">
+            <h2>Relacionamentos</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    {{ form.categoria.label_tag }}
+                    {{ form.categoria }}
+                    {% if form.categoria.errors %}
+                        <div class="text-danger">{{ form.categoria.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.fornecedor.label_tag }}
+                    {{ form.fornecedor }}
+                    {% if form.fornecedor.errors %}
+                        <div class="text-danger">{{ form.fornecedor.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.localizacao.label_tag }}
+                    {{ form.localizacao }}
+                    {% if form.localizacao.errors %}
+                        <div class="text-danger">{{ form.localizacao.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.marca.label_tag }}
+                    {{ form.marca }}
+                    {% if form.marca.errors %}
+                        <div class="text-danger">{{ form.marca.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.computador.label_tag }}
+                    {{ form.computador }}
+                    <small class="form-text">Vincular a um computador do inventário</small>
+                    {% if form.computador.errors %}
+                        <div class="text-danger">{{ form.computador.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Detalhes do Produto -->
+        <div class="detail-card">
+            <h2>Detalhes do Produto</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    {{ form.fabricante.label_tag }}
+                    {{ form.fabricante }}
+                    {% if form.fabricante.errors %}
+                        <div class="text-danger">{{ form.fabricante.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.modelo.label_tag }}
+                    {{ form.modelo }}
+                    {% if form.modelo.errors %}
+                        <div class="text-danger">{{ form.modelo.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Datas e Valores -->
+        <div class="detail-card">
+            <h2>Datas e Valores</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    {{ form.data_compra.label_tag }}
+                    {{ form.data_compra }}
+                    {% if form.data_compra.errors %}
+                        <div class="text-danger">{{ form.data_compra.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.garantia_ate.label_tag }}
+                    {{ form.garantia_ate }}
+                    {% if form.garantia_ate.errors %}
+                        <div class="text-danger">{{ form.garantia_ate.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.custo.label_tag }}
+                    {{ form.custo }}
+                    {% if form.custo.errors %}
+                        <div class="text-danger">{{ form.custo.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Descrição e Auditoria -->
+        <div class="detail-card">
+            <h2>Informações Adicionais</h2>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    {{ form.descricao.label_tag }}
+                    {{ form.descricao }}
+                    {% if form.descricao.errors %}
+                        <div class="text-danger">{{ form.descricao.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group full-width">
+                    {{ form.auditoria.label_tag }}
+                    {{ form.auditoria }}
+                    {% if form.auditoria.errors %}
+                        <div class="text-danger">{{ form.auditoria.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+        </div>
+    </form>
+
+    <!-- Utilizadores -->
+    <div class="detail-card" style="margin-top: 30px;">
+        <h2>Utilizado Por</h2>
+        <div style="margin-bottom: 15px;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="toggleForm('form-utilizador')">
+                <i class="bi bi-plus"></i> Adicionar Utilizador
+            </button>
+        </div>
+
+        <!-- Formulário de Adicionar Utilizador -->
+        <div id="form-utilizador" style="display: none; margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px;">
+            <h3 style="font-size: 16px; margin-bottom: 10px;">Novo Utilizador</h3>
+            <form id="utilizador-form">
+                {% csrf_token %}
+                <div class="form-grid">
+                    <div class="form-group">
+                        {{ utilizador_form.usuario.label_tag }}
+                        {{ utilizador_form.usuario }}
+                    </div>
+                    <div class="form-group">
+                        {{ utilizador_form.data_inicio.label_tag }}
+                        {{ utilizador_form.data_inicio }}
+                    </div>
+                    <div class="form-group">
+                        {{ utilizador_form.data_fim.label_tag }}
+                        {{ utilizador_form.data_fim }}
+                    </div>
+                    <div class="form-group full-width">
+                        {{ utilizador_form.observacoes.label_tag }}
+                        {{ utilizador_form.observacoes }}
+                    </div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="submitUtilizador()">Salvar</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleForm('form-utilizador')">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Usuário</th>
+                    <th>Data Início</th>
+                    <th>Data Fim</th>
+                    <th>Observações</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="utilizadores-tbody">
+                {% for utilizador in utilizadores %}
+                <tr id="utilizador-{{ utilizador.id }}">
+                    <td>{{ utilizador.usuario.get_full_name|default:utilizador.usuario.username }}</td>
+                    <td>{{ utilizador.data_inicio|date:"d/m/Y" }}</td>
+                    <td>{{ utilizador.data_fim|date:"d/m/Y"|default:"Em uso" }}</td>
+                    <td>{{ utilizador.observacoes|default:"-" }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-delete" onclick="deleteUtilizador({{ utilizador.id }})">Remover</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr id="no-utilizadores">
+                    <td colspan="5" class="text-center">Nenhum utilizador atribuído.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Anexos -->
+    <div class="detail-card" style="margin-top: 30px;">
+        <h2>Anexos</h2>
+        <div style="margin-bottom: 15px;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="toggleForm('form-anexo')">
+                <i class="bi bi-paperclip"></i> Adicionar Anexo
+            </button>
+        </div>
+
+        <!-- Formulário de Adicionar Anexo -->
+        <div id="form-anexo" style="display: none; margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px;">
+            <h3 style="font-size: 16px; margin-bottom: 10px;">Novo Anexo</h3>
+            <form id="anexo-form">
+                {% csrf_token %}
+                <div class="form-grid">
+                    <div class="form-group">
+                        {{ anexo_form.titulo.label_tag }}
+                        {{ anexo_form.titulo }}
+                    </div>
+                    <div class="form-group">
+                        {{ anexo_form.arquivo.label_tag }}
+                        {{ anexo_form.arquivo }}
+                    </div>
+                    <div class="form-group full-width">
+                        {{ anexo_form.descricao.label_tag }}
+                        {{ anexo_form.descricao }}
+                    </div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="submitAnexo()">Salvar</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleForm('form-anexo')">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Título</th>
+                    <th>Descrição</th>
+                    <th>Data</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="anexos-tbody">
+                {% for anexo in anexos %}
+                <tr id="anexo-{{ anexo.id }}">
+                    <td>{{ anexo.titulo }}</td>
+                    <td>{{ anexo.descricao|default:"-" }}</td>
+                    <td>{{ anexo.created_at|date:"d/m/Y H:i" }}</td>
+                    <td>
+                        <a href="{{ anexo.arquivo.url }}" class="btn btn-sm btn-primary" download>Download</a>
+                        <button class="btn btn-sm btn-delete" onclick="deleteAnexo({{ anexo.id }})">Excluir</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr id="no-anexos">
+                    <td colspan="4" class="text-center">Nenhum anexo cadastrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Histórico -->
+    <div class="detail-card" style="margin-top: 30px;">
+        <h2>Histórico de Alterações</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Data/Hora</th>
+                    <th>Campo</th>
+                    <th>Descrição</th>
+                    <th>Usuário</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for hist in historico %}
+                <tr>
+                    <td>{{ hist.created_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ hist.campo_alterado|default:"-" }}</td>
+                    <td>{{ hist.descricao }}</td>
+                    <td>{{ hist.usuario.username|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center">Nenhum evento no histórico.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
