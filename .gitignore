@@ -10,3 +10,4 @@ migrations/
 **/migrations/
 apps/*/migrations/
 teste.py
+*.exe
