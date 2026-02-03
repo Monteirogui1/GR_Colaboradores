@@ -125,25 +125,25 @@ urlpatterns = [
     # ============================================================================
 
     path(
-        'inventory/agent/validate/',
+        'inventario/agent/validate/',
         AgentValidateTokenAPIView.as_view(),
         name='api_validate_token'
     ),
 
     path(
-        'inventory/agent/update/',
+        'inventario/agent/update/',
         AgentCheckUpdateAPIView.as_view(),
         name='api_check_update'
     ),
 
     path(
-        'inventory/agent/download/<int:pk>/',
+        'inventario/agent/download/<int:pk>/',
         AgentDownloadAPIView.as_view(),
         name='api_download_agent'
     ),
 
     path(
-        'inventory/health/',
+        'inventario/health/',
         AgentHealthCheckAPIView.as_view(),
         name='api_health_check'
     ),

@@ -72,9 +72,9 @@
                 <td>{{ auditoria.localizacao.nome }}</td>
                 <td>{{ auditoria.responsavel.get_full_name|default:auditoria.responsavel.username|default:"-" }}</td>
                 <td>
-                    {% if auditoria.status == 'em_andamento' %}
+                    {% if auditoria.status == '0' %}
                         <span style="color: orange;">● {{ auditoria.get_status_display }}</span>
-                    {% elif auditoria.status == 'finalizada' %}
+                    {% elif auditoria.status == '1' %}
                         <span style="color: green;">● {{ auditoria.get_status_display }}</span>
                     {% else %}
                         <span style="color: red;">● {{ auditoria.get_status_display }}</span>

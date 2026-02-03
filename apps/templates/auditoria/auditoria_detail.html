@@ -8,7 +8,7 @@
     <div class="page-header">
         <h1>{{ auditoria.titulo }}</h1>
         <div class="filter-buttons">
-            {% if auditoria.status == 'em_andamento' %}
+            {% if auditoria.status == '0' %}
                 <a href="{% url 'auditoria:auditoria_executar' auditoria.pk %}" class="btn btn-primary">
                     <i class="bi bi-play-fill"></i> Executar
                 </a>
@@ -35,9 +35,9 @@
                 <div class="detail-row">
                     <span class="detail-label">Status:</span>
                     <span class="detail-value">
-                        {% if auditoria.status == 'em_andamento' %}
+                        {% if auditoria.status == '0' %}
                             <span style="color: orange;">● {{ auditoria.get_status_display }}</span>
-                        {% elif auditoria.status == 'finalizada' %}
+                        {% elif auditoria.status == '1' %}
                             <span style="color: green;">● {{ auditoria.get_status_display }}</span>
                         {% else %}
                             <span style="color: red;">● {{ auditoria.get_status_display }}</span>

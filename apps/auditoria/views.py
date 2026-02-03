@@ -216,7 +216,7 @@ class AuditoriaVerificarItemView(LoginRequiredMixin, View):
                 Auditoria,
                 pk=pk,
                 cliente=request.user.cliente,
-                status='em_andamento'
+                status='0'
             )
 
             item = get_object_or_404(AuditoriaItem, pk=item_id, auditoria=auditoria)
@@ -266,7 +266,7 @@ class AuditoriaDesverificarItemView(LoginRequiredMixin, View):
                 Auditoria,
                 pk=pk,
                 cliente=request.user.cliente,
-                status='em_andamento'
+                status='0'
             )
 
             item = get_object_or_404(AuditoriaItem, pk=item_id, auditoria=auditoria)
@@ -327,7 +327,7 @@ class AuditoriaFinalizarView(LoginRequiredMixin, View):
         if form.is_valid():
             with transaction.atomic():
                 # Atualiza status da auditoria
-                auditoria.status = 'finalizada'
+                auditoria.status = '1'
                 auditoria.data_finalizacao = timezone.now()
 
                 observacoes_finais = form.cleaned_data.get('observacoes_finais')
@@ -395,8 +395,8 @@ class AuditoriaCancelarView(LoginRequiredMixin, View):
             cliente=request.user.cliente
         )
 
-        if auditoria.status == 'em_andamento':
-            auditoria.status = 'cancelada'
+        if auditoria.status == '0':
+            auditoria.status = '2'
             auditoria.save()
 
             # Registra no histórico

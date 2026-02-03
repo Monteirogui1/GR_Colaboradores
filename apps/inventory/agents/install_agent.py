@@ -448,19 +448,19 @@ Clique em "Avançar" para continuar.
             time.sleep(0.5)
 
             # 1. Verificar Python
-            self.log("Verificando Python...")
-            result = subprocess.run(
-                ["python", "--version"],
-                capture_output=True,
-                text=True
-            )
-            if result.returncode == 0:
-                version = result.stdout.strip()
-                self.log(f"✓ {version} encontrado", "SUCCESS")
-            else:
-                raise Exception("Python não encontrado no sistema")
-
-            time.sleep(0.5)
+            # self.log("Verificando Python...")
+            # result = subprocess.run(
+            #     ["python", "--version"],
+            #     capture_output=True,
+            #     text=True
+            # )
+            # if result.returncode == 0:
+            #     version = result.stdout.strip()
+            #     self.log(f"✓ {version} encontrado", "SUCCESS")
+            # else:
+            #     raise Exception("Python não encontrado no sistema")
+            #
+            # time.sleep(0.5)
 
             # 2. Criar diretório
             install_dir = Path(self.install_dir.get())
@@ -665,17 +665,17 @@ Clique em "Avançar" para continuar.
             self.log("✓ Serviço configurado para iniciar automaticamente", "SUCCESS")
 
             # 10. Instalar winotify
-            self.log("Instalando biblioteca de notificações...")
-            try:
-                subprocess.run(
-                    ["pip", "install", "winotify", "--quiet"],
-                    check=False,
-                    capture_output=True,
-                    timeout=60
-                )
-                self.log("✓ winotify instalado", "SUCCESS")
-            except:
-                self.log("⚠ winotify não instalado (usará fallback)", "WARNING")
+            # self.log("Instalando biblioteca de notificações...")
+            # try:
+            #     subprocess.run(
+            #         ["pip", "install", "winotify", "--quiet"],
+            #         check=False,
+            #         capture_output=True,
+            #         timeout=60
+            #     )
+            #     self.log("✓ winotify instalado", "SUCCESS")
+            # except:
+            #     self.log("⚠ winotify não instalado (usará fallback)", "WARNING")
 
             time.sleep(0.5)
 

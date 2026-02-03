@@ -12,11 +12,14 @@ import urllib.error
 import ssl
 from datetime import datetime
 
+import psutil
+import wmi
+
 # Configurações do Agente
 VERSION = "2.0.0"
 UPDATE_CHECK_INTERVAL = 3600  # 1 hora
-HEARTBEAT_INTERVAL = 300  # 5 minutos
-OFFLINE_CHECK_INTERVAL = 120  # 1 minuto
+HEARTBEAT_INTERVAL = 60  # 5 minutos
+OFFLINE_CHECK_INTERVAL = 60  # 1 minuto
 
 
 # Configurações são passadas via argumentos ou variáveis de ambiente
@@ -38,7 +41,13 @@ class AgentConfig:
             "version": VERSION,
             "auto_update": os.environ.get("AGENT_AUTO_UPDATE", "true").lower() == "true",
             "notifications": os.environ.get("AGENT_NOTIFICATIONS", "true").lower() == "true",
-            "check_interval": int(os.environ.get("AGENT_CHECK_INTERVAL", HEARTBEAT_INTERVAL))
+            "check_interval": int(os.environ.get("AGENT_CHECK_INTERVAL", HEARTBEAT_INTERVAL)),
+
+            # ENDPOINTS CORRETOS
+            "endpoint_validate": "/api/inventario/agent/validate/",
+            "endpoint_checkin": "/api/checkin/",
+            "endpoint_update": "/api/inventario/agent/update/",
+            "endpoint_health": "/api/inventario/health/",
         }
 
     def get(self, key, default=None):
@@ -59,13 +68,13 @@ class TokenValidator:
         return hashlib.sha256(token.encode()).hexdigest()
 
     @staticmethod
-    def validate_with_server(server_url, token_hash, machine_name):
+    def validate_with_server(server_url, token, machine_name):
         """Valida token diretamente com o servidor"""
         try:
-            url = f"{server_url}/api/inventory/agent/validate/"
+            url = f"{server_url}/api/inventario/agent/validate/"
 
             data = json.dumps({
-                'token_hash': token_hash,
+                'token': token,
                 'machine_name': machine_name
             }).encode()
 
@@ -201,7 +210,7 @@ class NetworkMonitor:
     def check_server(self):
         """Verifica conectividade com o servidor"""
         try:
-            url = self.config.get('server_url') + '/api/inventory/health/'
+            url = self.config.get('server_url') + self.config.get("endpoint_health")
 
             context = ssl._create_unverified_context()
             req = urllib.request.Request(url, method='GET')
@@ -254,7 +263,7 @@ class AutoUpdater:
             return None
 
         try:
-            url = self.config.get('server_url') + '/api/inventory/agent/update/'
+            url = self.config.get('server_url') + self.config.get("endpoint_update")
 
             data = json.dumps({
                 'current_version': self.current_version,
@@ -358,90 +367,140 @@ class SystemCollector:
 
     @staticmethod
     def get_system_info():
-        """Coleta informações completas do sistema"""
-        info = {
-            'hostname': socket.gethostname(),
-            'os_name': platform.system(),
-            'os_version': platform.version(),
-            'os_release': platform.release(),
-            'architecture': platform.machine(),
-            'processor': platform.processor(),
-            'python_version': platform.python_version(),
-            'agent_version': VERSION,
-            'last_update': datetime.now().isoformat(),
-        }
+        c = wmi.WMI()
 
-        # Informações de rede
+        hostname = socket.gethostname()
+
+        # IP
+        ip = socket.gethostbyname(socket.gethostname())
+
+        # Usuário logado
+        logged_user = None
         try:
-            info['ip_address'] = socket.gethostbyname(socket.gethostname())
+            logged_user = psutil.users()[0].name
         except:
-            info['ip_address'] = "127.0.0.1"
+            pass
 
-        # Informações de disco (Windows)
-        if platform.system() == "Windows":
-            try:
-                import ctypes
+        # CPU
+        cpu = platform.processor()
 
-                free_bytes = ctypes.c_ulonglong(0)
-                total_bytes = ctypes.c_ulonglong(0)
-                ctypes.windll.kernel32.GetDiskFreeSpaceExW(
-                    ctypes.c_wchar_p("C:\\"),
-                    None,
-                    ctypes.pointer(total_bytes),
-                    ctypes.pointer(free_bytes)
-                )
+        # RAM
+        ram_gb = round(psutil.virtual_memory().total / (1024 ** 3), 2)
 
-                info['disk_total_gb'] = round(total_bytes.value / (1024 ** 3), 2)
-                info['disk_free_gb'] = round(free_bytes.value / (1024 ** 3), 2)
-                info['disk_used_gb'] = round((total_bytes.value - free_bytes.value) / (1024 ** 3), 2)
-            except:
-                pass
+        # Disco
+        disk = psutil.disk_usage("C:\\")
+        disk_space_gb = round(disk.total / (1024 ** 3), 2)
+        disk_free_gb = round(disk.free / (1024 ** 3), 2)
 
-        # Memória RAM (Windows)
-        if platform.system() == "Windows":
-            try:
-                import ctypes
+        # Uptime
+        boot_time = datetime.fromtimestamp(psutil.boot_time())
+        uptime_days = (datetime.now() - boot_time).days
 
-                class MEMORYSTATUSEX(ctypes.Structure):
-                    _fields_ = [
-                        ("dwLength", ctypes.c_ulong),
-                        ("dwMemoryLoad", ctypes.c_ulong),
-                        ("ullTotalPhys", ctypes.c_ulonglong),
-                        ("ullAvailPhys", ctypes.c_ulonglong),
-                        ("ullTotalPageFile", ctypes.c_ulonglong),
-                        ("ullAvailPageFile", ctypes.c_ulonglong),
-                        ("ullTotalVirtual", ctypes.c_ulonglong),
-                        ("ullAvailVirtual", ctypes.c_ulonglong),
-                        ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
-                    ]
+        # Sistema Operacional
+        os_info = c.Win32_OperatingSystem()[0]
+        install_date = datetime.strptime(os_info.InstallDate.split('.')[0], "%Y%m%d%H%M%S")
+        last_boot = datetime.strptime(os_info.LastBootUpTime.split('.')[0], "%Y%m%d%H%M%S")
 
-                memstatus = MEMORYSTATUSEX()
-                memstatus.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
-                ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memstatus))
+        # Memória física (slots)
+        mem_modules = []
+        for mem in c.Win32_PhysicalMemory():
+            mem_modules.append({
+                "capacity_gb": round(int(mem.Capacity) / (1024 ** 3), 2),
+                "manufacturer": mem.Manufacturer,
+                "speed_mhz": mem.Speed
+            })
 
-                info['ram_total_gb'] = round(memstatus.ullTotalPhys / (1024 ** 3), 2)
-                info['ram_available_gb'] = round(memstatus.ullAvailPhys / (1024 ** 3), 2)
-                info['ram_used_gb'] = round((memstatus.ullTotalPhys - memstatus.ullAvailPhys) / (1024 ** 3), 2)
-            except:
-                pass
+        total_slots = len(c.Win32_PhysicalMemoryArray())
+        populated_slots = len(mem_modules)
 
-        return info
+        # Rede
+        network_adapters = []
+        for nic in c.Win32_NetworkAdapterConfiguration(IPEnabled=True):
+            network_adapters.append({
+                "description": nic.Description,
+                "mac": nic.MACAddress,
+                "ip": nic.IPAddress
+            })
+
+        mac_address = network_adapters[0]["mac"] if network_adapters else None
+
+        # GPU
+        gpu = c.Win32_VideoController()[0]
+        gpu_name = gpu.Name
+        gpu_driver = gpu.DriverVersion
+
+        # Antivirus
+        antivirus_name = None
+        av_state = None
+        try:
+            av = wmi.WMI(namespace="root\\SecurityCenter2").AntiVirusProduct()[0]
+            antivirus_name = av.displayName
+            av_state = av.productState
+        except:
+            pass
+
+        # TPM
+        tpm = False
+        try:
+            tpm = bool(c.Win32_Tpm()[0].IsEnabled_InitialValue)
+        except:
+            pass
+
+        return {
+            "hostname": hostname,
+            'ip_address': ip,
+            'is_online': True,
+            'last_seen': datetime.now(),
+
+            'logged_user': logged_user,
+
+            'tpm': tpm,
+
+            'mac_address': mac_address,
+            'total_memory_slots': total_slots,
+            'populated_memory_slots': populated_slots,
+            'memory_modules': mem_modules,
+
+            'os_caption': os_info.Caption,
+            'os_architecture': os_info.OSArchitecture,
+            'os_build': os_info.BuildNumber,
+            'install_date': install_date,
+            'last_boot': last_boot,
+            'uptime_days': uptime_days,
+
+            'cpu': cpu,
+            'ram_gb': ram_gb,
+            'disk_space_gb': disk_space_gb,
+            'disk_free_gb': disk_free_gb,
+
+            'network_adapters': network_adapters,
+            'gpu_name': gpu_name,
+            'gpu_driver': gpu_driver,
+            'antivirus_name': antivirus_name,
+            'av_state': str(av_state),
+        }
 
     @staticmethod
     def send_data(config, data):
         """Envia dados para o servidor com autenticação por token hash"""
         try:
-            url = config.get('server_url') + config.get('api_endpoint', '/api/checkin/')
+            url = config.get('server_url') + config.get("endpoint_checkin")
 
             # Adiciona hash do token para autenticação
             data['token_hash'] = config.get('token_hash')
 
-            json_data = json.dumps(data).encode()
+            payload = {
+                "hostname": data["hostname"],
+                "ip": data.get("ip_address", ""),
+                "hardware": data,  # backend espera dict hardware
+                "token": config.get("token_hash"),
+            }
+
 
             context = ssl._create_unverified_context()
             req = urllib.request.Request(
                 url,
-                data=json_data,
+                data=json.dumps(payload, default=str).encode(),
                 headers={'Content-Type': 'application/json'},
                 method='POST'
             )

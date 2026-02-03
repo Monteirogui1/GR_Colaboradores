@@ -43,11 +43,17 @@ def parse_wmi_date(wmi_str):
 class MachineCheckinView(View):
     def post(self, request):
         try:
+
+
             raw = request.body.decode('utf-8')
             data = json.loads(raw)
             hostname = data['hostname']
             ip = data.get('ip', '')
             hw = data.get('hardware', {})
+
+            token_hash = data.get("token")
+            if not AgentToken.objects.filter(token_hash=token_hash, is_active=True).exists():
+                return JsonResponse({'error': 'Token inválido'}, status=401)
 
             install_date = parse_wmi_date(hw.get('install_date'))
             last_boot = parse_wmi_date(hw.get('last_boot'))
@@ -581,7 +587,7 @@ class AgentValidateTokenAPIView(APIView):
 
             # Busca token
             try:
-                agent_token = AgentToken.objects.get(token=token, is_active=True)
+                agent_token = AgentToken.objects.get(token_hash=token, is_active=True)
             except AgentToken.DoesNotExist:
                 return Response(
                     {'valid': False, 'message': 'Token inválido'},
