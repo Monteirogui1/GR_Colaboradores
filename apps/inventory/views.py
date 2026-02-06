@@ -290,7 +290,6 @@ class MachineNotificationView(View):
                     'error': f'Erro interno: {str(e)}',
                     'notifications': []
                 }, status=500)
-
         def post(self, request):
             """
             Marca uma notificação como lida
@@ -344,7 +343,7 @@ class MachineNotificationView(View):
                 if hasattr(notification, 'status'):
                     notification.status = 'read'
                 if hasattr(notification, 'read_at'):
-                    notification.read_at = datetime.now()
+                    notification.read_at = timezone.now()
 
                 notification.save()
 
@@ -360,6 +359,7 @@ class MachineNotificationView(View):
                     'success': False,
                     'error': f'Erro ao processar: {str(e)}'
                 }, status=500)
+
 
 
 class AgentDownloadView(View):
