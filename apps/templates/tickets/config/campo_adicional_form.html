@@ -1,0 +1,56 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{% if object.pk %}Editar Campo Adicional{% else %}Nova Campo Adicional{% endif %}{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>{% if object.pk %}Editar Campo Adicional{% else %}Nova Campo Adicional{% endif %}</h1>
+        <a href="{% url 'tickets:campo_adicional_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="detail-card">
+            <h2>Informações</h2>
+            <div class="form-grid">
+                {% for field in form %}
+                    {% if field.name != 'descricao' and field.name != 'condicoes' and field.name != 'acoes' and field.name != 'opcoes' and field.name != 'condicoes_obrigatoriedade' %}
+                        <div class="form-group">
+                            {{ field.label_tag }}
+                            {{ field }}
+                            {% if field.errors %}
+                                <div class="text-danger">{{ field.errors }}</div>
+                            {% endif %}
+                            {% if field.help_text %}
+                                <small>{{ field.help_text }}</small>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% for field in form %}
+                {% if field.name == 'descricao' or field.name == 'condicoes' or field.name == 'acoes' or field.name == 'opcoes' or field.name == 'condicoes_obrigatoriedade' %}
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            {{ field.label_tag }}
+                            {{ field }}
+                            {% if field.errors %}
+                                <div class="text-danger">{{ field.errors }}</div>
+                            {% endif %}
+                            {% if field.help_text %}
+                                <small>{{ field.help_text }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

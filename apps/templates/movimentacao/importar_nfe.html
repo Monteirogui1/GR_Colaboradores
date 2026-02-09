@@ -1,0 +1,20 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Importar Nota Fiscal{% endblock %}
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>Importar Nota Fiscal (XML)</h1>
+        <a href="{% url 'movimentacao:lote_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+    <form method="post" enctype="multipart/form-data" autocomplete="off">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="nfe_xml">Arquivo XML da NFe:</label>
+            <input type="file" name="nfe_xml" id="nfe_xml" class="form-control" required>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Importar Nota</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

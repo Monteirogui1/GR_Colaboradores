@@ -1,0 +1,86 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Lotes de Estoque{% endblock %}
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>Lotes de Estoque</h1>
+        <a href="{% url 'movimentacao:importar_nfe' %}" class="btn btn-primary">Importar Nota Fiscal</a>
+    </div>
+    <form method="get" class="filter-form">
+        <div class="form-group">
+            <label for="numero_lote">Nº Lote</label>
+            <input type="text" name="numero_lote" id="numero_lote" value="{{ request.GET.numero_lote }}" class="form-control" placeholder="Nº Lote">
+        </div>
+        <div class="form-group">
+            <label for="produto">Produto</label>
+            <input type="text" name="produto" id="produto" value="{{ request.GET.produto }}" class="form-control" placeholder="Produto">
+        </div>
+        <div class="form-group">
+            <label for="fornecedor">Fornecedor</label>
+            <select name="fornecedor" id="fornecedor" class="form-control">
+                <option value="">Fornecedor</option>
+                {% for f in fornecedores %}
+                    <option value="{{ f.nome }}" {% if request.GET.fornecedor == f.nome %}selected{% endif %}>{{ f.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="data_inicial">Data Inicial</label>
+            <input type="date" name="data_inicial" id="data_inicial" value="{{ request.GET.data_inicial }}" class="form-control">
+        </div>
+        <div class="form-group">
+            <label for="data_final">Data Final</label>
+            <input type="date" name="data_final" id="data_final" value="{{ request.GET.data_final }}" class="form-control">
+        </div>
+        <div class="filter-buttons">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <a href="{% url 'movimentacao:lote_list' %}" class="btn btn-secondary">Limpar</a>
+        </div>
+    </form>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nº Lote</th>
+                <th>Produto</th>
+                <th>Variação</th>
+                <th>Quantidade</th>
+                <th>Preço Unitário</th>
+                <th>Nota Fiscal</th>
+                <th>Data Entrada</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for lote in lotes %}
+            <tr>
+                <td>{{ lote.numero_lote }}</td>
+                <td>{{ lote.variacao.produto.nome }}</td>
+                <td>{{ lote.variacao.tamanho|default:"-" }}</td>
+                <td>{{ lote.quantidade|floatformat:2 }} {{ lote.variacao.unidade }}</td>
+                <td>R$ {{ lote.preco_unitario|floatformat:2 }}</td>
+                <td>
+                    {% if lote.documento_nfe %}
+                        <a href="{{ lote.documento_nfe.url }}" target="_blank">Baixar XML</a>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>{{ lote.data_entrada|date:"d/m/Y H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7">Nenhum lote cadastrado.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if is_paginated %}
+    <ul class="pagination">
+        {% if page_obj.has_previous %}
+        <li><a href="?page={{ page_obj.previous_page_number }}">&laquo;</a></li>
+        {% endif %}
+        <li class="active"><span>{{ page_obj.number }}</span></li>
+        {% if page_obj.has_next %}
+        <li><a href="?page={{ page_obj.next_page_number }}">&raquo;</a></li>
+        {% endif %}
+    </ul>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Tipos de Movimentação{% endblock %}
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>Tipos de Movimentação</h1>
+        <a href="{% url 'movimentacao:tipo_movimentacao_create' %}" class="btn btn-primary">Novo Tipo</a>
+    </div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Entrada/Saída</th>
+                <th>Descrição</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tipo in tipos %}
+            <tr>
+                <td>{{ tipo.nome }}</td>
+                <td>{{ tipo.entrada_saida }}</td>
+                <td>{{ tipo.descricao|default:"-" }}</td>
+                <td>
+                    <a href="{% url 'movimentacao:tipo_movimentacao_edit' tipo.id %}" class="btn btn-sm btn-edit">Editar</a>
+                    <button class="btn btn-sm btn-delete" data-id="{{ tipo.id }}">Excluir</button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4">Nenhum tipo cadastrado.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

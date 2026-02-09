@@ -1,0 +1,331 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1><i class="bi bi-speedometer2"></i> Dashboard Geral</h1>
+    </div>
+
+    <!-- Cards Principais -->
+    <div class="metrics" style="justify-content: space-evenly;">
+        <!-- TICKETS -->
+        <div class="metric-card" style="background: linear-gradient(135deg, #1a73e8 0%, #764ba2 100%); color: white;">
+            <h3 style="color: white; margin-bottom: 10px;">Tickets Abertos</h3>
+            <p style="font-size: 48px; margin: 10px 0; color: white; font-weight: bold;">{{ stats.tickets.total_abertos }}</p>
+            <small style="color: rgba(255,255,255,0.9);">Total em aberto</small>
+        </div>
+        
+        <div class="metric-card" style="background: linear-gradient(135deg, #1a73e8 0%, #764ba2 100%); color: white;">
+            <h3 style="color: white; margin-bottom: 10px;">Abertos Hoje</h3>
+            <p style="font-size: 48px; margin: 10px 0; color: white; font-weight: bold;">{{ stats.tickets.abertos_hoje }}</p>
+            <small style="color: rgba(255,255,255,0.9);">Criados hoje</small>
+        </div>
+
+        <!-- ATIVOS -->
+        <div class="metric-card" style="background: linear-gradient(135deg, #1a73e8 0%, #764ba2 100%); color: white;">
+            <h3 style="color: white; margin-bottom: 10px;">Total de Ativos</h3>
+            <p style="font-size: 48px; margin: 10px 0; color: white; font-weight: bold;">{{ stats.ativos.total }}</p>
+            <small style="color: rgba(255,255,255,0.9);">Ativos cadastrados</small>
+        </div>
+
+        <!-- MÁQUINAS -->
+        <div class="metric-card" style="background: linear-gradient(135deg, #1a73e8 0%, #764ba2 100%); color: white;">
+            <h3 style="color: white; margin-bottom: 10px;">Total de Máquinas</h3>
+            <p style="font-size: 48px; margin: 10px 0; color: white; font-weight: bold;">{{ stats.maquinas.total }}</p>
+            <small style="color: rgba(255,255,255,0.9);">Máquinas cadastradas</small>
+        </div>
+    </div>
+
+    <!-- Cards Secundários -->
+    <div class="metrics" style="margin-top: 20px;">
+        <!-- Tickets -->
+        <div class="metric-card">
+            <h3>Tickets Vencidos</h3>
+            <p style="color: #dc3545; font-size: 32px; font-weight: 600;">{{ stats.tickets.vencidos }}</p>
+            <small>Fora do prazo SLA</small>
+        </div>
+        
+        <div class="metric-card">
+            <h3>Resolvidos (Mês)</h3>
+            <p style="color: #28a745; font-size: 32px; font-weight: 600;">{{ stats.tickets.resolvidos_mes }}</p>
+            <small>Fechados este mês</small>
+        </div>
+
+        {% if user.is_staff and stats.tickets.meus_tickets is not None %}
+        <div class="metric-card">
+            <h3>Meus Tickets</h3>
+            <p style="color: #fd7e14; font-size: 32px; font-weight: 600;">{{ stats.tickets.meus_tickets }}</p>
+            <small>Sob minha responsabilidade</small>
+        </div>
+        {% endif %}
+
+        <!-- Ativos -->
+        <div class="metric-card">
+            <h3>Ativos em Uso</h3>
+            <p style="color: #20c997; font-size: 32px; font-weight: 600;">{{ stats.ativos.ativos }}</p>
+            <small>Ativos ativos</small>
+        </div>
+
+        <div class="metric-card">
+            <h3>Em Manutenção</h3>
+            <p style="color: #ffc107; font-size: 32px; font-weight: 600;">{{ stats.ativos.manutencao }}</p>
+            <small>Ativos em manutenção</small>
+        </div>
+
+        <!-- Máquinas -->
+        <div class="metric-card">
+            <h3>Máquinas Online</h3>
+            <p style="color: #28a745; font-size: 32px; font-weight: 600;">{{ stats.maquinas.online }}</p>
+            <small>Conectadas agora</small>
+        </div>
+
+        <div class="metric-card">
+            <h3>Máquinas Offline</h3>
+            <p style="color: #6c757d; font-size: 32px; font-weight: 600;">{{ stats.maquinas.offline }}</p>
+            <small>Desconectadas</small>
+        </div>
+
+        <!-- Auditorias -->
+        {% if has_auditorias %}
+        <div class="metric-card">
+            <h3>Auditorias Ativas</h3>
+            <p style="color: #17a2b8; font-size: 32px; font-weight: 600;">{{ stats.auditorias.em_andamento }}</p>
+            <small>Em andamento</small>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Ações Rápidas -->
+    <div class="detail-card" style="margin-top: 30px;">
+        <h2><i class="bi bi-lightning"></i> Ações Rápidas</h2>
+        <div class="detail-content">
+            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                {% if has_tickets %}
+                <a href="{% url 'tickets:ticket_create' %}" class="btn btn-primary" style="flex: 1; min-width: 200px; padding: 20px; text-align: center; font-size: 16px;">
+                    <i class="bi bi-plus-circle" style="font-size: 24px; display: block; margin-bottom: 8px;"></i>
+                    Novo Ticket
+                </a>
+                <a href="{% url 'tickets:ticket_list' %}" class="btn btn-secondary" style="flex: 1; min-width: 200px; padding: 20px; text-align: center; font-size: 16px;">
+                    <i class="bi bi-list-ul" style="font-size: 24px; display: block; margin-bottom: 8px;"></i>
+                    Ver Todos Tickets
+                </a>
+                {% endif %}
+                
+                {% if has_ativos %}
+                <a href="{% url 'ativos:ativo_list' %}" class="btn btn-secondary" style="flex: 1; min-width: 200px; padding: 20px; text-align: center; font-size: 16px;">
+                    <i class="bi bi-box-seam" style="font-size: 24px; display: block; margin-bottom: 8px;"></i>
+                    Gerenciar Ativos
+                </a>
+                {% endif %}
+                
+                {% if has_maquinas %}
+                <a href="{% url 'inventario:machine_list' %}" class="btn btn-secondary" style="flex: 1; min-width: 200px; padding: 20px; text-align: center; font-size: 16px;">
+                    <i class="bi bi-pc-display" style="font-size: 24px; display: block; margin-bottom: 8px;"></i>
+                    Ver Máquinas
+                </a>
+                {% endif %}
+
+                {% if has_auditorias %}
+                <a href="{% url 'auditoria:auditoria_list' %}" class="btn btn-secondary" style="flex: 1; min-width: 200px; padding: 20px; text-align: center; font-size: 16px;">
+                    <i class="bi bi-clipboard-check" style="font-size: 24px; display: block; margin-bottom: 8px;"></i>
+                    Auditorias
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row" style="display: flex; gap: 20px; margin-top: 30px;">
+        <!-- Tickets por Status -->
+        {% if has_tickets and tickets_por_status %}
+        <div class="col" style="flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-width: 300px;">
+            <h3 style="margin-bottom: 20px; color: #333; font-size: 18px;">
+                <i class="bi bi-bar-chart"></i> Tickets por Status
+            </h3>
+            <canvas id="statusChart"></canvas>
+        </div>
+        {% endif %}
+
+        <!-- Tickets por Categoria -->
+        {% if has_tickets and tickets_por_categoria %}
+        <div class="col" style="flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-width: 300px;">
+            <h3 style="margin-bottom: 20px; color: #333; font-size: 18px;">
+                <i class="bi bi-pie-chart"></i> Tickets por Categoria
+            </h3>
+            <canvas id="categoriaChart"></canvas>
+        </div>
+        {% endif %}
+
+        <!-- Ativos por Categoria -->
+        {% if has_ativos and ativos_por_categoria %}
+        <div class="col" style="flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-width: 300px;">
+            <h3 style="margin-bottom: 20px; color: #333; font-size: 18px;">
+                <i class="bi bi-box-seam"></i> Ativos por Categoria
+            </h3>
+            <canvas id="ativosChart"></canvas>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Tickets Recentes -->
+    {% if has_tickets and tickets_recentes %}
+    <div class="detail-card" style="margin-top: 30px;">
+        <h2><i class="bi bi-clock-history"></i> Tickets Recentes</h2>
+        <div class="detail-content" style="padding: 0;">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Assunto</th>
+                            <th>Solicitante</th>
+                            <th>Status</th>
+                            <th>Criado em</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ticket in tickets_recentes %}
+                        <tr>
+                            <td><a href="{% url 'tickets:ticket_detail' ticket.pk %}" style="font-weight: 600;">#{{ ticket.numero }}</a></td>
+                            <td>{{ ticket.assunto|default:"Sem assunto"|truncatewords:8 }}</td>
+                            <td>{{ ticket.solicitante.get_full_name|default:ticket.solicitante.username }}</td>
+                            <td>
+                                <span class="badge" style="background-color: {{ ticket.status.cor }}; color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px;">
+                                    {{ ticket.status.nome }}
+                                </span>
+                            </td>
+                            <td>{{ ticket.criado_em|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                <a href="{% url 'tickets:ticket_detail' ticket.pk %}" class="btn btn-sm btn-view" title="Ver">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Máquinas Recentes -->
+    {% if has_maquinas and maquinas_recentes %}
+    <div class="detail-card" style="margin-top: 30px;">
+        <h2><i class="bi bi-pc-display"></i> Máquinas Recentes</h2>
+        <div class="detail-content" style="padding: 0;">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Hostname</th>
+                            <th>IP</th>
+                            <th>SO</th>
+                            <th>Status</th>
+                            <th>Última Atualização</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for machine in maquinas_recentes %}
+                        <tr>
+                            <td><a href="{% url 'inventario:machine_detail' machine.pk %}" style="font-weight: 600;">{{ machine.hostname }}</a></td>
+                            <td>{{ machine.ip_address }}</td>
+                            <td>{{ machine.os_caption|truncatewords:3 }}</td>
+                            <td>
+                                {% if machine.is_online %}
+                                    <span class="badge" style="background-color: #28a745; color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px;">
+                                        <i class="bi bi-circle-fill"></i> Online
+                                    </span>
+                                {% else %}
+                                    <span class="badge" style="background-color: #6c757d; color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px;">
+                                        <i class="bi bi-circle"></i> Offline
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>{{ machine.last_seen|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if has_tickets and tickets_por_status %}
+    // Gráfico de Status
+    const statusCtx = document.getElementById('statusChart');
+    if (statusCtx) {
+        new Chart(statusCtx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: [{% for item in tickets_por_status %}'{{ item.status__nome }}',{% endfor %}],
+                datasets: [{
+                    label: 'Tickets',
+                    data: [{% for item in tickets_por_status %}{{ item.total }},{% endfor %}],
+                    backgroundColor: [{% for item in tickets_por_status %}'{{ item.status__cor }}',{% endfor %}],
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+    }
+    {% endif %}
+
+    {% if has_tickets and tickets_por_categoria %}
+    // Gráfico de Categorias
+    const categoriaCtx = document.getElementById('categoriaChart');
+    if (categoriaCtx) {
+        new Chart(categoriaCtx.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: [{% for item in tickets_por_categoria %}'{{ item.categoria__nome|default:"Sem categoria" }}',{% endfor %}],
+                datasets: [{
+                    data: [{% for item in tickets_por_categoria %}{{ item.total }},{% endfor %}],
+                    backgroundColor: ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'],
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+    {% endif %}
+
+    {% if has_ativos and ativos_por_categoria %}
+    // Gráfico de Ativos
+    const ativosCtx = document.getElementById('ativosChart');
+    if (ativosCtx) {
+        new Chart(ativosCtx.getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: [{% for item in ativos_por_categoria %}'{{ item.categoria__nome|default:"Sem categoria" }}',{% endfor %}],
+                datasets: [{
+                    data: [{% for item in ativos_por_categoria %}{{ item.total }},{% endfor %}],
+                    backgroundColor: ['#4facfe', '#00f2fe', '#43e97b', '#38f9d7', '#fa709a'],
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+    {% endif %}
+});
+</script>
+{% endblock %}

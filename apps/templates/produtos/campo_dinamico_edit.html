@@ -1,0 +1,48 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{% if object %}Editar Campo Dinâmico{% else %}Novo Campo Dinâmico{% endif %} - ERP{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>{% if object %}Editar Campo Dinâmico{% else %}Novo Campo Dinâmico{% endif %}</h1>
+        <a href="{% url 'produtos:campo_dinamico_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+    <form method="post" autocomplete="off">
+        {% csrf_token %}
+        <div class="form-grid">
+            <div class="form-group">
+                {{ form.nome.label_tag }}
+                {{ form.nome }}
+                {% if form.nome.errors %}
+                    <div class="text-danger">{{ form.nome.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.tipo.label_tag }}
+                {{ form.tipo }}
+                {% if form.tipo.errors %}
+                    <div class="text-danger">{{ form.tipo.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.categoria.label_tag }}
+                {{ form.categoria }}
+                {% if form.categoria.errors %}
+                    <div class="text-danger">{{ form.categoria.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.obrigatorio.label_tag }}
+                {{ form.obrigatorio }}
+                {% if form.obrigatorio.errors %}
+                    <div class="text-danger">{{ form.obrigatorio.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

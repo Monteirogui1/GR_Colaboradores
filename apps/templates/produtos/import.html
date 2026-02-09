@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <h2>Importar Produtos</h2>
+    <p>Selecione o formato e faça upload do arquivo para importar produtos.</p>
+    {% if messages %}
+        <div class="alert alert-info">
+            {% for message in messages %}
+                {{ message }}
+            {% endfor %}
+        </div>
+    {% endif %}
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-primary">Importar</button>
+        <a href="{% url 'produtos:produto_list' %}" class="btn btn-secondary">Voltar</a>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "layouts/base.html" %}
+{% block title %}Urgencias{% endblock %}
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1><i class="bi-lightning"></i> Urgencias</h1>
+        <a href="{% url 'tickets:urgencia_create' %}" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Nova Urgencia</a>
+    </div>
+    <div class="detail-card">
+        <h2>Lista</h2>
+        <div class="detail-content" style="padding: 0;">
+            {% if urgencias or urgencia_list %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead><tr><th>Nome</th><th>Status</th><th>Ações</th></tr></thead>
+                        <tbody>
+                            {% for obj in urgencias|default:urgencia_list %}
+                            <tr>
+                                <td><strong>{{ obj.nome }}</strong></td>
+                                <td><span class="badge" style="background-color: {% if obj.ativo %}#28a745{% else %}#6c757d{% endif %}; color: white;">{% if obj.ativo %}Ativo{% else %}Inativo{% endif %}</span></td>
+                                <td>
+                                    <a href="{% url 'tickets:urgencia_update' obj.pk %}" class="btn btn-sm btn-edit"><i class="bi bi-pencil"></i></a>
+                                    <form method="post" action="{% url 'tickets:urgencia_delete' obj.pk %}" style="display: inline;" onsubmit="return confirm('Tem certeza?');">{% csrf_token %}<button type="submit" class="btn btn-sm btn-delete"><i class="bi bi-trash"></i></button></form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div style="text-align: center; padding: 60px;"><p>Nenhum registro</p></div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -36,7 +36,7 @@
         }
 
         .sidebar nav ul li.has-submenu.open .submenu {
-            max-height: 500px;
+            max-height: max-content;
         }
 
         .submenu li a {
@@ -58,8 +58,9 @@
         <nav>
             <ul>
                 <!-- Dashboard -->
-                <li><a href="#"><span class="icon"><i class="bi bi-speedometer2"></i></span> Dashboard</a></li>
-
+                 <li><a href="{% url 'home:dashboard' %}">
+                    <span class="icon"><i class="bi bi-speedometer2"></i></span> Dashboard
+                </a></li>
                 <!-- Cadastros Básicos -->
                 <li class="has-submenu">
                     <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
@@ -70,6 +71,9 @@
                         <li><a href="{% url 'categorias:categoria_list' %}"><span class="icon"><i class="bi bi-bookmarks"></i></span> Categorias</a></li>
                         <li><a href="{% url 'marcas:marca_list' %}"><span class="icon"><i class="bi bi-tags"></i></span> Marcas</a></li>
                         <li><a href="{% url 'fornecedores:fornecedores_list' %}"><span class="icon"><i class="bi bi-truck"></i></span> Fornecedores</a></li>
+                        <li><a href="{% url 'produtos:unidade_medida_list' %}"><span class="icon"><i class="bi bi-rulers"></i></span> Unidades</a></li>
+                        <li><a href="{% url 'produtos:campo_dinamico_list' %}"><span class="icon"><i class="bi bi-sliders"></i></span> Campos Dinâmicos</a></li>
+                        <li><a href="{% url 'movimentacao:tipo_movimentacao_list' %}"><span class="icon"><i class="bi bi-repeat"></i></span> Tipos de Mov.</a></li>
                     </ul>
                 </li>
 
@@ -99,6 +103,50 @@
                         <li><a href="{% url 'inventario:machine_list' %}"><span class="icon"><i class="bi bi-pc-display"></i></span> Máquinas</a></li>
                         <li><a href="{% url 'inventario:group_list' %}"><span class="icon"><i class="bi bi-collection"></i></span> Grupos</a></li>
                         <li><a href="{% url 'inventario:token_list' %}"><span class="icon"><i class="bi bi-collection"></i></span> Tokens</a></li>
+                    </ul>
+                </li>
+
+                <!-- Tickets -->
+                <li class="has-submenu">
+                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
+                        <span><i class="bi bi-ticket-detailed"></i> Tickets</span>
+                        <i class="bi bi-chevron-down submenu-toggle"></i>
+                    </a>
+                    <ul class="submenu">
+                        <li><a href="{% url 'tickets:ticket_create' %}"><span class="icon"><i class="bi bi-plus-circle"></i></span> Novo Ticket</a></li>
+                        <li><a href="{% url 'tickets:ticket_list' %}"><span class="icon"><i class="bi bi-list-ul"></i></span> Listar Tickets</a></li>
+                    </ul>
+                </li>
+
+                <!-- Estoque -->
+                <li class="has-submenu">
+                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
+                        <span><i class="bi bi-box-seam"></i> Estoque</span>
+                        <i class="bi bi-chevron-down submenu-toggle"></i>
+                    </a>
+                    <ul class="submenu">
+                        <li><a href="{% url 'produtos:produtos_list' %}"><span class="icon"><i class="bi bi-box-seam"></i></span> Produtos</a></li>
+                        <li><a href="{% url 'movimentacao:movimentacao_list' %}"><span class="icon"><i class="bi bi-arrow-left-right"></i></span> Movimentações</a></li>
+                        <li><a href="{% url 'movimentacao:historico_estoque_list' %}"><span class="icon"><i class="bi bi-clock-history"></i></span> Histórico</a></li>
+                    </ul>
+                </li>
+
+                <!-- Configurações Tickets -->
+                <li class="has-submenu">
+                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
+                        <span><i class="bi bi-gear"></i> Config. Tickets</span>
+                        <i class="bi bi-chevron-down submenu-toggle"></i>
+                    </a>
+                    <ul class="submenu">
+                        <li><a href="{% url 'tickets:categoria_list' %}"><span class="icon"><i class="bi bi-bookmarks"></i></span> Categorias</a></li>
+                        <li><a href="{% url 'tickets:urgencia_list' %}"><span class="icon"><i class="bi bi-lightning"></i></span> Urgências</a></li>
+                        <li><a href="{% url 'tickets:status_list' %}"><span class="icon"><i class="bi bi-circle-fill"></i></span> Status</a></li>
+                        <li><a href="{% url 'tickets:justificativa_list' %}"><span class="icon"><i class="bi bi-chat-left-text"></i></span> Justificativas</a></li>
+                        <li><a href="{% url 'tickets:servico_list' %}"><span class="icon"><i class="bi bi-tools"></i></span> Serviços</a></li>
+                        <li><a href="{% url 'tickets:contrato_sla_list' %}"><span class="icon"><i class="bi bi-clock-history"></i></span> SLA</a></li>
+                        <li><a href="{% url 'tickets:campo_adicional_list' %}"><span class="icon"><i class="bi bi-input-cursor-text"></i></span> Campos Adicionais</a></li>
+                        <li><a href="{% url 'tickets:gatilho_list' %}"><span class="icon"><i class="bi bi-lightning-charge"></i></span> Gatilhos</a></li>
+                        <li><a href="{% url 'tickets:macro_list' %}"><span class="icon"><i class="bi bi-code-square"></i></span> Macros</a></li>
                     </ul>
                 </li>
 

@@ -1,0 +1,55 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{% if lote %}Editar Lote{% else %}Novo Lote{% endif %} - ERP{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>{% if lote %}Editar Lote{% else %}Novo Lote{% endif %}</h1>
+        <a href="{% url 'movimentacao:lote_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-grid">
+            <div class="form-group">
+                {{ form.variacao.label_tag }}
+                {{ form.variacao }}
+                {% if form.variacao.errors %}
+                    <div class="text-danger">{{ form.variacao.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.numero_lote.label_tag }}
+                {{ form.numero_lote }}
+                {% if form.numero_lote.errors %}
+                    <div class="text-danger">{{ form.numero_lote.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.quantidade.label_tag }}
+                {{ form.quantidade }}
+                {% if form.quantidade.errors %}
+                    <div class="text-danger">{{ form.quantidade.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.fornecedor.label_tag }}
+                {{ form.fornecedor }}
+                {% if form.fornecedor.errors %}
+                    <div class="text-danger">{{ form.fornecedor.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group full-width">
+                {{ form.descricao.label_tag }}
+                {{ form.descricao }}
+                {% if form.descricao.errors %}
+                    <div class="text-danger">{{ form.descricao.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

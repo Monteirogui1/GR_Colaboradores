@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
+from django.urls import reverse_lazy
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 APPS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,6 +45,7 @@ INSTALLED_APPS = [
     'import_export',
     'apps',
     'apps.authentication',
+    'apps.home',
     'apps.inventory',
     'apps.shared',
     'apps.categorias',
@@ -50,6 +53,10 @@ INSTALLED_APPS = [
     'apps.fornecedor',
     'apps.ativos',
     'apps.auditoria',
+    'apps.tickets',
+    'apps.produtos',
+    'apps.movimentacao',
+    'apps.notificacao',
 ]
 
 MIDDLEWARE = [
@@ -153,3 +160,55 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
+
+
+MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = 'media/'
+
+
+LOGIN_URL = reverse_lazy('authentication:login')  # Página de login
+LOGIN_REDIRECT_URL = reverse_lazy('home:dashboard')       # Redireciona para a homepage após login
+LOGOUT_REDIRECT_URL = reverse_lazy('authentication:login')  # Redireciona para login após logout
+
+# Configuração para recebimento de tickets por e-mail
+TICKET_EMAIL_CONFIG = {
+    # Servidor IMAP
+    'IMAP_SERVER': 'imap.gmail.com',  # Gmail
+    # 'IMAP_SERVER': 'outlook.office365.com',  # Outlook
+    # 'IMAP_SERVER': 'imap.mail.yahoo.com',  # Yahoo
+    'IMAP_PORT': 993,
+
+    # Credenciais
+    'EMAIL_USER': 'suporte@suaempresa.com',
+    'EMAIL_PASSWORD': 'sua_senha_ou_app_password',
+
+    # Configurações de processamento
+    'AUTO_CREATE_USERS': True,  # Criar usuários automaticamente
+    'PROCESS_ATTACHMENTS': True,  # Processar anexos
+    'DEFAULT_CLIENTE_ID': 1,  # ID do cliente padrão (opcional)
+
+    # NOTIFICAÇÕES
+    'SEND_CONFIRMATION': True,  # Enviar confirmação ao criar ticket
+    'NOTIFY_AGENT_ON_REPLY': True,  # Notificar técnico quando cliente responde
+    'NOTIFY_CLIENT_ON_REPLY': True,  # Notificar cliente quando técnico responde
+
+    # URL DO SISTEMA
+    'SITE_URL': 'https://suporte.empresa.com',  # URL base para links
+}
+
+# E-mail de saída (para enviar notificações)
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'suporte@empresa.com'
+EMAIL_HOST_PASSWORD = 'senha_ou_app_password'
+DEFAULT_FROM_EMAIL = 'Suporte <suporte@empresa.com>'
+
+
+
+# CELERY_BEAT_SCHEDULE = {
+#     'check-machines-status': {
+#         'task': 'apps.inventory.tasks.check_machines_status',
+#         'schedule': 300.0,  # A cada 5 minutos
+#     },
+# }

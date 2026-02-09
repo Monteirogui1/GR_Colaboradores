@@ -1,0 +1,156 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{% if object.pk %}Editar Ticket{% else %}Novo Ticket{% endif %}{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>{% if object.pk %}Editar Ticket{% else %}Novo Ticket{% endif %}</h1>
+        <a href="{% url 'tickets:ticket_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <!-- Informações Básicas -->
+        <div class="detail-card">
+            <h2>Informações Básicas</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    {{ form.solicitante.label_tag }}
+                    {{ form.solicitante }}
+                    {% if form.solicitante.errors %}
+                        <div class="text-danger">{{ form.solicitante.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.status.label_tag }}
+                    {{ form.status }}
+                    {% if form.status.errors %}
+                        <div class="text-danger">{{ form.status.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.responsavel.label_tag }}
+                    {{ form.responsavel }}
+                    {% if form.responsavel.errors %}
+                        <div class="text-danger">{{ form.responsavel.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.tipo_ticket.label_tag }}
+                    {{ form.tipo_ticket }}
+                    {% if form.tipo_ticket.errors %}
+                        <div class="text-danger">{{ form.tipo_ticket.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Classificação -->
+        <div class="detail-card">
+            <h2>Classificação</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    {{ form.categoria.label_tag }}
+                    {{ form.categoria }}
+                    {% if form.categoria.errors %}
+                        <div class="text-danger">{{ form.categoria.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.urgencia.label_tag }}
+                    {{ form.urgencia }}
+                    {% if form.urgencia.errors %}
+                        <div class="text-danger">{{ form.urgencia.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.servico.label_tag }}
+                    {{ form.servico }}
+                    {% if form.servico.errors %}
+                        <div class="text-danger">{{ form.servico.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.justificativa.label_tag }}
+                    {{ form.justificativa }}
+                    {% if form.justificativa.errors %}
+                        <div class="text-danger">{{ form.justificativa.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Detalhes -->
+        <div class="detail-card">
+            <h2>Detalhes</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    {{ form.assunto.label_tag }}
+                    {{ form.assunto }}
+                    {% if form.assunto.errors %}
+                        <div class="text-danger">{{ form.assunto.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.tags.label_tag }}
+                    {{ form.tags }}
+                    {% if form.tags.errors %}
+                        <div class="text-danger">{{ form.tags.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.cc.label_tag }}
+                    {{ form.cc }}
+                    {% if form.cc.errors %}
+                        <div class="text-danger">{{ form.cc.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    {{ form.descricao.label_tag }}
+                    {{ form.descricao }}
+                    {% if form.descricao.errors %}
+                        <div class="text-danger">{{ form.descricao.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+    </form>
+</div>
+
+<script>
+// Carregar urgências quando categoria mudar
+document.addEventListener('DOMContentLoaded', function() {
+    const categoriaSelect = document.getElementById('id_categoria');
+    if (categoriaSelect) {
+        categoriaSelect.addEventListener('change', function() {
+            const categoriaId = this.value;
+            if (!categoriaId) return;
+
+            fetch(`/tickets/api/urgencias/${categoriaId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    const urgenciaSelect = document.getElementById('id_urgencia');
+                    urgenciaSelect.innerHTML = '<option value="">---------</option>';
+
+                    if (data.success && data.urgencias) {
+                        data.urgencias.forEach(urgencia => {
+                            const option = document.createElement('option');
+                            option.value = urgencia.id;
+                            option.textContent = urgencia.nome;
+                            urgenciaSelect.appendChild(option);
+                        });
+                    }
+                });
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{% if object.pk %}Editar Urgência{% else %}Nova Urgência{% endif %}{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>{% if object.pk %}Editar Urgência{% else %}Nova Urgência{% endif %}</h1>
+        <a href="{% url 'tickets:urgencia_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="detail-card">
+            <h2>Informações</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    {{ form.nome.label_tag }}
+                    {{ form.nome }}
+                    {% if form.nome.errors %}
+                        <div class="text-danger">{{ form.nome.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.nivel.label_tag }}
+                    {{ form.nivel }}
+                    {% if form.nivel.errors %}
+                        <div class="text-danger">{{ form.nivel.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.cor.label_tag }}
+                    {{ form.cor }}
+                    {% if form.cor.errors %}
+                        <div class="text-danger">{{ form.cor.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label>
+                        {{ form.ativo }} Ativo
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

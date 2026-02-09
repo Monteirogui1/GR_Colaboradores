@@ -1,0 +1,27 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}Excluir Movimentação - ERP{% endblock %}
+
+{% block conteudo %}
+<div class="container mt-5">
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Exclusão de Produto</h5>
+            <p class="card-text">
+                Você tem certeza que quer excluir a movimentação 
+                <b>{{ object.produto.nome }}</b>?
+            </p>
+            <form method="post">
+                {% csrf_token %}
+                <hr />
+                <div class="text-right">
+                    <a href="{% url 'produtos:produtos_list' %}" class="btn btn-outline-danger">
+                        Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

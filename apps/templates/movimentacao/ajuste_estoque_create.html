@@ -1,0 +1,41 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}Ajustar Estoque - ERP{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>Ajustar Estoque</h1>
+        <a href="{% url 'movimentacao:historico_estoque_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-grid">
+            <div class="form-group">
+                {{ form.produto.label_tag }}
+                {{ form.produto }}
+                {% if form.produto.errors %}
+                    <div class="text-danger">{{ form.produto.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.quantidade.label_tag }}
+                {{ form.quantidade }}
+                {% if form.quantidade.errors %}
+                    <div class="text-danger">{{ form.quantidade.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group full-width">
+                {{ form.descricao.label_tag }}
+                {{ form.descricao }}
+                {% if form.descricao.errors %}
+                    <div class="text-danger">{{ form.descricao.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

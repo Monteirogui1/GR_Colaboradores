@@ -1,0 +1,27 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ object.pk|yesno:"Editar,Nova" }} Regra Exibicao{% endblock %}
+{% block conteudo %}
+<div class="content">
+    <div class="page-header"><h1>{{ object.pk|yesno:"Editar,Nova" }} Regra Exibicao</h1></div>
+    <div class="detail-card">
+        <h2>Formulário</h2>
+        <div class="detail-content">
+            <form method="post" class="form">
+                {% csrf_token %}
+                {% for field in form %}
+                    <div class="form-group" {% if field.name == 'descricao' or field.name == 'condicoes' or field.name == 'acoes' or field.name == 'opcoes' %}style="grid-column: 1 / -1;"{% endif %}>
+                        <label>{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+                        {{ field }}
+                        {% if field.errors %}<span class="error">{{ field.errors.0 }}</span>{% endif %}
+                        {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                    </div>
+                {% endfor %}
+                <div class="form-buttons">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle"></i> Salvar</button>
+                    <a href="{% url 'tickets:regra_exibicao_list' %}" class="btn btn-secondary"><i class="bi bi-x-circle"></i> Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,217 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+
+{% block title %}Tickets{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1><i class="bi bi-ticket-detailed"></i> Tickets</h1>
+        <a href="{% url 'tickets:ticket_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Novo Ticket
+        </a>
+    </div>
+
+    <!-- Formulário de filtros -->
+    <form method="get" class="filter-form">
+        <div class="form-group">
+            <label for="id_numero">Número</label>
+            {{ filtro_form.numero }}
+        </div>
+        <div class="form-group">
+            <label for="id_solicitante">Solicitante</label>
+            {{ filtro_form.solicitante }}
+        </div>
+        <div class="form-group">
+            <label for="id_assunto">Assunto</label>
+            {{ filtro_form.assunto }}
+        </div>
+        <div class="form-group">
+            <label for="id_status">Status</label>
+            {{ filtro_form.status }}
+        </div>
+        <div class="form-group">
+            <label for="id_categoria">Categoria</label>
+            {{ filtro_form.categoria }}
+        </div>
+        <div class="form-group">
+            <label for="id_urgencia">Urgência</label>
+            {{ filtro_form.urgencia }}
+        </div>
+        <div class="form-group">
+            <label for="id_responsavel">Responsável</label>
+            {{ filtro_form.responsavel }}
+        </div>
+        <div class="form-group">
+            <label for="id_data_inicio">Data Início</label>
+            {{ filtro_form.data_inicio }}
+        </div>
+        <div class="form-group">
+            <label for="id_data_fim">Data Fim</label>
+            {{ filtro_form.data_fim }}
+        </div>
+        <div class="form-group">
+            <label>
+                {{ filtro_form.nao_concluidos }} Não concluídos
+            </label>
+        </div>
+        <div class="filter-buttons">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <a href="{% url 'tickets:ticket_list' %}" class="btn btn-secondary">Limpar</a>
+        </div>
+    </form>
+
+
+    <!-- Tabela de Resultados -->
+    <div class="detail-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; border-bottom: 1px solid #e0e0e0;">
+            <h2 style="margin: 0;">
+                <i class="bi bi-list-ul"></i> Resultados 
+                {% if page_obj %}({{ page_obj.paginator.count }}){% endif %}
+            </h2>
+            <div style="display: flex; gap: 10px;">
+                <a href="?view=lista&{{ request.GET.urlencode }}" 
+                   class="btn {% if visualizacao == 'lista' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+                    <i class="bi bi-list"></i> Lista
+                </a>
+                <a href="?view=kanban&{{ request.GET.urlencode }}" 
+                   class="btn {% if visualizacao == 'kanban' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+                    <i class="bi bi-kanban"></i> Kanban
+                </a>
+            </div>
+        </div>
+
+        <div class="detail-content" style="padding: 0;">
+            {% if visualizacao == 'kanban' %}
+                <!-- Visualização Kanban (TODO) -->
+                <div style="padding: 80px 20px; text-align: center; color: #999;">
+                    <i class="bi bi-kanban" style="font-size: 64px; display: block; margin-bottom: 20px;"></i>
+                    <p style="font-size: 18px;">Visualização Kanban em desenvolvimento...</p>
+                </div>
+            {% else %}
+                <!-- Visualização Lista -->
+                {% if tickets %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 100px;">Número</th>
+                                    <th>Assunto</th>
+                                    <th style="width: 150px;">Solicitante</th>
+                                    <th style="width: 120px;">Status</th>
+                                    <th style="width: 120px;">Categoria</th>
+                                    <th style="width: 100px;">Urgência</th>
+                                    <th style="width: 120px;">Responsável</th>
+                                    <th style="width: 130px;">SLA</th>
+                                    <th style="width: 130px;">Criado em</th>
+                                    <th style="width: 100px;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ticket in tickets %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'tickets:ticket_detail' ticket.pk %}" style="font-weight: 600;">
+                                            #{{ ticket.numero }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'tickets:ticket_detail' ticket.pk %}">
+                                            {{ ticket.assunto|default:"Sem assunto"|truncatewords:8 }}
+                                        </a>
+                                    </td>
+                                    <td>{{ ticket.solicitante.get_full_name|default:ticket.solicitante.username }}</td>
+                                    <td>
+                                        <span class="badge" style="background-color: {{ ticket.status.cor }}; color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px;">
+                                            {{ ticket.status.nome }}
+                                        </span>
+                                    </td>
+                                    <td>{{ ticket.categoria.nome|default:"-" }}</td>
+                                    <td>
+                                        {% if ticket.urgencia %}
+                                            <span class="badge" style="background-color: {{ ticket.urgencia.cor }}; color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px;">
+                                                {{ ticket.urgencia.nome }}
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ ticket.responsavel.get_full_name|default:ticket.responsavel.username|default:"-" }}</td>
+                                    <td>
+                                        {% if ticket.previsao_solucao %}
+                                            {% if ticket.esta_vencido %}
+                                                <span class="badge" style="background-color: #dc3545; color: white; padding: 5px 8px; border-radius: 4px; font-size: 11px;">
+                                                    <i class="bi bi-exclamation-triangle"></i> Vencido
+                                                </span>
+                                            {% else %}
+                                                <span style="font-size: 12px;">{{ ticket.previsao_solucao|date:"d/m H:i" }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ ticket.criado_em|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        <div style="display: flex; gap: 5px;">
+                                            <a href="{% url 'tickets:ticket_detail' ticket.pk %}" 
+                                               class="btn btn-sm btn-view" title="Ver detalhes">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a href="{% url 'tickets:ticket_update' ticket.pk %}" 
+                                               class="btn btn-sm btn-edit" title="Editar">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginação -->
+                    {% if is_paginated %}
+                    <div style="padding: 15px 20px; border-top: 1px solid #e0e0e0; display: flex; justify-content: center;">
+                        <nav>
+                            <ul class="pagination" style="display: flex; list-style: none; gap: 5px; margin: 0; padding: 0;">
+                                {% if page_obj.has_previous %}
+                                    <li>
+                                        <a href="?page=1&{{ request.GET.urlencode }}" class="btn btn-sm btn-secondary">Primeira</a>
+                                    </li>
+                                    <li>
+                                        <a href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}" class="btn btn-sm btn-secondary">Anterior</a>
+                                    </li>
+                                {% endif %}
+
+                                <li>
+                                    <span class="btn btn-sm btn-primary" style="pointer-events: none;">
+                                        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                    </span>
+                                </li>
+
+                                {% if page_obj.has_next %}
+                                    <li>
+                                        <a href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}" class="btn btn-sm btn-secondary">Próxima</a>
+                                    </li>
+                                    <li>
+                                        <a href="?page={{ page_obj.paginator.num_pages }}&{{ request.GET.urlencode }}" class="btn btn-sm btn-secondary">Última</a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <div style="text-align: center; padding: 80px 20px; color: #999;">
+                        <i class="bi bi-inbox" style="font-size: 64px; display: block; margin-bottom: 20px;"></i>
+                        <p style="font-size: 18px; margin-bottom: 20px;">Nenhum ticket encontrado</p>
+                        <a href="{% url 'tickets:ticket_create' %}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Criar Primeiro Ticket
+                        </a>
+                    </div>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1><i class="bi {{ icon }}"></i> {{ title }}</h1>
+        <a href="{{ create_url }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Adicionar
+        </a>
+    </div>
+
+    <div class="detail-card">
+        <h2>Lista de {{ title }}</h2>
+        <div class="detail-content" style="padding: 0;">
+            {% if object_list %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                {% block table_headers %}{% endblock %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% block table_rows %}{% endblock %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div style="text-align: center; padding: 60px 20px; color: #999;">
+                    <i class="bi {{ icon }}" style="font-size: 64px; display: block; margin-bottom: 20px;"></i>
+                    <p style="font-size: 18px; margin-bottom: 20px;">Nenhum registro encontrado</p>
+                    <a href="{{ create_url }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Criar Primeiro Registro
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

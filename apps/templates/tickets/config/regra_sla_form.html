@@ -1,0 +1,129 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{% if object.pk %}Editar Regra SLA{% else %}Nova Regra SLA{% endif %}{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>{% if object.pk %}Editar Regra SLA{% else %}Nova Regra SLA{% endif %}</h1>
+        <a href="{% url 'tickets:contrato_sla_detail' contrato.pk %}" class="btn btn-secondary">Voltar</a>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="detail-card">
+            <h2>Informações Básicas</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    {{ form.nome.label_tag }}
+                    {{ form.nome }}
+                    {% if form.nome.errors %}
+                        <div class="text-danger">{{ form.nome.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.ordem.label_tag }}
+                    {{ form.ordem }}
+                    {% if form.ordem.errors %}
+                        <div class="text-danger">{{ form.ordem.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label>
+                        {{ form.ativo }} Ativa
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-card">
+            <h2>Condições</h2>
+            <div class="form-grid">
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    {{ form.categorias.label_tag }}
+                    {{ form.categorias }}
+                    {% if form.categorias.errors %}
+                        <div class="text-danger">{{ form.categorias.errors }}</div>
+                    {% endif %}
+                    <small>Deixe vazio para aplicar a todas</small>
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    {{ form.urgencias.label_tag }}
+                    {{ form.urgencias }}
+                    {% if form.urgencias.errors %}
+                        <div class="text-danger">{{ form.urgencias.errors }}</div>
+                    {% endif %}
+                    <small>Deixe vazio para aplicar a todas</small>
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    {{ form.servicos.label_tag }}
+                    {{ form.servicos }}
+                    {% if form.servicos.errors %}
+                        <div class="text-danger">{{ form.servicos.errors }}</div>
+                    {% endif %}
+                    <small>Deixe vazio para aplicar a todos</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-card">
+            <h2>Pausas</h2>
+            <div class="form-grid">
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    {{ form.status_pausam.label_tag }}
+                    {{ form.status_pausam }}
+                    {% if form.status_pausam.errors %}
+                        <div class="text-danger">{{ form.status_pausam.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    {{ form.justificativas_pausam.label_tag }}
+                    {{ form.justificativas_pausam }}
+                    {% if form.justificativas_pausam.errors %}
+                        <div class="text-danger">{{ form.justificativas_pausam.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-card">
+            <h2>Prazos</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    {{ form.prazo_primeira_resposta.label_tag }}
+                    {{ form.prazo_primeira_resposta }}
+                    {% if form.prazo_primeira_resposta.errors %}
+                        <div class="text-danger">{{ form.prazo_primeira_resposta.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.prazo_solucao.label_tag }}
+                    {{ form.prazo_solucao }}
+                    {% if form.prazo_solucao.errors %}
+                        <div class="text-danger">{{ form.prazo_solucao.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.limite_acoes_publicas.label_tag }}
+                    {{ form.limite_acoes_publicas }}
+                    {% if form.limite_acoes_publicas.errors %}
+                        <div class="text-danger">{{ form.limite_acoes_publicas.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.tipo_horario.label_tag }}
+                    {{ form.tipo_horario }}
+                    {% if form.tipo_horario.errors %}
+                        <div class="text-danger">{{ form.tipo_horario.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

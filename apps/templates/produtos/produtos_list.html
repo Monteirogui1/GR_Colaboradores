@@ -1,0 +1,127 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Produtos{% endblock %}
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>Produtos</h1>
+        <a href="{% url 'produtos:produtos_form' %}" class="btn btn-primary">Novo Produto</a>
+    </div>
+    <form method="get" class="filter-form">
+        <div class="form-group">
+            <label for="nome">Nome do Produto</label>
+            <input type="text" name="nome" id="nome" value="{{ request.GET.nome }}" class="form-control" placeholder="Nome do Produto">
+        </div>
+        <div class="form-group">
+            <label for="codigo_barras">Código de Barras</label>
+            <input type="text" name="codigo_barras" id="codigo_barras" value="{{ request.GET.codigo_barras }}" class="form-control" placeholder="Código de Barras">
+        </div>
+        <div class="form-group">
+            <label for="num_serie">Nº Série</label>
+            <input type="text" name="num_serie" id="num_serie" value="{{ request.GET.num_serie }}" class="form-control" placeholder="Nº Série">
+        </div>
+        <div class="form-group">
+            <label for="fornecedor">Fornecedor</label>
+            <select name="fornecedor" id="fornecedor" class="form-control">
+                <option value="">Fornecedor</option>
+                {% for f in fornecedores %}
+                    <option value="{{ f.id }}" {% if request.GET.fornecedor == f.id|stringformat:"s" %}selected{% endif %}>{{ f.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="marca">Marca</label>
+            <select name="marca" id="marca" class="form-control">
+                <option value="">Marca</option>
+                {% for m in marcas %}
+                    <option value="{{ m.id }}" {% if request.GET.marca == m.id|stringformat:"s" %}selected{% endif %}>{{ m.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="categoria">Categoria</label>
+            <select name="categoria" id="categoria" class="form-control">
+                <option value="">Categoria</option>
+                {% for c in categorias %}
+                    <option value="{{ c.id }}" {% if request.GET.categoria == c.id|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="status">Status</label>
+            <select name="status" id="status" class="form-control">
+                <option value="">Status</option>
+                <option value="true" {% if request.GET.status == "true" %}selected{% endif %}>Ativo</option>
+                <option value="false" {% if request.GET.status == "false" %}selected{% endif %}>Inativo</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="ordenar">Ordenar por</label>
+            <select name="ordenar" id="ordenar" class="form-control">
+                <option value="">Ordenar por</option>
+                <option value="nome" {% if request.GET.ordenar == "nome" %}selected{% endif %}>Nome</option>
+                <option value="codigo_barras" {% if request.GET.ordenar == "codigo_barras" %}selected{% endif %}>Código de Barras</option>
+                <option value="-nome" {% if request.GET.ordenar == "-nome" %}selected{% endif %}>Nome (Z-A)</option>
+            </select>
+        </div>
+        <div class="filter-buttons">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <a href="{% url 'produtos:produtos_list' %}" class="btn btn-secondary">Limpar</a>
+        </div>
+    </form>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Categoria</th>
+                <th>Marca</th>
+                <th>Fornecedor</th>
+                <th>Estoque</th>
+                <th>Ativo</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for produtos in produto %}
+            <tr>
+                <td>{{ produtos.nome }}</td>
+                <td>{{ produtos.categoria }}</td>
+                <td>{{ produtos.marca }}</td>
+                <td>{{ produtos.fornecedor }}</td>
+                <td>
+                    {% for v in produtos.variacoes.all %}
+                        {{ v.tamanho|default:"-" }}: {{ v.quantidade|floatformat:2 }} {{ v.unidade }}<br>
+                    {% empty %}
+                        <span>-</span>
+                    {% endfor %}
+                </td>
+                <td>
+                    {% if produtos.status %}
+                        <span class="badge badge-success">Sim</span>
+                    {% else %}
+                        <span class="badge badge-danger">Não</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'produtos:produtos_detail' produtos.id %}" class="btn btn-sm btn-edit">View</a>
+                    <a href="{% url 'produtos:produtos_form' produtos.id %}" class="btn btn-sm btn-edit">Editar</a>
+                    <button class="btn btn-sm btn-delete" data-id="{{ produtos.id }}">Excluir</button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7">Nenhum produto cadastrado.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if is_paginated %}
+    <ul class="pagination">
+        {% if page_obj.has_previous %}
+        <li><a href="?page={{ page_obj.previous_page_number }}">&laquo;</a></li>
+        {% endif %}
+        <li class="active"><span>{{ page_obj.number }}</span></li>
+        {% if page_obj.has_next %}
+        <li><a href="?page={{ page_obj.next_page_number }}">&raquo;</a></li>
+        {% endif %}
+    </ul>
+    {% endif %}
+</div>
+{% endblock %}

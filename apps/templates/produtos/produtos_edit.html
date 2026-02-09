@@ -1,0 +1,165 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}
+    {% if form.instance.pk %}Editar Produto{% else %}Novo Produto{% endif %}
+{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header ">
+        <h1>{% if form.instance.pk %}Editar Produto{% else %}Novo Produto{% endif %}</h1>
+        <a href="{% url 'produtos:produtos_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <!-- Campos do Produto -->
+        <div class="form-grid">
+            <div class="form-group">
+                {{ form.status.label_tag }}
+                {{ form.status }}
+                {% if form.status.errors %}
+                    <div class="text-danger">{{ form.status.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.nome.label_tag }}
+                {{ form.nome }}
+                {% if form.nome.errors %}
+                    <div class="text-danger">{{ form.nome.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.categoria.label_tag }}
+                {{ form.categoria }}
+                {% if form.categoria.errors %}
+                    <div class="text-danger">{{ form.categoria.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.marca.label_tag }}
+                {{ form.marca }}
+                {% if form.marca.errors %}
+                    <div class="text-danger">{{ form.marca.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.fornecedor.label_tag }}
+                {{ form.fornecedor }}
+                {% if form.fornecedor.errors %}
+                    <div class="text-danger">{{ form.fornecedor.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.num_serie.label_tag }}
+                {{ form.num_serie }}
+                {% if form.num_serie.errors %}
+                    <div class="text-danger">{{ form.num_serie.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.preco_custo.label_tag }}
+                {{ form.preco_custo }}
+                {% if form.preco_custo.errors %}
+                    <div class="text-danger">{{ form.preco_custo.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.preco_venda.label_tag }}
+                {{ form.preco_venda }}
+                {% if form.preco_venda.errors %}
+                    <div class="text-danger">{{ form.preco_venda.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group full-width">
+                {{ form.descricao.label_tag }}
+                {{ form.descricao }}
+                {% if form.descricao.errors %}
+                    <div class="text-danger">{{ form.descricao.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group full-width">
+                {{ form.imagem.label_tag }}
+                {{ form.imagem }}
+                {% if form.imagem.errors %}
+                    <div class="text-danger">{{ form.imagem.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <!-- <h3>Parâmetros de Estoque</h3>
+        {{ parametro_form.as_p }} -->
+        <!-- Variações de Tamanho -->
+        <h3>Variações de Tamanho</h3>
+        {{ formset.management_form }}
+        <div id="variacoes-container">
+            {% for variacao_form in formset %}
+            <div class="variacao-form form-grid" data-form-id="{{ forloop.counter0 }}">
+                    <!-- Campo oculto id (essencial para instâncias existentes) -->
+                    {{ variacao_form.id }}
+                    <div class="form-group">
+                        {{ variacao_form.tamanho.label_tag }}
+                        {{ variacao_form.tamanho }}
+                        {% if variacao_form.tamanho.errors %}
+                            <div class="text-danger">{{ variacao_form.tamanho.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="form-group">
+                        {{ variacao_form.unidade.label_tag }}
+                        {{ variacao_form.unidade }}
+                        {% if variacao_form.unidade.errors %}
+                            <div class="text-danger">{{ variacao_form.unidade.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="form-group">
+                        {{ variacao_form.estoque_minimo.label_tag }}
+                        {{ variacao_form.estoque_minimo }}
+                        {% if variacao_form.estoque_minimo.errors %}
+                            <div class="text-danger">{{ variacao_form.estoque_minimo.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="form-group">
+                        {{ variacao_form.codigo_barras.label_tag }}
+                        {{ variacao_form.codigo_barras }}
+                        {% if variacao_form.codigo_barras.errors %}
+                            <div class="text-danger">{{ variacao_form.codigo_barras.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <!-- Campo oculto para DELETE -->
+                    <div class="form-group">
+                        <button type="button" class="btn btn-danger btn-sm remove-variacao">Remover</button>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        <button type="button" id="add-variacao" class="btn btn-secondary">Adicionar Variação</button>
+        <br>
+        <br>
+        <h3>Composição do Produto (Kits/Componentes)</h3>
+        {{ composicao_formset.management_form }}
+        <div id="composicoes-container">
+            {% for comp_form in composicao_formset %}
+            <div class="composicao-form form-grid">
+                {{ comp_form.id }}
+                <div class="form-group">
+                    {{ comp_form.produto_componente.label_tag }}
+                    {{ comp_form.produto_componente }}
+                    {% if comp_form.produto_componente.errors %}<div class="text-danger">{{ comp_form.produto_componente.errors }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    {{ comp_form.quantidade.label_tag }}
+                    {{ comp_form.quantidade }}
+                    {% if comp_form.quantidade.errors %}<div class="text-danger">{{ comp_form.quantidade.errors }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    {% if comp_form.instance.pk %}{{ comp_form.DELETE }} Remover{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" id="add-composicao" class="btn btn-secondary">Adicionar Componente</button>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

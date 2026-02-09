@@ -1,0 +1,56 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}Detalhe do Histórico de Estoque - ERP{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>Detalhe do Histórico: {{ historico.variacao.produto.nome }}</h1>
+        <a href="{% url 'movimentacao:historico_estoque_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+
+    <div class="detail-card">
+        <h2>Informações do Registro</h2>
+        <div class="detail-content">
+            <div class="detail-info">
+                <div class="detail-row">
+                    <span class="detail-label">Produto:</span>
+                    <span class="detail-value">{{ historico.variacao.produto.nome }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Tamanho:</span>
+                    <span class="detail-value">{{ historico.variacao.tamanho }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Tipo de Operação:</span>
+                    <span class="detail-value">{{ historico.get_tipo_operacao_display }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Lote:</span>
+                    <span class="detail-value">{{ historico.lote.numero_lote|default:"Nenhum" }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Quantidade Anterior:</span>
+                    <span class="detail-value">{{ historico.quantidade_anterior }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Quantidade Nova:</span>
+                    <span class="detail-value">{{ historico.quantidade_nova }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Usuário:</span>
+                    <span class="detail-value">{{ historico.usuario.username|default:"Sistema" }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Data:</span>
+                    <span class="detail-value">{{ historico.created_at|date:"d/m/Y H:i" }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Motivo:</span>
+                    <span class="detail-value">{{ historico.motivo }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

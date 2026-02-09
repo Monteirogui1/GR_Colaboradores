@@ -6,13 +6,18 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('dashboard/', include('apps.home.urls')),
     path('', include('apps.authentication.urls', namespace='login')),
     path('', include('apps.categorias.urls',)),
     path('', include('apps.fornecedor.urls',)),
     path('', include('apps.marcas.urls',)),
     path('', include('apps.ativos.urls')),
     path('', include('apps.auditoria.urls')),
+    path('', include('apps.tickets.urls')),
+    path('', include('apps.produtos.urls',)),
+    path('', include('apps.movimentacao.urls',)),
     path('api/', include('apps.inventory.urls')),
+    path('', include('apps.notificacao.urls', )),
 
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
