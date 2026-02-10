@@ -1,191 +1,152 @@
-{% extends "layouts/base.html" %}
-{% load static %}
-
-{% block title %}Dashboard - Tickets{% endblock %}
+{% extends 'layouts/base_portal.html' %}
+{% block title %}Dashboard — Tickets{% endblock %}
 
 {% block conteudo %}
-<div class="content">
-    <div class="page-header">
-        <h1><i class="bi bi-ticket-detailed"></i> Dashboard de Tickets</h1>
-        <a href="{% url 'tickets:ticket_create' %}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Novo Ticket
-        </a>
+<div class="page-header">
+    <h1><i class="bi bi-speedometer2"></i> Dashboard</h1>
+    <a href="{% url 'tickets:ticket_create' %}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Novo Ticket
+    </a>
+</div>
+
+<!-- Métricas principais -->
+<div class="metrics">
+    <div class="metric-card" style="border-left-color:#1a73e8;">
+        <h3>Abertos</h3>
+        <p style="color:#1a73e8;">{{ stats.total_abertos }}</p>
+        <small>Total em aberto</small>
     </div>
-
-    <!-- Cards de Estatísticas -->
-    <div class="metrics">
-        <div class="metric-card">
-            <h3>Tickets Abertos</h3>
-            <p>{{ stats.total_abertos }}</p>
-        </div>
-        <div class="metric-card">
-            <h3>Novos Hoje</h3>
-            <p>{{ stats.novos_hoje }}</p>
-        </div>
-        <div class="metric-card" style="border-left: 4px solid #dc3545;">
-            <h3>Vencidos</h3>
-            <p style="color: #dc3545;">{{ stats.vencidos }}</p>
-        </div>
-        <div class="metric-card" style="border-left: 4px solid #28a745;">
-            <h3>Resolvidos (Mês)</h3>
-            <p style="color: #28a745;">{{ stats.resolvidos_mes }}</p>
-        </div>
-        {% if user.is_staff %}
-        <div class="metric-card" style="border-left: 4px solid #007bff;">
-            <h3>Meus Tickets</h3>
-            <p style="color: #007bff;">{{ meus_tickets }}</p>
-        </div>
-        {% endif %}
+    <div class="metric-card" style="border-left-color:#7c3aed;">
+        <h3>Abertos Hoje</h3>
+        <p style="color:#7c3aed;">{{ stats.novos_hoje }}</p>
+        <small>Criados hoje</small>
     </div>
+    <div class="metric-card" style="border-left-color:#dc2626;">
+        <h3>Vencidos</h3>
+        <p style="color:#dc2626;">{{ stats.vencidos }}</p>
+        <small>Fora do prazo SLA</small>
+    </div>
+    <div class="metric-card" style="border-left-color:#16a34a;">
+        <h3>Resolvidos (Mês)</h3>
+        <p style="color:#16a34a;">{{ stats.resolvidos_mes }}</p>
+        <small>Fechados este mês</small>
+    </div>
+    {% if user.is_staff %}
+    <div class="metric-card" style="border-left-color:#d97706;">
+        <h3>Meus Tickets</h3>
+        <p style="color:#d97706;">{{ meus_tickets|default:0 }}</p>
+        <small>Sob minha responsabilidade</small>
+    </div>
+    {% endif %}
+</div>
 
-    <!-- Gráficos -->
-    <div class="row" style="display: flex; gap: 20px; margin-top: 30px;">
-        <!-- Tickets por Status -->
-        <div class="col" style="flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-            <h3 style="margin-bottom: 20px; color: #333; font-size: 18px;">
-                <i class="bi bi-bar-chart"></i> Tickets por Status
-            </h3>
-            <canvas id="statusChart"></canvas>
-        </div>
-
-        <!-- Tickets por Categoria -->
-        <div class="col" style="flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-            <h3 style="margin-bottom: 20px; color: #333; font-size: 18px;">
-                <i class="bi bi-pie-chart"></i> Tickets por Categoria
-            </h3>
-            <canvas id="categoriaChart"></canvas>
+<!-- Gráficos -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+    <div class="detail-card">
+        <h2><i class="bi bi-bar-chart"></i> Tickets por Status</h2>
+        <div class="detail-content">
+            <canvas id="statusChart" style="max-height:220px;"></canvas>
         </div>
     </div>
-
-    <!-- Tickets Recentes -->
-    <div class="detail-card" style="margin-top: 30px;">
-        <h2><i class="bi bi-clock-history"></i> Tickets Recentes</h2>
-        <div class="detail-content" style="padding: 0;">
-            {% if tickets %}
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Número</th>
-                                <th>Assunto</th>
-                                <th>Solicitante</th>
-                                <th>Status</th>
-                                <th>Urgência</th>
-                                <th>Responsável</th>
-                                <th>Criado em</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for ticket in tickets|slice:":10" %}
-                            <tr>
-                                <td><a href="{% url 'tickets:ticket_detail' ticket.pk %}">#{{ ticket.numero }}</a></td>
-                                <td>
-                                    <a href="{% url 'tickets:ticket_detail' ticket.pk %}">
-                                        {{ ticket.assunto|default:"Sem assunto" }}
-                                    </a>
-                                </td>
-                                <td>{{ ticket.solicitante.get_full_name|default:ticket.solicitante.username }}</td>
-                                <td>
-                                    <span class="badge" style="background-color: {{ ticket.status.cor }}; color: white; padding: 5px 10px; border-radius: 4px;">
-                                        {{ ticket.status.nome }}
-                                    </span>
-                                </td>
-                                <td>
-                                    {% if ticket.urgencia %}
-                                        <span class="badge" style="background-color: {{ ticket.urgencia.cor }}; color: white; padding: 5px 10px; border-radius: 4px;">
-                                            {{ ticket.urgencia.nome }}
-                                        </span>
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                                <td>{{ ticket.responsavel.get_full_name|default:ticket.responsavel.username|default:"-" }}</td>
-                                <td>{{ ticket.criado_em|date:"d/m/Y H:i" }}</td>
-                                <td>
-                                    <a href="{% url 'tickets:ticket_detail' ticket.pk %}" class="btn btn-sm btn-view" title="Ver detalhes">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <div style="padding: 15px; text-align: center; border-top: 1px solid #e0e0e0;">
-                    <a href="{% url 'tickets:ticket_list' %}" class="btn btn-secondary">
-                        Ver Todos os Tickets
-                    </a>
-                </div>
-            {% else %}
-                <div style="text-align: center; padding: 60px 20px; color: #999;">
-                    <i class="bi bi-inbox" style="font-size: 64px; display: block; margin-bottom: 20px;"></i>
-                    <p style="font-size: 18px; margin-bottom: 20px;">Nenhum ticket encontrado</p>
-                    <a href="{% url 'tickets:ticket_create' %}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Criar Primeiro Ticket
-                    </a>
-                </div>
-            {% endif %}
+    <div class="detail-card">
+        <h2><i class="bi bi-pie-chart"></i> Tickets por Categoria</h2>
+        <div class="detail-content">
+            <canvas id="catChart" style="max-height:220px;"></canvas>
         </div>
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Gráfico de Status
-    const statusCtx = document.getElementById('statusChart').getContext('2d');
-    new Chart(statusCtx, {
-        type: 'bar',
-        data: {
-            labels: [{% for item in por_status %}'{{ item.status__nome }}',{% endfor %}],
-            datasets: [{
-                label: 'Tickets',
-                data: [{% for item in por_status %}{{ item.total }},{% endfor %}],
-                backgroundColor: [{% for item in por_status %}'{{ item.status__cor }}',{% endfor %}],
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
-                }
-            }
-        }
-    });
+<!-- Tickets recentes -->
+<div class="detail-card">
+    <h2><i class="bi bi-clock-history"></i> Tickets Recentes</h2>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Assunto</th>
+                    <th>Solicitante</th>
+                    <th>Status</th>
+                    <th>Urgência</th>
+                    <th>Criado em</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets %}
+                <tr>
+                    <td>
+                        <a href="{% url 'tickets:ticket_detail' ticket.pk %}" style="font-weight:700;color:#1a73e8;">
+                            #{{ ticket.numero }}
+                        </a>
+                    </td>
+                    <td>{{ ticket.assunto|truncatewords:8 }}</td>
+                    <td>{{ ticket.solicitante.get_full_name|default:ticket.solicitante.username }}</td>
+                    <td>
+                        <span class="badge" style="background:{{ ticket.status.cor }}22;color:{{ ticket.status.cor }};border:1px solid {{ ticket.status.cor }}55;">
+                            {{ ticket.status.nome }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if ticket.urgencia %}
+                        <span class="badge" style="background:{{ ticket.urgencia.cor }}22;color:{{ ticket.urgencia.cor }};border:1px solid {{ ticket.urgencia.cor }}55;">
+                            {{ ticket.urgencia.nome }}
+                        </span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td style="color:#9ca3af;font-size:13px;">{{ ticket.criado_em|date:"d/m H:i" }}</td>
+                    <td>
+                        <a href="{% url 'tickets:ticket_detail' ticket.pk %}" class="btn btn-sm btn-secondary">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7">
+                    <div class="empty-state">
+                        <i class="bi bi-inbox"></i>
+                        <p>Nenhum ticket ainda</p>
+                        <a href="{% url 'tickets:ticket_create' %}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Criar Ticket
+                        </a>
+                    </div>
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 
-    // Gráfico de Categorias
-    const categoriaCtx = document.getElementById('categoriaChart').getContext('2d');
-    new Chart(categoriaCtx, {
-        type: 'doughnut',
-        data: {
-            labels: [{% for item in por_categoria %}'{{ item.categoria__nome|default:"Sem categoria" }}',{% endfor %}],
-            datasets: [{
-                data: [{% for item in por_categoria %}{{ item.total }},{% endfor %}],
-                backgroundColor: [
-                    '#007bff', '#28a745', '#ffc107', '#dc3545', '#6c757d'
-                ],
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                }
-            }
-        }
-    });
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const statusLabels = [{% for s in por_status %}'{{ s.status__nome }}',{% endfor %}];
+    const statusData   = [{% for s in por_status %}{{ s.total }},{% endfor %}];
+    const statusColors = [{% for s in por_status %}'{{ s.status__cor }}',{% endfor %}];
+
+    if (statusLabels.length && document.getElementById('statusChart')) {
+        new Chart(document.getElementById('statusChart'), {
+            type: 'bar',
+            data: {
+                labels: statusLabels,
+                datasets: [{ label: 'Tickets', data: statusData, backgroundColor: statusColors, borderRadius: 5 }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+        });
+    }
+
+    const catLabels = [{% for c in por_categoria %}'{{ c.categoria__nome|default:"Sem categoria" }}',{% endfor %}];
+    const catData   = [{% for c in por_categoria %}{{ c.total }},{% endfor %}];
+
+    if (catLabels.length && document.getElementById('catChart')) {
+        new Chart(document.getElementById('catChart'), {
+            type: 'doughnut',
+            data: {
+                labels: catLabels,
+                datasets: [{ data: catData, backgroundColor: ['#1a73e8','#7c3aed','#dc2626','#16a34a','#d97706','#0891b2'] }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
 });
 </script>
 {% endblock %}

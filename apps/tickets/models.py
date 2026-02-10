@@ -27,7 +27,6 @@ class TipoHorario(models.TextChoices):
     HORAS_UTEIS = 'uteis', 'Horas Úteis'
     HORAS_CORRIDAS = 'corridas', 'Horas Corridas'
 
-
 # ==================== CLASSIFICAÇÕES ====================
 
 class Categoria(models.Model):
@@ -651,6 +650,14 @@ class Ticket(models.Model):
         on_delete=models.CASCADE,
         related_name='tickets_cliente',
         limit_choices_to={'is_staff': True}
+    )
+
+    # Ativos relacionados
+    ativos = models.ManyToManyField(
+        'ativos.Ativo',
+        blank=True,
+        related_name='tickets',
+        verbose_name='Ativos Relacionados'
     )
 
     # Campos adicionais (valores)

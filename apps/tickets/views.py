@@ -105,6 +105,7 @@ class TicketDashboardView(LoginRequiredMixin, ListView):
 
         tickets_query = Ticket.objects.filter(cliente=cliente)
 
+        # Estatísticas de Tickets
         context['stats'] = {
             'total_abertos': tickets_query.exclude(
                 status__status_base__in=[StatusBase.FECHADO, StatusBase.CANCELADO]
@@ -120,6 +121,34 @@ class TicketDashboardView(LoginRequiredMixin, ListView):
                 status__status_base=StatusBase.RESOLVIDO
             ).count(),
         }
+
+        # Estatísticas de Ativos (se o app ativos estiver disponível)
+        try:
+            from apps.ativos.models import Ativo
+            context['stats']['total_ativos'] = Ativo.objects.filter(
+                cliente=cliente
+            ).count()
+            context['stats']['ativos_ativos'] = Ativo.objects.filter(
+                cliente=cliente,
+                status__nome__icontains='ativo'
+            ).count()
+        except (ImportError, Exception):
+            context['stats']['total_ativos'] = 0
+            context['stats']['ativos_ativos'] = 0
+
+        # Estatísticas de Máquinas (se o app inventory estiver disponível)
+        try:
+            from apps.inventory.models import Machine
+            context['stats']['total_maquinas'] = Machine.objects.filter(
+                cliente=cliente
+            ).count()
+            context['stats']['maquinas_online'] = Machine.objects.filter(
+                cliente=cliente,
+                is_online=True
+            ).count()
+        except (ImportError, Exception):
+            context['stats']['total_maquinas'] = 0
+            context['stats']['maquinas_online'] = 0
 
         # Tickets por status
         context['por_status'] = tickets_query.values(
@@ -148,7 +177,7 @@ class TicketDashboardView(LoginRequiredMixin, ListView):
 
 # ==================== LISTAGEM E DETALHES ====================
 
-class TicketListView(LoginRequiredMixin, ListView):
+class TicketListView(LoginRequiredMixin, ClienteQuerySetMixin, ListView):
     """Listagem de tickets com filtros"""
     model = Ticket
     template_name = 'tickets/ticket_list.html'
@@ -245,14 +274,22 @@ class TicketDetailView(LoginRequiredMixin, ClienteObjectMixin, DetailView):
         )
         context['alterar_responsavel_form'] = AlterarResponsavelForm()
 
-        # Ações do ticket
-        context['acoes'] = self.object.acoes.all().order_by('criado_em')
+        # Ações do ticket (mais nova primeiro)
+        context['acoes'] = self.object.acoes.all().order_by('-criado_em')
 
         # Anexos
-        context['anexos'] = self.object.anexos.all().order_by('criado_em')
+        context['anexos'] = self.object.anexos.all().order_by('-criado_em')
 
         # Histórico
         context['historico'] = self.object.historico.all().order_by('-criado_em')[:20]
+
+        # Ativos vinculados
+        try:
+            context['ativos_vinculados'] = self.object.ativos.select_related(
+                'categoria', 'status'
+            ).all()
+        except Exception:
+            context['ativos_vinculados'] = []
 
         # Informações de SLA
         if self.object.regra_sla_aplicada:
@@ -574,6 +611,275 @@ def aplicar_macro_ao_ticket(ticket, macro, usuario):
     except Exception as e:
         return False
 
+
+# ==================== AÇÕES NO TICKET ====================
+
+@login_required
+def adicionar_acao(request, pk):
+    """Adiciona ação (resposta) ao ticket"""
+    ticket = get_object_or_404(Ticket, pk=pk)
+
+    # Verifica acesso
+    if not request.user.is_superuser:
+        cliente = request.user if request.user.is_staff else request.user
+        if ticket.cliente != cliente:
+            raise PermissionDenied()
+
+    if request.method == 'POST':
+        form = AcaoTicketForm(request.POST, usuario=request.user)
+
+        if form.is_valid():
+            acao = form.save(commit=False)
+            acao.ticket = ticket
+            acao.autor = request.user
+            acao.save()
+
+            # Aplica macro se selecionada
+            if form.cleaned_data.get('aplicar_macro'):
+                aplicar_macro_ao_ticket(ticket, form.cleaned_data['aplicar_macro'], request.user)
+
+            messages.success(request, 'Ação adicionada com sucesso!')
+            return redirect('tickets:ticket_detail', pk=ticket.pk)
+
+    return redirect('tickets:ticket_detail', pk=ticket.pk)
+
+
+@login_required
+def adicionar_anexo(request, pk):
+    """Adiciona anexo ao ticket"""
+    ticket = get_object_or_404(Ticket, pk=pk)
+
+    # Verifica acesso
+    if not request.user.is_superuser:
+        cliente = request.user if request.user.is_staff else request.user
+        if ticket.cliente != cliente:
+            raise PermissionDenied()
+
+    if request.method == 'POST' and request.FILES.get('arquivo'):
+        for arquivo in request.FILES.getlist('arquivo'):
+            AnexoTicket.objects.create(
+                ticket=ticket,
+                arquivo=arquivo,
+                nome_original=arquivo.name,
+                tamanho=arquivo.size,
+                tipo_mime=arquivo.content_type,
+                autor=request.user
+            )
+
+        messages.success(request, 'Anexo(s) adicionado(s) com sucesso!')
+
+    return redirect('tickets:ticket_detail', pk=ticket.pk)
+
+
+@login_required
+def alterar_status_rapido(request, pk):
+    """Altera status do ticket rapidamente"""
+    ticket = get_object_or_404(Ticket, pk=pk)
+
+    # Verifica acesso
+    if not request.user.is_superuser:
+        cliente = request.user if request.user.is_staff else request.user
+        if ticket.cliente != cliente:
+            raise PermissionDenied()
+
+    if request.method == 'POST':
+        form = AlterarStatusForm(request.POST, usuario=request.user, ticket=ticket)
+
+        if form.is_valid():
+            status_anterior = ticket.status
+
+            ticket.status = form.cleaned_data['status']
+            ticket.justificativa = form.cleaned_data.get('justificativa')
+            ticket.save()
+
+            # Registra histórico
+            HistoricoTicket.objects.create(
+                ticket=ticket,
+                usuario=request.user,
+                campo='status',
+                valor_anterior=str(status_anterior),
+                valor_novo=str(ticket.status)
+            )
+
+            # Adiciona ação se fornecida
+            if form.cleaned_data.get('adicionar_acao'):
+                AcaoTicket.objects.create(
+                    ticket=ticket,
+                    tipo='interna',
+                    autor=request.user,
+                    conteudo=form.cleaned_data['adicionar_acao']
+                )
+
+            messages.success(request, 'Status alterado com sucesso!')
+
+    return redirect('tickets:ticket_detail', pk=ticket.pk)
+
+
+@login_required
+def alterar_responsavel_rapido(request, pk):
+    """Altera responsável do ticket rapidamente"""
+    ticket = get_object_or_404(Ticket, pk=pk)
+
+    # Verifica acesso
+    if not request.user.is_superuser:
+        cliente = request.user if request.user.is_staff else request.user
+        if ticket.cliente != cliente:
+            raise PermissionDenied()
+
+    if request.method == 'POST':
+        form = AlterarResponsavelForm(request.POST)
+
+        if form.is_valid():
+            responsavel_anterior = ticket.responsavel
+
+            ticket.responsavel = form.cleaned_data['responsavel']
+            ticket.save()
+
+            # Registra histórico
+            HistoricoTicket.objects.create(
+                ticket=ticket,
+                usuario=request.user,
+                campo='responsavel',
+                valor_anterior=str(responsavel_anterior) if responsavel_anterior else '',
+                valor_novo=str(ticket.responsavel)
+            )
+
+            # TODO: Notificar novo responsável se marcado
+
+            messages.success(request, 'Responsável alterado com sucesso!')
+
+    return redirect('tickets:ticket_detail', pk=ticket.pk)
+
+
+# ==================== HELPER FUNCTIONS ====================
+
+def aplicar_macro_ao_ticket(ticket, macro, usuario):
+    """Aplica uma macro ao ticket"""
+    try:
+        acoes = macro.acoes
+
+        # Altera campos conforme macro
+        campos_alterados = []
+
+        if 'status' in acoes:
+            status = Status.objects.get(pk=acoes['status'])
+            ticket.status = status
+            campos_alterados.append(f'Status alterado para {status}')
+
+        if 'responsavel' in acoes:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            responsavel = User.objects.get(pk=acoes['responsavel'])
+            ticket.responsavel = responsavel
+            campos_alterados.append(f'Responsável alterado para {responsavel}')
+
+        if 'adicionar_acao' in acoes:
+            AcaoTicket.objects.create(
+                ticket=ticket,
+                tipo='interna',
+                autor=usuario,
+                conteudo=f"[MACRO: {macro.nome}] {acoes['adicionar_acao']}"
+            )
+
+        ticket.save()
+
+        # Registra no histórico
+        if campos_alterados:
+            HistoricoTicket.objects.create(
+                ticket=ticket,
+                usuario=usuario,
+                campo='macro_aplicada',
+                valor_novo=f"Macro '{macro.nome}' aplicada: " + ', '.join(campos_alterados)
+            )
+
+        return True
+    except Exception as e:
+        return False
+
+
+# ==================== ATIVOS DO TICKET ====================
+
+@login_required
+def gerenciar_ativos_ticket(request, pk):
+    """Vincula ou desvincula ativos do ticket via POST"""
+    ticket = get_object_or_404(Ticket, pk=pk)
+
+    if not request.user.is_superuser:
+        if ticket.cliente != (request.user if request.user.is_staff else request.user):
+            raise PermissionDenied()
+
+    if request.method == 'POST':
+        acao = request.POST.get('acao')  # 'adicionar' ou 'remover'
+        ativo_id = request.POST.get('ativo_id')
+
+        try:
+            from apps.ativos.models import Ativo
+            ativo = get_object_or_404(Ativo, pk=ativo_id)
+
+            if acao == 'adicionar':
+                ticket.ativos.add(ativo)
+                HistoricoTicket.objects.create(
+                    ticket=ticket,
+                    usuario=request.user,
+                    campo='ativo_vinculado',
+                    valor_novo=f"{ativo.etiqueta} — {ativo.nome}"
+                )
+                messages.success(request, f'Ativo "{ativo.etiqueta} — {ativo.nome}" vinculado.')
+
+            elif acao == 'remover':
+                ticket.ativos.remove(ativo)
+                HistoricoTicket.objects.create(
+                    ticket=ticket,
+                    usuario=request.user,
+                    campo='ativo_desvinculado',
+                    valor_anterior=f"{ativo.etiqueta} — {ativo.nome}"
+                )
+                messages.success(request, f'Ativo "{ativo.etiqueta}" desvinculado.')
+
+        except Exception as e:
+            messages.error(request, f'Erro: {str(e)}')
+
+    return redirect('tickets:ticket_detail', pk=ticket.pk)
+
+
+@login_required
+def buscar_ativos_json(request, pk):
+    """Retorna JSON com ativos disponíveis para vincular ao ticket (para autocomplete)"""
+    from django.http import JsonResponse
+
+    ticket = get_object_or_404(Ticket, pk=pk)
+    q = request.GET.get('q', '').strip()
+
+    try:
+        from apps.ativos.models import Ativo
+        ativos = Ativo.objects.filter(cliente=ticket.cliente)
+
+        if q:
+            ativos = ativos.filter(
+                Q(nome__icontains=q) |
+                Q(etiqueta__icontains=q) |
+                Q(numero_serie__icontains=q)
+            )
+
+        # Excluir já vinculados
+        ja_vinculados = ticket.ativos.values_list('pk', flat=True)
+        ativos = ativos.exclude(pk__in=ja_vinculados).select_related('categoria', 'status')[:20]
+
+        data = [
+            {
+                'id': a.pk,
+                'etiqueta': a.etiqueta,
+                'nome': a.nome,
+                'categoria': a.categoria.nome if a.categoria else '',
+                'status': a.status.nome if a.status else '',
+                'status_cor': a.status.cor if a.status else '#888',
+            }
+            for a in ativos
+        ]
+        return JsonResponse({'ativos': data})
+
+    except Exception as e:
+        return JsonResponse({'ativos': [], 'erro': str(e)})
 
 # ==================== CATEGORIAS ====================
 

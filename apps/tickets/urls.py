@@ -5,7 +5,7 @@ app_name = 'tickets'
 
 urlpatterns = [
     # ==================== DASHBOARD ====================
-    path('', views.TicketDashboardView.as_view(), name='dashboard'),
+    path('dash/', views.TicketDashboardView.as_view(), name='dashboard'),
 
     # ==================== TICKETS ====================
     path('tickets/', views.TicketListView.as_view(), name='ticket_list'),
@@ -19,6 +19,8 @@ urlpatterns = [
     path('tickets/<int:pk>/anexo/', views.adicionar_anexo, name='adicionar_anexo'),
     path('tickets/<int:pk>/status/', views.alterar_status_rapido, name='alterar_status'),
     path('tickets/<int:pk>/responsavel/', views.alterar_responsavel_rapido, name='alterar_responsavel'),
+    path('tickets/<int:pk>/ativos/', views.gerenciar_ativos_ticket, name='gerenciar_ativos'),
+    path('tickets/<int:pk>/ativos/buscar/', views.buscar_ativos_json, name='buscar_ativos_json'),
 
     # ==================== CLASSIFICAÇÕES ====================
 

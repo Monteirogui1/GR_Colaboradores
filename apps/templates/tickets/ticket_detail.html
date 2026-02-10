@@ -1,281 +1,978 @@
-{% extends "layouts/base.html" %}
-{% load static %}
-
-{% block title %}Ticket #{{ ticket.numero }}{% endblock %}
+{% extends 'layouts/base_portal.html' %}
+{% block title %}#{{ ticket.numero }} — {{ ticket.assunto }}{% endblock %}
 
 {% block conteudo %}
-<div class="content">
-    <div class="page-header">
-        <h1><i class="bi bi-ticket-detailed"></i> Ticket #{{ ticket.numero }}</h1>
-        <div>
-            <a href="{% url 'tickets:ticket_update' ticket.pk %}" class="btn btn-secondary">
-                <i class="bi bi-pencil"></i> Editar
-            </a>
-            <a href="{% url 'tickets:ticket_list' %}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left"></i> Voltar
-            </a>
-        </div>
-    </div>
+{% load static %}
 
-    <!-- Informações Principais -->
-    <div class="detail-card">
-        <h2>Informações do Ticket</h2>
-        <div class="detail-content">
-            <div class="detail-info">
-                <div class="detail-row">
-                    <span class="detail-label">Número:</span>
-                    <span class="detail-value">#{{ ticket.numero }}</span>
+<style>
+  /* ── RESET DO PORTAL-MAIN para tela cheia ── */
+  .portal-main { padding: 0 !important; max-width: 100% !important; }
+
+  /* ── TOPBAR DO TICKET ── */
+  .tk-topbar {
+    height: 48px;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+    position: sticky;
+    top: 56px;
+    z-index: 90;
+  }
+  .tk-topbar .tk-breadcrumb {
+    font-size: 13px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+  .tk-topbar .tk-breadcrumb a { color: #1a73e8; text-decoration: none; }
+  .tk-topbar .tk-breadcrumb a:hover { text-decoration: underline; }
+  .tk-topbar .tk-breadcrumb .sep { color: #ccc; }
+  .tk-topbar .tk-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 500px;
+  }
+  .tk-topbar .tk-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .tk-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+  }
+  .tk-btn-opcoes {
+    padding: 6px 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    cursor: pointer;
+  }
+  .tk-btn-opcoes:hover { background: #f5f5f5; }
+
+  /* ── LAYOUT PRINCIPAL: sidebar + conteúdo ── */
+  .tk-layout {
+    display: flex;
+    height: calc(100vh - 104px); /* topbar portal + topbar ticket */
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ESQUERDA ── */
+  .tk-sidebar {
+    width: 280px;
+    min-width: 280px;
+    border-right: 1px solid #e0e0e0;
+    background: #fff;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Abas Público / Interno */
+  .tk-tabs {
+    display: flex;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  .tk-tab {
+    flex: 1;
+    padding: 11px 0;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #888;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    transition: all .15s;
+  }
+  .tk-tab.active { color: #1a73e8; border-bottom-color: #1a73e8; }
+
+  /* Seções da sidebar */
+  .tk-section {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .tk-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .tk-section-label a { font-size: 11px; color: #1a73e8; text-decoration: none; font-weight: 500; text-transform: none; }
+
+  /* Solicitante card */
+  .tk-user-card {
+    background: #f5f7fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 10px 12px;
+    margin-top: 6px;
+  }
+  .tk-user-card .tk-user-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #222;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tk-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .tk-dot.online { background: #22c55e; }
+  .tk-dot.offline { background: #ef4444; }
+  .tk-user-card .tk-user-warning { font-size: 11px; color: #ef4444; margin-top: 3px; }
+  .tk-user-card .tk-user-email { font-size: 12px; color: #777; margin-top: 2px; }
+
+  /* Campos de select na sidebar */
+  .tk-select {
+    width: 100%;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    padding: 7px 10px;
+    font-size: 13px;
+    color: #333;
+    background: #fff;
+    margin-top: 6px;
+  }
+  .tk-select:focus { outline: none; border-color: #1a73e8; }
+
+  /* Dois selects lado a lado */
+  .tk-row2 { display: flex; gap: 8px; margin-top: 8px; }
+  .tk-row2 > div { flex: 1; }
+  .tk-field-label { font-size: 11px; color: #888; margin-bottom: 3px; }
+
+  /* Previsão de solução */
+  .tk-previsao {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+  }
+  .tk-previsao-value {
+    font-size: 13px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-weight: 500;
+    flex: 1;
+    margin-right: 6px;
+  }
+  .tk-previsao-value.ok { background: #e6f9ed; color: #16a34a; border: 1px solid #bbf7d0; }
+  .tk-previsao-value.vencido { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+
+  /* ── ÁREA DIREITA ── */
+  .tk-main {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    background: #f5f7fa;
+  }
+
+  /* Cabeçalho do assunto */
+  .tk-subject {
+    background: #fff;
+    padding: 16px 24px 12px;
+    border-bottom: 1px solid #e8eaed;
+  }
+  .tk-subject h2 { font-size: 16px; font-weight: 700; color: #1f2937; margin: 0 0 4px; }
+  .tk-subject .tk-meta { font-size: 12px; color: #888; }
+  .tk-subject .tk-meta strong { color: #444; }
+
+  /* Banner de ticket pai */
+  .tk-parent-banner {
+    background: #e8f0fe;
+    border-left: 4px solid #1a73e8;
+    padding: 10px 20px;
+    font-size: 13px;
+    color: #1a73e8;
+    margin: 12px 24px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .tk-parent-banner a { color: #1a73e8; font-weight: 600; }
+
+  /* Editor de ação */
+  .tk-editor-wrap {
+    background: #fff;
+    margin: 14px 24px 0;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .tk-editor-tabs {
+    display: flex;
+    border-bottom: 1px solid #e0e0e0;
+    background: #fafafa;
+    padding: 0 12px;
+    gap: 2px;
+  }
+  .tk-editor-tab {
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #888;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .tk-editor-tab.active { color: #1a73e8; border-bottom-color: #1a73e8; }
+
+  .tk-editor-textarea {
+    width: 100%;
+    min-height: 130px;
+    border: none;
+    outline: none;
+    padding: 14px 16px;
+    font-size: 14px;
+    color: #333;
+    resize: vertical;
+    font-family: inherit;
+    line-height: 1.6;
+  }
+  .tk-word-count {
+    text-align: right;
+    padding: 2px 14px 6px;
+    font-size: 12px;
+    color: #ccc;
+  }
+  .tk-editor-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-top: 1px solid #f0f0f0;
+    background: #fafafa;
+    flex-wrap: wrap;
+  }
+  .tk-toolbar-btn {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 17px;
+    padding: 5px 7px;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .tk-toolbar-btn:hover { background: #eee; }
+  .tk-toolbar-sep { width: 1px; height: 22px; background: #e0e0e0; margin: 0 2px; }
+  .tk-macro-select {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-size: 13px;
+    color: #333;
+    background: #fff;
+  }
+  .tk-status-select {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-size: 13px;
+    color: #333;
+    background: #fff;
+    margin-left: auto;
+  }
+  .tk-btn-add {
+    background: #1a73e8;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: .3px;
+  }
+  .tk-btn-add:hover { background: #1557b0; }
+
+  /* Filtros de visualização */
+  .tk-vis-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 14px;
+    padding: 10px 24px;
+    font-size: 13px;
+    color: #555;
+  }
+  .tk-vis-bar label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .tk-vis-bar input[type=checkbox] { accent-color: #1a73e8; }
+
+  /* ── TIMELINE ── */
+  .tk-timeline { padding: 0 24px 30px; display: flex; flex-direction: column; gap: 0; }
+
+  .tk-action {
+    display: flex;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid #eee;
+  }
+  .tk-action:last-child { border-bottom: none; }
+
+  .tk-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: #1a73e8;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .tk-action-body { flex: 1; min-width: 0; }
+  .tk-action-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .tk-action-author { font-size: 14px; font-weight: 700; color: #1f2937; }
+  .tk-action-date { font-size: 12px; color: #999; }
+  .tk-action-type {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+  .tk-type-publica { background: #dbeafe; color: #1d4ed8; }
+  .tk-type-interna { background: #fef3c7; color: #92400e; }
+
+  .tk-action-content {
+    font-size: 14px;
+    color: #374151;
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+  .tk-action-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .tk-attach-link {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    background: #f3f4f6;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    font-size: 12px;
+    color: #444;
+    text-decoration: none;
+  }
+  .tk-attach-link:hover { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
+
+  /* Histórico de alterações */
+  .tk-hist-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
+    color: #666;
+  }
+  .tk-hist-item:last-child { border-bottom: none; }
+  .tk-hist-campo { font-weight: 600; color: #333; }
+  .tk-hist-arrow { color: #ccc; }
+  .tk-hist-novo { color: #16a34a; font-weight: 600; }
+</style>
+
+<!-- TOPBAR DO TICKET -->
+<div class="tk-topbar">
+    <div class="tk-breadcrumb">
+        <a href="{% url 'tickets:ticket_list' %}"><i class="bi bi-headset"></i> Tickets</a>
+        <span class="sep">/</span>
+        <span class="tk-title">#{{ ticket.numero }} — {{ ticket.assunto }}</span>
+    </div>
+    <div class="tk-actions">
+        <span class="tk-status-badge"
+              style="background:{{ ticket.status.cor }}22; color:{{ ticket.status.cor }}; border:1px solid {{ ticket.status.cor }}55;">
+            <i class="bi bi-circle-fill" style="font-size:8px;"></i>
+            {{ ticket.status.nome }}
+        </span>
+        {% if user.is_staff %}
+        <a href="{% url 'tickets:ticket_update' ticket.pk %}" class="tk-btn-opcoes">
+            Editar
+        </a>
+        {% endif %}
+        <a href="{% url 'tickets:ticket_list' %}" class="tk-btn-opcoes" style="color:#666;">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+
+<!-- LAYOUT PRINCIPAL -->
+<div class="tk-layout">
+
+    <!-- ════════════════════════════
+         SIDEBAR ESQUERDA
+    ════════════════════════════ -->
+    <aside class="tk-sidebar">
+
+        <!-- Abas -->
+        <div class="tk-tabs">
+            <button class="tk-tab active" id="tab-pub" onclick="setTab('pub')">
+                <i class="bi bi-check2" style="margin-right:4px;"></i> PÚBLICO
+            </button>
+            <button class="tk-tab" id="tab-int" onclick="setTab('int')">
+                INTERNO
+            </button>
+        </div>
+
+        <!-- Solicitante -->
+        <div class="tk-section">
+            <div class="tk-section-label">
+                Solicitante
+                {% if user.is_staff %}
+                <a href="{% url 'tickets:ticket_update' ticket.pk %}">Colocar-me como solicitante</a>
+                {% endif %}
+            </div>
+            <div class="tk-user-card">
+                <div class="tk-user-name">
+                    <span class="tk-dot {% if ticket.solicitante.is_active %}online{% else %}offline{% endif %}"></span>
+                    {{ ticket.solicitante.get_full_name|default:ticket.solicitante.username }}
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Status:</span>
-                    <span class="detail-value">
-                        <span class="badge" style="background-color: {{ ticket.status.cor }}; color: white; padding: 5px 10px;">
-                            {{ ticket.status.nome }}
-                        </span>
-                    </span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Solicitante:</span>
-                    <span class="detail-value">{{ ticket.solicitante.get_full_name|default:ticket.solicitante.username }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Responsável:</span>
-                    <span class="detail-value">{{ ticket.responsavel.get_full_name|default:ticket.responsavel.username|default:"-" }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Categoria:</span>
-                    <span class="detail-value">{{ ticket.categoria.nome|default:"-" }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Urgência:</span>
-                    <span class="detail-value">
-                        {% if ticket.urgencia %}
-                            <span class="badge" style="background-color: {{ ticket.urgencia.cor }}; color: white; padding: 5px 10px;">
-                                {{ ticket.urgencia.nome }}
-                            </span>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Serviço:</span>
-                    <span class="detail-value">{{ ticket.servico.nome|default:"-" }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Criado em:</span>
-                    <span class="detail-value">{{ ticket.criado_em|date:"d/m/Y H:i" }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Atualizado em:</span>
-                    <span class="detail-value">{{ ticket.atualizado_em|date:"d/m/Y H:i" }}</span>
-                </div>
-                {% if ticket.previsao_solucao %}
-                <div class="detail-row">
-                    <span class="detail-label">Previsão SLA:</span>
-                    <span class="detail-value">
-                        {% if ticket.esta_vencido %}
-                            <span class="badge" style="background-color: #dc3545; color: white;">
-                                <i class="bi bi-exclamation-triangle"></i> Vencido - {{ ticket.previsao_solucao|date:"d/m/Y H:i" }}
-                            </span>
-                        {% else %}
-                            {{ ticket.previsao_solucao|date:"d/m/Y H:i" }}
-                        {% endif %}
-                    </span>
-                </div>
+                {% if not ticket.solicitante.is_active %}
+                <div class="tk-user-warning">Este cliente está desabilitado</div>
+                {% endif %}
+                {% if ticket.solicitante.email %}
+                <div class="tk-user-email">{{ ticket.solicitante.email }}</div>
                 {% endif %}
             </div>
         </div>
-    </div>
 
-    <!-- Assunto e Descrição -->
-    {% if ticket.assunto or ticket.descricao %}
-    <div class="detail-card">
-        <h2>Detalhes</h2>
-        <div class="detail-content">
-            {% if ticket.assunto %}
-                <div style="margin-bottom: 15px;">
-                    <strong>Assunto:</strong><br>
-                    {{ ticket.assunto }}
-                </div>
+        <!-- Serviço -->
+        <div class="tk-section">
+            <div class="tk-section-label">Serviço</div>
+            {% if ticket.servico %}
+            <div style="background:#f5f7fa; border:1px solid #e0e0e0; border-radius:4px; padding:9px 12px; margin-top:6px;">
+                <div style="font-size:13px; font-weight:600; color:#222;">{{ ticket.servico.nome }}</div>
+                {% if ticket.servico.categoria %}
+                <div style="font-size:12px; color:#888; margin-top:2px;">{{ ticket.servico.categoria.nome }}</div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div style="font-size:13px; color:#bbb; margin-top:6px;">—</div>
             {% endif %}
-            {% if ticket.descricao %}
+        </div>
+
+        <!-- Categoria + Urgência -->
+        <div class="tk-section">
+            <div class="tk-row2">
                 <div>
-                    <strong>Descrição:</strong><br>
-                    <div style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 4px; margin-top: 8px;">
-                        {{ ticket.descricao }}
+                    <div class="tk-field-label">Categoria</div>
+                    <div style="font-size:13px; color:#333; padding:6px 0;">
+                        {{ ticket.categoria.nome|default:"—" }}
                     </div>
                 </div>
-            {% endif %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Ações Rápidas -->
-    <div class="detail-card">
-        <h2>Ações Rápidas</h2>
-        <div class="detail-content">
-            <form method="post" action="{% url 'tickets:alterar_status' ticket.pk %}" style="display: inline-block; margin-right: 10px;">
-                {% csrf_token %}
-                {{ alterar_status_form.status }}
-                {{ alterar_status_form.justificativa }}
-                <button type="submit" class="btn btn-sm btn-primary">
-                    <i class="bi bi-arrow-repeat"></i> Alterar Status
-                </button>
-            </form>
-            <form method="post" action="{% url 'tickets:alterar_responsavel' ticket.pk %}" style="display: inline-block;">
-                {% csrf_token %}
-                {{ alterar_responsavel_form.responsavel }}
-                <button type="submit" class="btn btn-sm btn-secondary">
-                    <i class="bi bi-person"></i> Alterar Responsável
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Ações/Respostas -->
-    <div class="detail-card">
-        <h2>Ações e Respostas</h2>
-        <div class="detail-content">
-            <form method="post" action="{% url 'tickets:adicionar_acao' ticket.pk %}">
-                {% csrf_token %}
-                <div class="form-group">
-                    <label for="id_tipo">Tipo de Ação:</label>
-                    {{ acao_form.tipo }}
-                </div>
-                <div class="form-group">
-                    <label for="id_conteudo">Conteúdo:</label>
-                    {{ acao_form.conteudo }}
-                </div>
-                <div class="form-group">
-                    <label for="id_tempo_trabalhado">Tempo Trabalhado (HH:MM:SS):</label>
-                    {{ acao_form.tempo_trabalhado }}
-                </div>
-                <div class="form-group">
-                    <label for="id_aplicar_macro">Aplicar Macro:</label>
-                    {{ acao_form.aplicar_macro }}
-                </div>
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> Adicionar Ação
-                </button>
-            </form>
-
-            <hr style="margin: 30px 0;">
-
-            {% if acoes %}
-                {% for acao in acoes %}
-                <div style="border-left: 3px solid {% if acao.tipo == 'publica' %}#007bff{% elif acao.tipo == 'interna' %}#6c757d{% else %}#ffc107{% endif %}; padding: 15px; margin-bottom: 15px; background: #f8f9fa;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <div>
-                            <span class="badge" style="background-color: {% if acao.tipo == 'publica' %}#007bff{% elif acao.tipo == 'interna' %}#6c757d{% else %}#ffc107{% endif %}; color: white;">
-                                {{ acao.get_tipo_display }}
-                            </span>
-                            <strong>{{ acao.autor.get_full_name|default:acao.autor.username }}</strong>
-                        </div>
-                        <span style="color: #666; font-size: 14px;">{{ acao.criado_em|date:"d/m/Y H:i" }}</span>
+                <div>
+                    <div class="tk-field-label">Urgência</div>
+                    {% if ticket.urgencia %}
+                    <div style="margin-top:4px;">
+                        <span style="
+                            display:inline-block; padding:3px 10px; border-radius:20px;
+                            font-size:12px; font-weight:600;
+                            background:{{ ticket.urgencia.cor }}22;
+                            color:{{ ticket.urgencia.cor }};
+                            border:1px solid {{ ticket.urgencia.cor }}55;
+                        ">{{ ticket.urgencia.nome }}</span>
                     </div>
-                    <div style="white-space: pre-wrap;">{{ acao.conteudo }}</div>
-                    {% if acao.tempo_trabalhado %}
-                        <div style="margin-top: 10px; font-size: 13px; color: #666;">
-                            <i class="bi bi-clock"></i> Tempo trabalhado: {{ acao.tempo_trabalhado }}
-                        </div>
+                    {% else %}
+                    <div style="font-size:13px; color:#bbb; padding:6px 0;">—</div>
                     {% endif %}
                 </div>
-                {% endfor %}
-            {% else %}
-                <p style="text-align: center; color: #999; padding: 30px 0;">
-                    Nenhuma ação registrada ainda.
-                </p>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Anexos -->
-    <div class="detail-card">
-        <h2>Anexos</h2>
-        <div class="detail-content">
-            <form method="post" action="{% url 'tickets:adicionar_anexo' ticket.pk %}" enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="form-group">
-                    <label for="id_arquivo">Selecione o(s) arquivo(s):</label>
-                    <input type="file" name="arquivo" multiple class="form-control" required>
-                    <small>Máximo 25MB por arquivo</small>
-                </div>
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-paperclip"></i> Adicionar Anexo
-                </button>
-            </form>
-
-            <hr style="margin: 20px 0;">
-
-            {% if anexos %}
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Nome</th>
-                                <th>Tamanho</th>
-                                <th>Autor</th>
-                                <th>Data</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for anexo in anexos %}
-                            <tr>
-                                <td><i class="bi bi-file-earmark"></i> {{ anexo.nome_original }}</td>
-                                <td>{{ anexo.tamanho|filesizeformat }}</td>
-                                <td>{{ anexo.autor.username }}</td>
-                                <td>{{ anexo.criado_em|date:"d/m/Y H:i" }}</td>
-                                <td>
-                                    <a href="{{ anexo.arquivo.url }}" class="btn btn-sm btn-view" target="_blank" title="Baixar">
-                                        <i class="bi bi-download"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <p style="text-align: center; color: #999; padding: 30px 0;">
-                    Nenhum anexo adicionado ainda.
-                </p>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Histórico -->
-    {% if historico %}
-    <div class="detail-card">
-        <h2>Histórico de Alterações</h2>
-        <div class="detail-content">
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Campo</th>
-                            <th>Valor Anterior</th>
-                            <th>Valor Novo</th>
-                            <th>Usuário</th>
-                            <th>Data</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in historico %}
-                        <tr>
-                            <td><strong>{{ item.campo }}</strong></td>
-                            <td>{{ item.valor_anterior|default:"-" }}</td>
-                            <td>{{ item.valor_novo|default:"-" }}</td>
-                            <td>{{ item.usuario.username }}</td>
-                            <td>{{ item.criado_em|date:"d/m/Y H:i" }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
             </div>
         </div>
-    </div>
-    {% endif %}
-</div>
+
+        <!-- Responsável -->
+        <div class="tk-section">
+            <div class="tk-section-label">
+                Responsável
+                {% if user.is_staff %}
+                <a href="{% url 'tickets:ticket_update' ticket.pk %}">Atribuir para mim</a>
+                {% endif %}
+            </div>
+            <div style="font-size:13px; color:#333; margin-top:4px;">
+                {{ ticket.responsavel.get_full_name|default:"—" }}
+            </div>
+        </div>
+
+        <!-- ════ ATIVOS VINCULADOS ════ -->
+        <div class="tk-section">
+            <div class="tk-section-label">Ativos</div>
+
+            <!-- Lista dos ativos já vinculados -->
+            <div id="ativos-list" style="display:flex; flex-direction:column; gap:5px; margin-top:6px;">
+                {% for ativo in ativos_vinculados %}
+                <div style="
+                    display:flex; align-items:center; justify-content:space-between;
+                    background:#f5f7fa; border:1px solid #e0e0e0; border-radius:5px;
+                    padding:7px 10px; gap:6px;
+                ">
+                    <div style="min-width:0; flex:1;">
+                        <div style="font-size:12px; font-weight:700; color:#1a73e8;
+                                    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+                             title="{{ ativo.etiqueta }} — {{ ativo.nome }}">
+                            {{ ativo.etiqueta }}
+                        </div>
+                        <div style="font-size:11px; color:#666; white-space:nowrap;
+                                    overflow:hidden; text-overflow:ellipsis;"
+                             title="{{ ativo.nome }}">
+                            {{ ativo.nome|truncatechars:28 }}
+                        </div>
+                        {% if ativo.status %}
+                        <div style="margin-top:3px;">
+                            <span style="
+                                font-size:10px; font-weight:600; padding:1px 7px;
+                                border-radius:20px;
+                                background:{{ ativo.status.cor }}22;
+                                color:{{ ativo.status.cor }};
+                                border:1px solid {{ ativo.status.cor }}44;
+                            ">{{ ativo.status.nome }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <!-- Botão remover -->
+                    <form method="post" action="{% url 'tickets:gerenciar_ativos' ticket.pk %}"
+                          style="flex-shrink:0;">
+                        {% csrf_token %}
+                        <input type="hidden" name="acao" value="remover">
+                        <input type="hidden" name="ativo_id" value="{{ ativo.pk }}">
+                        <button type="submit"
+                                title="Desvincular ativo"
+                                onclick="return confirm('Desvincular {{ ativo.etiqueta }}?')"
+                                style="
+                                    background:none; border:none; cursor:pointer;
+                                    color:#ccc; font-size:14px; padding:4px;
+                                    border-radius:4px; line-height:1;
+                                "
+                                onmouseover="this.style.color='#dc2626'; this.style.background='#fee2e2';"
+                                onmouseout="this.style.color='#ccc'; this.style.background='none';">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </form>
+                </div>
+                {% empty %}
+                <div style="font-size:12px; color:#bbb; text-align:center; padding:8px 0;">
+                    Nenhum ativo vinculado
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Campo de busca para adicionar ativo -->
+            <div style="margin-top:8px; position:relative;">
+                <input type="text" id="ativo-search" autocomplete="off"
+                       placeholder="Buscar ativo (etiqueta ou nome)..."
+                       style="
+                           width:100%; border:1px solid #d0d0d0; border-radius:4px;
+                           padding:7px 10px; font-size:12px; color:#333;
+                           box-sizing:border-box;
+                       ">
+                <!-- Dropdown de resultados -->
+                <div id="ativo-dropdown" style="
+                    display:none; position:absolute; top:100%; left:0; right:0; z-index:200;
+                    background:#fff; border:1px solid #d0d0d0; border-top:none;
+                    border-radius:0 0 5px 5px; max-height:200px; overflow-y:auto;
+                    box-shadow:0 4px 12px rgba(0,0,0,.12);
+                "></div>
+            </div>
+        </div>
+
+        <!-- Previsão de solução -->
+        <div class="tk-section">
+            <div class="tk-section-label">Previsão de solução</div>
+            {% if ticket.previsao_solucao %}
+            <div class="tk-previsao">
+                <div class="tk-previsao-value {% if ticket.esta_vencido %}vencido{% else %}ok{% endif %}">
+                    {% if ticket.esta_vencido %}<i class="bi bi-exclamation-circle"></i> {% endif %}
+                    {{ ticket.previsao_solucao|date:"l, d/m/Y H:i" }}
+                </div>
+            </div>
+            {% else %}
+            <div style="font-size:13px; color:#bbb; margin-top:4px;">Não definida</div>
+            {% endif %}
+        </div>
+
+
+        <!-- Alterar status (staff) -->
+        {% if user.is_staff %}
+        <div class="tk-section">
+            <div class="tk-section-label">Alterar Status</div>
+            <form method="post" action="{% url 'tickets:alterar_status' ticket.pk %}">
+                {% csrf_token %}
+                {{ alterar_status_form.status }}
+                <button type="submit" style="
+                    width:100%; margin-top:8px;
+                    background:#1a73e8; color:#fff;
+                    border:none; border-radius:4px;
+                    padding:8px; font-size:13px;
+                    font-weight:600; cursor:pointer;
+                ">Salvar Status</button>
+            </form>
+        </div>
+        {% endif %}
+
+        <!-- Datas -->
+        <div class="tk-section">
+            <div class="tk-section-label">Datas</div>
+            <div style="font-size:12px; color:#777; line-height:1.9; margin-top:4px;">
+                <div>Criado: <strong style="color:#333;">{{ ticket.criado_em|date:"d/m/Y H:i" }}</strong></div>
+                {% if ticket.primeira_resposta_em %}
+                <div>1ª Resposta: <strong style="color:#333;">{{ ticket.primeira_resposta_em|date:"d/m/Y H:i" }}</strong></div>
+                {% endif %}
+                {% if ticket.resolvido_em %}
+                <div>Resolvido: <strong style="color:#333;">{{ ticket.resolvido_em|date:"d/m/Y H:i" }}</strong></div>
+                {% endif %}
+            </div>
+        </div>
+
+
+
+    </aside>
+
+    <!-- ════════════════════════════
+         ÁREA PRINCIPAL
+    ════════════════════════════ -->
+    <main class="tk-main">
+
+        <!-- Título e meta -->
+        <div class="tk-subject">
+            <h2>{{ ticket.assunto }}</h2>
+            <div class="tk-meta">
+                Ticket aberto
+                {% if ticket.canal_abertura %}via <strong>{{ ticket.canal_abertura }}</strong>{% endif %}
+                pelo cliente <strong>{{ ticket.solicitante.get_full_name|default:ticket.solicitante.username }}</strong>
+                em {{ ticket.criado_em|date:"d/m/Y H:i" }}
+            </div>
+        </div>
+
+        <!-- Banner ticket pai -->
+        {% if ticket.ticket_pai %}
+        <div class="tk-parent-banner">
+            <i class="bi bi-link-45deg"></i>
+            Este ticket é uma continuação do ticket Nº
+            <a href="{% url 'tickets:ticket_detail' ticket.ticket_pai.pk %}">
+                {{ ticket.ticket_pai.numero }}
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Descrição original (se houver) -->
+        {% if ticket.descricao %}
+        <div style="margin:12px 24px 0; background:#fff; border:1px solid #e0e0e0; border-radius:6px; padding:16px 18px; font-size:14px; color:#374151; line-height:1.7; white-space:pre-wrap;">
+            {{ ticket.descricao }}
+        </div>
+        {% endif %}
+
+        <!-- Editor de ação -->
+        <div class="tk-editor-wrap">
+            <form method="post" action="{% url 'tickets:adicionar_acao' ticket.pk %}"
+                  enctype="multipart/form-data" id="form-acao">
+                {% csrf_token %}
+                <input type="hidden" name="tipo" id="tipo-acao" value="publica">
+
+                <!-- Abas pública / interna -->
+                <div class="tk-editor-tabs">
+                    <button type="button" class="tk-editor-tab active" id="etab-pub"
+                            onclick="setEditorTab('pub')">Ação pública</button>
+                    {% if user.is_staff %}
+                    <button type="button" class="tk-editor-tab" id="etab-int"
+                            onclick="setEditorTab('int')">Ação interna</button>
+                    {% endif %}
+                </div>
+
+                <!-- Textarea -->
+                <textarea name="conteudo" id="editor-acao"
+                          class="tk-editor-textarea"
+                          placeholder="Digite algo..."></textarea>
+                <div class="tk-word-count">Words : <span id="word-count">0</span></div>
+
+                <!-- Toolbar -->
+                <div class="tk-editor-toolbar">
+                    <!-- Anexo -->
+                    <label class="tk-toolbar-btn" title="Anexar arquivo">
+                        <i class="bi bi-paperclip"></i>
+                        <input type="file" name="arquivo" style="display:none;" multiple>
+                    </label>
+                    <div class="tk-toolbar-sep"></div>
+
+                    {% if user.is_staff %}
+                    <!-- Tempo trabalhado -->
+                    <input type="text" name="tempo_trabalhado"
+                           placeholder="HH:MM:SS"
+                           title="Tempo trabalhado"
+                           style="width:90px; border:1px solid #ccc; border-radius:4px; padding:4px 8px; font-size:12px;">
+                    <div class="tk-toolbar-sep"></div>
+
+                    <!-- Macro -->
+                    {% if acao_form.aplicar_macro.field.queryset.exists %}
+                    <select name="aplicar_macro" class="tk-macro-select">
+                        <option value="">Aplicar macro ▾</option>
+                        {% for m in acao_form.aplicar_macro.field.queryset %}
+                        <option value="{{ m.pk }}">{{ m.nome }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                    {% endif %}
+
+                    <!-- Status ao enviar -->
+                    <select name="status_apos" class="tk-status-select">
+                        <option value="">Manter o status atual</option>
+                        {% for s in alterar_status_form.status.field.queryset %}
+                        <option value="{{ s.pk }}"
+                            {% if s.pk == ticket.status.pk %}selected{% endif %}>
+                            {{ s.nome }}
+                        </option>
+                        {% endfor %}
+                    </select>
+
+                    <button type="submit" class="tk-btn-add">
+                        ADICIONAR AÇÃO
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Anexos do ticket -->
+        {% if anexos %}
+        <div style="margin: 12px 24px 0; padding: 10px 14px; background:#fff; border:1px solid #e0e0e0; border-radius:6px;">
+            <div style="font-size:12px; color:#888; margin-bottom:8px; font-weight:600;">ANEXOS DO TICKET</div>
+            <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                {% for anexo in anexos %}
+                <a href="{{ anexo.arquivo.url }}" target="_blank" class="tk-attach-link">
+                    <i class="bi bi-file-earmark"></i>
+                    {{ anexo.nome_original|truncatechars:30 }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Barra de filtros da timeline -->
+        <div class="tk-vis-bar">
+            <span>Visualizar:</span>
+            <label><input type="checkbox" id="vis-pub" checked onchange="filtrarTimeline()">
+                Ações públicas</label>
+            {% if user.is_staff %}
+            <label><input type="checkbox" id="vis-int" checked onchange="filtrarTimeline()">
+                Ações internas</label>
+            <label><input type="checkbox" id="vis-hist" onchange="filtrarTimeline()">
+                Histórico de alterações</label>
+            {% endif %}
+        </div>
+
+        <!-- ── TIMELINE DE AÇÕES ── -->
+        <div class="tk-timeline">
+
+            {% for acao in acoes %}
+            <div class="tk-action tipo-{{ acao.tipo }}">
+                <!-- Avatar -->
+                <div class="tk-avatar">
+                    {{ acao.autor.get_full_name|default:acao.autor.username|first|upper }}
+                </div>
+                <!-- Corpo -->
+                <div class="tk-action-body">
+                    <div class="tk-action-header">
+                        <span class="tk-action-author">
+                            {{ acao.autor.get_full_name|default:acao.autor.username }}
+                        </span>
+                        <span class="tk-action-date">{{ acao.criado_em|date:"d/m/Y H:i" }}</span>
+                        <span class="tk-action-type
+                            {% if acao.tipo == 'publica' %}tk-type-publica{% else %}tk-type-interna{% endif %}">
+                            {{ acao.get_tipo_display }}
+                        </span>
+                        {% if acao.tempo_trabalhado %}
+                        <span style="font-size:12px; color:#9ca3af; margin-left:auto;">
+                            <i class="bi bi-clock"></i> {{ acao.tempo_trabalhado }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="tk-action-content">{{ acao.conteudo }}</div>
+                    {% with acao.anexos.all as acao_anexos %}
+                    {% if acao_anexos %}
+                    <div class="tk-action-attachments">
+                        {% for a in acao_anexos %}
+                        <a href="{{ a.arquivo.url }}" target="_blank" class="tk-attach-link">
+                            <i class="bi bi-paperclip"></i> {{ a.nome_original|truncatechars:28 }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+            {% empty %}
+            <div style="padding:40px 0; text-align:center; color:#bbb;">
+                <i class="bi bi-chat-square" style="font-size:36px; display:block; margin-bottom:10px;"></i>
+                <p style="font-size:14px;">Nenhuma ação registrada ainda.</p>
+            </div>
+            {% endfor %}
+
+            <!-- Histórico de alterações (oculto por padrão) -->
+            {% if historico %}
+            <div id="bloco-historico" style="display:none; padding:14px 0;">
+                <div style="font-size:12px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px;">
+                    Histórico de Alterações
+                </div>
+                {% for h in historico %}
+                <div class="tk-hist-item">
+                    <span class="tk-hist-campo">{{ h.campo }}</span>
+                    <span class="tk-hist-arrow">→</span>
+                    <span style="color:#888; font-size:12px;">{{ h.valor_anterior|default:"—" }}</span>
+                    <span class="tk-hist-arrow">→</span>
+                    <span class="tk-hist-novo">{{ h.valor_novo|default:"—" }}</span>
+                    <span style="margin-left:auto; font-size:12px; color:#aaa;">
+                        {{ h.usuario.get_full_name|default:h.usuario.username }}
+                        · {{ h.criado_em|date:"d/m H:i" }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+        </div><!-- /tk-timeline -->
+    </main>
+</div><!-- /tk-layout -->
+
+<script>
+// ── Abas da sidebar ──
+function setTab(tab) {
+    document.getElementById('tab-pub').classList.toggle('active', tab === 'pub');
+    document.getElementById('tab-int').classList.toggle('active', tab === 'int');
+}
+
+// ── Abas do editor ──
+function setEditorTab(tab) {
+    const isPub = tab === 'pub';
+    document.getElementById('etab-pub').classList.toggle('active', isPub);
+    const intTab = document.getElementById('etab-int');
+    if (intTab) intTab.classList.toggle('active', !isPub);
+    document.getElementById('tipo-acao').value = isPub ? 'publica' : 'interna';
+}
+
+// ── Contador de palavras ──
+const editorEl = document.getElementById('editor-acao');
+const wcEl     = document.getElementById('word-count');
+if (editorEl && wcEl) {
+    editorEl.addEventListener('input', function () {
+        wcEl.textContent = this.value.trim() ? this.value.trim().split(/\s+/).length : 0;
+    });
+}
+
+// ── Filtrar timeline ──
+function filtrarTimeline() {
+    const visPub  = document.getElementById('vis-pub')?.checked  ?? true;
+    const visInt  = document.getElementById('vis-int')?.checked  ?? true;
+    const visHist = document.getElementById('vis-hist')?.checked ?? false;
+    document.querySelectorAll('.tipo-publica').forEach(el => {
+        el.style.display = visPub ? '' : 'none';
+    });
+    document.querySelectorAll('.tipo-interna').forEach(el => {
+        el.style.display = visInt ? '' : 'none';
+    });
+    const blocoHist = document.getElementById('bloco-historico');
+    if (blocoHist) blocoHist.style.display = visHist ? '' : 'none';
+}
+
+// ── Autocomplete de ativos ──
+(function () {
+    const input    = document.getElementById('ativo-search');
+    const dropdown = document.getElementById('ativo-dropdown');
+    if (!input || !dropdown) return;
+
+    const BUSCA_URL = "{% url 'tickets:buscar_ativos_json' ticket.pk %}";
+    let debounce;
+
+    input.addEventListener('input', function () {
+        clearTimeout(debounce);
+        const q = this.value.trim();
+        if (q.length < 1) { dropdown.style.display = 'none'; return; }
+
+        debounce = setTimeout(() => {
+            fetch(`${BUSCA_URL}?q=${encodeURIComponent(q)}`)
+                .then(r => r.json())
+                .then(data => {
+                    dropdown.innerHTML = '';
+                    if (!data.ativos || data.ativos.length === 0) {
+                        dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#aaa;">Nenhum resultado</div>';
+                        dropdown.style.display = 'block';
+                        return;
+                    }
+                    data.ativos.forEach(a => {
+                        const item = document.createElement('div');
+                        item.style.cssText = 'padding:9px 12px; cursor:pointer; border-bottom:1px solid #f0f0f0; font-size:12px;';
+                        item.innerHTML = `
+                            <div style="font-weight:700; color:#1a73e8;">${a.etiqueta}</div>
+                            <div style="color:#555;">${a.nome}</div>
+                            ${a.status ? `<span style="font-size:10px; font-weight:600; padding:1px 7px; border-radius:20px; background:${a.status_cor}22; color:${a.status_cor}; border:1px solid ${a.status_cor}44;">${a.status}</span>` : ''}
+                        `;
+                        item.addEventListener('mouseover', () => item.style.background = '#f0f4ff');
+                        item.addEventListener('mouseout',  () => item.style.background = '');
+                        item.addEventListener('click', () => vincularAtivo(a.id, a.etiqueta));
+                        dropdown.appendChild(item);
+                    });
+                    dropdown.style.display = 'block';
+                })
+                .catch(() => { dropdown.style.display = 'none'; });
+        }, 280);
+    });
+
+    // Fechar dropdown ao clicar fora
+    document.addEventListener('click', e => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+
+    function vincularAtivo(ativoId, etiqueta) {
+        dropdown.style.display = 'none';
+        input.value = '';
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = "{% url 'tickets:gerenciar_ativos' ticket.pk %}";
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        form.innerHTML = `
+            <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+            <input type="hidden" name="acao" value="adicionar">
+            <input type="hidden" name="ativo_id" value="${ativoId}">
+        `;
+        document.body.appendChild(form);
+        form.submit();
+    }
+})();
+</script>
+
 {% endblock %}
