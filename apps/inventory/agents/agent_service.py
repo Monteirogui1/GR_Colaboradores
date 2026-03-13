@@ -65,7 +65,7 @@ class AgentConfig:
         )
 
         self.data = {
-            "server_url":     os.environ.get("AGENT_SERVER_URL", "http://192.168.1.54:5001"),
+            "server_url":     os.environ.get("AGENT_SERVER_URL", "http://192.168.100.247:5002"),
             "token_hash":     os.environ.get("AGENT_TOKEN_HASH", ""),
             "machine_name":   socket.gethostname(),
             "version":        VERSION,

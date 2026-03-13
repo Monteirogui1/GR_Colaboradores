@@ -21,7 +21,7 @@ from pathlib import Path
 try:
     from installer_config import *
 except ImportError:
-    SERVER_URL          = "http://192.168.1.54:5001"
+    SERVER_URL          = "http://192.168.100.247:5002"
     INSTALL_DIR         = r"C:\Program Files\InventoryAgent"
     AGENT_NAME          = "Agente de Inventário"
     AGENT_VERSION       = "3.0.0"

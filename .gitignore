@@ -11,3 +11,4 @@ migrations/
 apps/*/migrations/
 teste.py
 *.exe
+*.zip
