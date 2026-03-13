@@ -292,6 +292,11 @@
            class="{% if 'categoria' in request.resolver_match.url_name or 'urgencia' in request.resolver_match.url_name or 'status' in request.resolver_match.url_name or 'servico' in request.resolver_match.url_name or 'sla' in request.resolver_match.url_name or 'campo' in request.resolver_match.url_name or 'gatilho' in request.resolver_match.url_name or 'macro' in request.resolver_match.url_name or 'justificativa' in request.resolver_match.url_name or 'regra' in request.resolver_match.url_name %}active{% endif %}">
             <i class="bi bi-sliders"></i> Configurações
         </a>
+        <div class="nav-sep"></div>
+        <a href="{% url 'tickets:configuracao_email' %}"
+           class="">
+            <i class="bi bi-sliders"></i> Configurações E-mail
+        </a>
         {% endif %}
     </nav>
 

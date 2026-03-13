@@ -218,7 +218,7 @@
 <script>
 function deleteNotification() {
     if (confirm('Tem certeza que deseja excluir esta notificação?')) {
-        fetch('{% url "inventario:notification_delete" notification.pk %}', {
+        fetch('{% url "inventario:notifications_delete" notification.pk %}', {
             method: 'POST',
             headers: {
                 'X-CSRFToken': '{{ csrf_token }}'

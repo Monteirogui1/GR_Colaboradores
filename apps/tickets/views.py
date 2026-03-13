@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
+from django.views import View
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse, HttpResponse, FileResponse
@@ -18,7 +19,7 @@ from .models import (
     Categoria, Urgencia, Status, Justificativa, Servico,
     ContratoSLA, RegraSLA, StatusBase, PesquisaSatisfacao,
     CampoAdicional, RegraExibicaoCampo,
-    Gatilho, Macro, CategoriaUrgencia
+    Gatilho, Macro, CategoriaUrgencia, ConfiguracaoEmail
 )
 from .forms import (
     TicketForm, TicketFiltroForm, AcaoTicketForm, AnexoTicketForm,
@@ -26,7 +27,7 @@ from .forms import (
     ReabrirTicketForm, AlterarPrevisaoSLAForm, CategoriaForm,
     UrgenciaForm, StatusForm, JustificativaForm, ServicoForm,
     ContratoSLAForm, RegraSLAForm, CampoAdicionalForm, RegraExibicaoCampoForm,
-    GatilhoForm, MacroForm
+    GatilhoForm, MacroForm, ConfiguracaoEmailForm
 )
 
 
@@ -1455,3 +1456,83 @@ def toggle_ativo(request, model_name, pk):
 
     except model_class.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Registro não encontrado'}, status=404)
+
+
+class ConfiguracaoEmailView(LoginRequiredMixin, View):
+    """
+    View única que cria ou edita a ConfiguracaoEmail do cliente logado.
+    Se já existe um registro → edita. Se não existe → cria.
+    Acesso restrito a staff (administradores do cliente).
+    """
+    template_name = 'tickets/config/configuracao_email_form.html'
+
+    def _get_instance(self, request):
+        """Retorna a instância existente ou None."""
+        try:
+            return ConfiguracaoEmail.objects.get(cliente=request.user)
+        except ConfiguracaoEmail.DoesNotExist:
+            return None
+
+    def get(self, request):
+        if not request.user.is_staff:
+            messages.error(request, 'Acesso restrito a administradores.')
+            return redirect('tickets:dashboard')
+
+        instance = self._get_instance(request)
+        form = ConfiguracaoEmailForm(instance=instance)
+        return render(request, self.template_name, {
+            'form': form,
+            'instance': instance,
+            'presets': ConfiguracaoEmail.PRESETS,
+        })
+
+    def post(self, request):
+        if not request.user.is_staff:
+            messages.error(request, 'Acesso restrito a administradores.')
+            return redirect('tickets:dashboard')
+
+        instance = self._get_instance(request)
+        form = ConfiguracaoEmailForm(request.POST, instance=instance)
+
+        if form.is_valid():
+            config = form.save(commit=False)
+            config.cliente = request.user
+            config.save()
+            messages.success(request, '✅ Configuração de e-mail salva com sucesso.')
+            return redirect('tickets:configuracao_email')
+
+        messages.error(request, 'Corrija os erros abaixo.')
+        return render(request, self.template_name, {
+            'form': form,
+            'instance': instance,
+            'presets': ConfiguracaoEmail.PRESETS,
+        })
+
+
+class ConfiguracaoEmailTesteView(LoginRequiredMixin, View):
+    """
+    Testa a conexão IMAP com as configurações salvas.
+    POST /tickets/configuracao-email/testar/
+    Retorna JSON com resultado do teste.
+    """
+
+    def post(self, request):
+        if not request.user.is_staff:
+            return JsonResponse({'success': False, 'error': 'Acesso negado.'}, status=403)
+
+        try:
+            config = ConfiguracaoEmail.objects.get(cliente=request.user, ativo=True)
+        except ConfiguracaoEmail.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Nenhuma configuração ativa encontrada.'})
+
+        import imaplib
+        try:
+            mail = imaplib.IMAP4_SSL(config.imap_server, config.imap_port)
+            mail.login(config.email_usuario, config.get_senha())
+            mail.select('INBOX')
+            mail.logout()
+            return JsonResponse({'success': True, 'message': f'Conexão com {config.imap_server} bem-sucedida.'})
+        except imaplib.IMAP4.error as e:
+            return JsonResponse({'success': False, 'error': f'Erro de autenticação IMAP: {e}'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': f'Erro de conexão: {e}'})

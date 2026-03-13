@@ -36,15 +36,39 @@ class Command(BaseCommand):
 
         self.stdout.write('Iniciando processamento de e-mails...')
 
-        # Configurações de e-mail
+        # ── 1. Tentar configurações cadastradas no banco ──────────────
+        from apps.tickets.models import ConfiguracaoEmail
+
+        configs_db = ConfiguracaoEmail.objects.filter(ativo=True)
+
+        if configs_db.exists():
+            self.stdout.write(self.style.SUCCESS(
+                f'{configs_db.count()} configuração(ões) ativa(s) encontrada(s) no banco.'
+            ))
+            for config_obj in configs_db:
+                self.stdout.write(f'\n→ Processando conta: {config_obj.email_usuario}')
+                self._processar_conta(config_obj.to_email_config_dict(), limit, mark_read)
+            return
+
+        # ── 2. Fallback: settings.TICKET_EMAIL_CONFIG ─────────────────
         email_config = getattr(settings, 'TICKET_EMAIL_CONFIG', {})
 
         if not email_config:
             self.stdout.write(self.style.ERROR(
-                'Configuração TICKET_EMAIL_CONFIG não encontrada em settings.py'
+                'Nenhuma configuração encontrada. '
+                'Cadastre em Tickets → Configuração de E-mail ou defina '
+                'TICKET_EMAIL_CONFIG em settings.py'
             ))
             return
 
+        self.stdout.write(self.style.WARNING(
+            'Usando configuração de settings.py (fallback).'
+        ))
+        self._processar_conta(email_config, limit, mark_read)
+
+    # ─────────────────────────────────────────────────────────────────
+    def _processar_conta(self, email_config, limit, mark_read):
+        """Conecta via IMAP e processa os e-mails de uma conta."""
         try:
             # Conectar ao servidor IMAP
             mail = imaplib.IMAP4_SSL(
@@ -67,6 +91,7 @@ class Command(BaseCommand):
 
             if status != 'OK':
                 self.stdout.write(self.style.ERROR('Erro ao buscar e-mails'))
+                mail.logout()
                 return
 
             email_ids = messages[0].split()
@@ -118,6 +143,7 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'Erro na conexão: {str(e)}'))
 
+    # ─────────────────────────────────────────────────────────────────
     def process_email(self, mail, email_id, config):
         """Processa um e-mail e cria um ticket ou adiciona ação a ticket existente"""
 

@@ -100,4 +100,16 @@ urlpatterns = [
     # ==================== AJAX / API ====================
     path('api/urgencias/<int:categoria_id>/', views.urgencias_por_categoria, name='urgencias_por_categoria'),
     path('api/toggle/<str:model_name>/<int:pk>/', views.toggle_ativo, name='toggle_ativo'),
+
+    # Configuração de e-mail (admin do cliente)
+    path(
+        'config/configuracao-email/',
+        views.ConfiguracaoEmailView.as_view(),
+        name='configuracao_email',
+    ),
+    path(
+        'config/configuracao-email/testar/',
+        views.ConfiguracaoEmailTesteView.as_view(),
+        name='configuracao_email_teste',
+    ),
 ]

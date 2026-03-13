@@ -4,7 +4,7 @@ from .models import (
     Ticket, AcaoTicket, AnexoTicket,
     Categoria, Urgencia, Status, Justificativa, Servico,
     ContratoSLA, RegraSLA, CampoAdicional, RegraExibicaoCampo,
-    Gatilho, Macro, StatusBase
+    Gatilho, Macro, StatusBase, ConfiguracaoEmail
 )
 from apps.authentication.models import User
 
@@ -567,3 +567,76 @@ class AlterarPrevisaoSLAForm(forms.Form):
         }),
         label="Motivo"
     )
+
+
+class ConfiguracaoEmailForm(forms.ModelForm):
+    """
+    Form para criar/editar ConfiguracaoEmail.
+    O campo senha é write-only: exibido vazio no edit, salvo apenas se preenchido.
+    """
+
+    senha = forms.CharField(
+        label='Senha / App Password',
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Deixe em branco para manter a senha atual',
+            'autocomplete': 'new-password',
+        }),
+        required=False,
+        help_text=(
+            'Para Gmail, use uma App Password de 16 caracteres. '
+            'Deixe em branco ao editar se não quiser alterar a senha.'
+        ),
+    )
+
+    class Meta:
+        model = ConfiguracaoEmail
+        fields = [
+            'provedor', 'email_usuario', 'senha',
+            'smtp_host', 'smtp_port', 'smtp_use_tls',
+            'imap_server', 'imap_port',
+            'auto_criar_usuarios', 'processar_anexos',
+            'enviar_confirmacao', 'notificar_agente_resposta', 'notificar_cliente_resposta',
+            'site_url', 'ativo',
+        ]
+        widgets = {
+            'provedor': forms.Select(attrs={'class': 'form-control', 'id': 'id_provedor'}),
+            'email_usuario': forms.EmailInput(attrs={'class': 'form-control'}),
+            'smtp_host': forms.TextInput(attrs={'class': 'form-control'}),
+            'smtp_port': forms.NumberInput(attrs={'class': 'form-control'}),
+            'smtp_use_tls': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'imap_server': forms.TextInput(attrs={'class': 'form-control'}),
+            'imap_port': forms.NumberInput(attrs={'class': 'form-control'}),
+            'auto_criar_usuarios': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'processar_anexos': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'enviar_confirmacao': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'notificar_agente_resposta': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'notificar_cliente_resposta': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'site_url': forms.URLInput(attrs={'class': 'form-control'}),
+            'ativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+        labels = {
+            'provedor': 'Provedor de e-mail',
+            'email_usuario': 'Endereço de e-mail',
+            'smtp_host': 'Servidor SMTP',
+            'smtp_port': 'Porta SMTP',
+            'smtp_use_tls': 'Usar TLS/STARTTLS',
+            'imap_server': 'Servidor IMAP',
+            'imap_port': 'Porta IMAP',
+            'auto_criar_usuarios': 'Criar usuários automaticamente ao receber e-mail',
+            'processar_anexos': 'Processar e salvar anexos dos e-mails',
+            'enviar_confirmacao': 'Enviar confirmação ao solicitante quando ticket for criado',
+            'notificar_agente_resposta': 'Notificar técnico quando cliente responde via e-mail',
+            'notificar_cliente_resposta': 'Notificar cliente quando técnico adiciona resposta',
+            'site_url': 'URL do sistema (usada nos links dos e-mails)',
+            'ativo': 'Configuração ativa',
+        }
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        senha = self.cleaned_data.get('senha')
+        if senha:
+            instance.set_senha(senha)
+        if commit:
+            instance.save()
+        return instance

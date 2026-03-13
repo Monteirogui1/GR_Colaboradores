@@ -5,9 +5,12 @@
 {% block conteudo %}
 <div class="content">
     <!-- Cabeçalho -->
-    <div class="page-header">
+    <div class="page-header d-flex justify-content-between align-items-center">
         <h1>Notificações</h1>
-        <a href="{% url 'inventario:notifications_create' %}" class="btn btn-primary">Nova Notificação</a>
+        <div class="quick-actions">
+            <a href="{% url 'inventario:notifications_create' %}" class="btn btn-primary ">Nova Notificação</a>
+            <a href="{% url 'inventario:notifications_bulk' %}" class="btn btn-primary">Nova Notificação em Massa</a>
+        </div>
     </div>
 
     <!-- Estatísticas -->
@@ -16,12 +19,10 @@
             <div style="font-size: 14px; color: #1976d2; margin-bottom: 8px;">Pendentes</div>
             <div style="font-size: 32px; font-weight: bold; color: #1565c0;">{{ total_pending }}</div>
         </div>
-
         <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; border: 1px solid #a5d6a7; text-align: center;">
             <div style="font-size: 14px; color: #388e3c; margin-bottom: 8px;">Lidas</div>
             <div style="font-size: 32px; font-weight: bold; color: #2e7d32;">{{ total_read }}</div>
         </div>
-
         <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; text-align: center;">
             <div style="font-size: 14px; color: #666; margin-bottom: 8px;">Total</div>
             <div style="font-size: 32px; font-weight: bold; color: #333;">{{ notifications|length }}</div>
@@ -42,7 +43,6 @@
                     {% endfor %}
                 </select>
             </div>
-
             <div class="form-group" style="margin: 0;">
                 <label style="display: block; margin-bottom: 5px; font-weight: 500;">Status</label>
                 <select name="status" class="form-control">
@@ -51,28 +51,37 @@
                     <option value="read" {% if request.GET.status == 'read' %}selected{% endif %}>Lidas</option>
                 </select>
             </div>
-
             <div class="form-group" style="margin: 0;">
-                <label style="display: block; margin-bottom: 5px; font-weight: 500;">Ordenar por</label>
-                <select name="order" class="form-control">
-                    <option value="-created_at">Mais recentes</option>
-                    <option value="created_at">Mais antigas</option>
-                    <option value="priority">Prioridade</option>
+                <label style="display: block; margin-bottom: 5px; font-weight: 500;">Tipo</label>
+                <select name="type" class="form-control">
+                    <option value="">Todos os tipos</option>
+                    <option value="info" {% if request.GET.type == 'info' %}selected{% endif %}>Info</option>
+                    <option value="success" {% if request.GET.type == 'success' %}selected{% endif %}>Sucesso</option>
+                    <option value="warning" {% if request.GET.type == 'warning' %}selected{% endif %}>Aviso</option>
+                    <option value="error" {% if request.GET.type == 'error' %}selected{% endif %}>Erro</option>
+                    <option value="alert" {% if request.GET.type == 'alert' %}selected{% endif %}>Alerta</option>
+                    <option value="critical" {% if request.GET.type == 'critical' %}selected{% endif %}>Crítico</option>
                 </select>
             </div>
-
-            <button type="submit" class="btn btn-primary" style="height: 40px;">
-                <i class="bi bi-search"></i> Filtrar
-            </button>
+            <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+                <a href="{% url 'inventario:notifications_list' %}" class="btn btn-secondary">Limpar</a>
+            </div>
         </form>
     </div>
 
-    <!-- Lista de Notificações -->
+    <!-- Lista de notificações -->
     {% if notifications %}
-        <div style="display: grid; gap: 15px;">
-            {% for notification in notifications %}
-            <div class="detail-card" style="
-                border-left: 4px solid
+
+    <!-- Container com gap entre os cards — CORREÇÃO PRINCIPAL -->
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+
+        {% for notification in notifications %}
+        <div style="
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            border-left: 4px solid
                 {% if notification.type == 'info' %}#2196F3
                 {% elif notification.type == 'success' %}#4CAF50
                 {% elif notification.type == 'warning' %}#FF9800
@@ -80,123 +89,113 @@
                 {% elif notification.type == 'alert' %}#FF5722
                 {% elif notification.type == 'critical' %}#D32F2F
                 {% else %}#9E9E9E{% endif %};
-                {% if not notification.is_read %}background-color: #f8f9fa;{% endif %}
-            ">
-                <div style="display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: start;">
-                    <!-- Ícone -->
-                    <div style="
-                        width: 50px;
-                        height: 50px;
-                        border-radius: 50%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        background:
-                        {% if notification.type == 'info' %}rgba(33, 150, 243, 0.1)
-                        {% elif notification.type == 'success' %}rgba(76, 175, 80, 0.1)
-                        {% elif notification.type == 'warning' %}rgba(255, 152, 0, 0.1)
-                        {% elif notification.type == 'error' %}rgba(244, 67, 54, 0.1)
-                        {% elif notification.type == 'alert' %}rgba(255, 87, 34, 0.1)
-                        {% elif notification.type == 'critical' %}rgba(211, 47, 47, 0.1)
-                        {% else %}rgba(158, 158, 158, 0.1){% endif %};
-                    ">
-                        <i class="bi
-                            {% if notification.type == 'info' %}bi-info-circle
-                            {% elif notification.type == 'success' %}bi-check-circle
-                            {% elif notification.type == 'warning' %}bi-exclamation-triangle
-                            {% elif notification.type == 'error' %}bi-x-circle
-                            {% elif notification.type == 'alert' %}bi-bell
-                            {% elif notification.type == 'critical' %}bi-exclamation-octagon
-                            {% else %}bi-circle{% endif %}"
-                            style="font-size: 24px; color:
-                            {% if notification.type == 'info' %}#2196F3
-                            {% elif notification.type == 'success' %}#4CAF50
-                            {% elif notification.type == 'warning' %}#FF9800
-                            {% elif notification.type == 'error' %}#F44336
-                            {% elif notification.type == 'alert' %}#FF5722
-                            {% elif notification.type == 'critical' %}#D32F2F
-                            {% else %}#9E9E9E{% endif %};"></i>
-                    </div>
+            padding: 16px 20px;
+            {% if not notification.is_read %}background-color: #f8f9fa;{% endif %}
+        ">
+            <div style="display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: start;">
 
-                    <!-- Conteúdo -->
-                    <div>
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                            <h3 style="margin: 0; font-size: 18px;">{{ notification.title }}</h3>
-                            {% if not notification.is_read %}
-                                <span style="background: #2196F3; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">Nova</span>
-                            {% endif %}
-                            <span style="
-                                padding: 2px 8px;
-                                border-radius: 12px;
-                                font-size: 12px;
-                                font-weight: 500;
-                                background:
+                <!-- Ícone -->
+                <div style="
+                    width: 46px;
+                    height: 46px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-shrink: 0;
+                    background:
+                        {% if notification.type == 'info' %}rgba(33,150,243,0.1)
+                        {% elif notification.type == 'success' %}rgba(76,175,80,0.1)
+                        {% elif notification.type == 'warning' %}rgba(255,152,0,0.1)
+                        {% elif notification.type == 'error' %}rgba(244,67,54,0.1)
+                        {% elif notification.type == 'alert' %}rgba(255,87,34,0.1)
+                        {% elif notification.type == 'critical' %}rgba(211,47,47,0.1)
+                        {% else %}rgba(158,158,158,0.1){% endif %};
+                ">
+                    <i class="bi
+                        {% if notification.type == 'info' %}bi-info-circle
+                        {% elif notification.type == 'success' %}bi-check-circle
+                        {% elif notification.type == 'warning' %}bi-exclamation-triangle
+                        {% elif notification.type == 'error' %}bi-x-circle
+                        {% elif notification.type == 'alert' %}bi-bell
+                        {% elif notification.type == 'critical' %}bi-exclamation-octagon
+                        {% else %}bi-circle{% endif %}"
+                        style="font-size: 22px; color:
+                        {% if notification.type == 'info' %}#2196F3
+                        {% elif notification.type == 'success' %}#4CAF50
+                        {% elif notification.type == 'warning' %}#FF9800
+                        {% elif notification.type == 'error' %}#F44336
+                        {% elif notification.type == 'alert' %}#FF5722
+                        {% elif notification.type == 'critical' %}#D32F2F
+                        {% else %}#9E9E9E{% endif %};">
+                    </i>
+                </div>
+
+                <!-- Conteúdo -->
+                <div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+                        <h3 style="margin: 0; font-size: 16px; font-weight: 600;">{{ notification.title }}</h3>
+
+                        {% if not notification.is_read %}
+                        <span style="background: #2196F3; color: white; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 500;">
+                            Nova
+                        </span>
+                        {% endif %}
+
+                        <span style="
+                            padding: 1px 8px;
+                            border-radius: 10px;
+                            font-size: 11px;
+                            font-weight: 500;
+                            color: white;
+                            background:
                                 {% if notification.priority == 'low' %}#9E9E9E
                                 {% elif notification.priority == 'normal' %}#2196F3
                                 {% elif notification.priority == 'high' %}#FF9800
                                 {% elif notification.priority == 'critical' %}#F44336
                                 {% else %}#9E9E9E{% endif %};
-                                color: white;
-                            ">{{ notification.get_priority_display }}</span>
-                        </div>
-
-                        <p style="color: #666; margin: 0 0 10px 0;">{{ notification.message|truncatewords:30 }}</p>
-
-                        <div style="font-size: 14px; color: #999;">
-                            <i class="bi bi-pc-display"></i> <strong>{{ notification.machine.hostname }}</strong>
-                            <span style="margin: 0 8px;">•</span>
-                            <i class="bi bi-clock"></i> {{ notification.created_at|timesince }} atrás
-                            {% if notification.is_read %}
-                                <span style="margin: 0 8px;">•</span>
-                                <i class="bi bi-check2" style="color: #4CAF50;"></i> Lida há {{ notification.read_at|timesince }}
-                            {% endif %}
-                        </div>
+                        ">{{ notification.get_priority_display }}</span>
                     </div>
 
-                    <!-- Ações -->
-                    <div style="display: flex; gap: 10px;">
-                        <a href="{% url 'inventario:notifications_detail' notification.pk %}" class="btn btn-primary" style="padding: 8px 16px; text-decoration: none;">
-                            <i class="bi bi-eye"></i> Ver
-                        </a>
-                        <button type="button" onclick="deleteNotification({{ notification.id }})" class="btn btn-delete" style="padding: 8px 16px;">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    {% else %}
-        <div class="detail-card" style="text-align: center; padding: 60px 20px;">
-            <i class="bi bi-inbox" style="font-size: 64px; color: #ccc; display: block; margin-bottom: 20px;"></i>
-            <h3 style="color: #666; margin-bottom: 10px;">Nenhuma notificação encontrada</h3>
-            <p style="color: #999; margin-bottom: 20px;">Crie uma nova notificação para começar</p>
-            <a href="{% url 'inventario:notifications_create' %}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Criar Notificação
-            </a>
-        </div>
-    {% endif %}
-</div>
+                    <p style="color: #555; margin: 0 0 8px 0; font-size: 14px; line-height: 1.5;">
+                        {{ notification.message|truncatewords:30 }}
+                    </p>
 
-<script>
-function deleteNotification(id) {
-    if (confirm('Tem certeza que deseja excluir esta notificação?')) {
-        fetch('/api/inventario/notifications/' + id + '/delete/', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                window.location.reload();
-            }
-        })
-        .catch(error => {
-            console.error('Erro:', error);
-            alert('Erro ao excluir notificação');
-        });
-    }
-}
-</script>
+                    <div style="font-size: 13px; color: #999; display: flex; gap: 16px; flex-wrap: wrap;">
+                        {% if notification.machine %}
+                        <span><i class="bi bi-pc-display" style="margin-right: 4px;"></i>{{ notification.machine.hostname }}</span>
+                        {% endif %}
+                        <span><i class="bi bi-clock" style="margin-right: 4px;"></i>{{ notification.created_at|date:"d/m/Y H:i" }}</span>
+                    </div>
+                </div>
+
+                <!-- Ações -->
+                <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end; flex-shrink: 0;">
+                    <a href="{% url 'inventario:notifications_detail' notification.pk %}"
+                       class="btn btn-secondary btn-sm"
+                       style="font-size: 13px; padding: 4px 12px; white-space: nowrap;">
+                        <i class="bi bi-eye"></i> Ver
+                    </a>
+                    <a href="{% url 'inventario:notifications_delete' notification.pk %}"
+                       class="btn btn-delete btn-sm"
+                       style="font-size: 13px; padding: 4px 12px; white-space: nowrap;"
+                       onclick="return confirm('Excluir esta notificação?')">
+                        <i class="bi bi-trash"></i>
+                    </a>
+                </div>
+
+            </div>
+        </div>
+        {% endfor %}
+
+    </div><!-- fim do container com gap -->
+
+    {% else %}
+    <div class="detail-card" style="text-align: center; padding: 50px 20px; color: #999;">
+        <i class="bi bi-bell-slash" style="font-size: 48px; display: block; margin-bottom: 16px; opacity: 0.4;"></i>
+        <p style="margin: 0; font-size: 16px;">Nenhuma notificação encontrada</p>
+    </div>
+    {% endif %}
+
+</div>
 {% endblock %}

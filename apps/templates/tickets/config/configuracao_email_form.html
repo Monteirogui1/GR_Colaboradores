@@ -1,0 +1,336 @@
+{% extends 'layouts/base_portal.html' %}
+{% block title %}Configuração de E-mail{% endblock %}
+
+{% block conteudo %}
+
+{# Salve em: apps/templates/tickets/configuracao_email_form.html #}
+
+<style>
+  /* ── Badge de status ─────────────────────────────────────────── */
+  .cfg-status {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+  }
+  .cfg-status.ativa   { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+  .cfg-status.inativa { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
+
+  /* ── Resultado do teste de conexão ───────────────────────────── */
+  .teste-box {
+    display: none; align-items: center; gap: 8px;
+    padding: 11px 14px; border-radius: 7px;
+    font-size: 13px; margin-top: 14px;
+  }
+  .teste-box.show    { display: flex; }
+  .teste-box.ok      { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+  .teste-box.fail    { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+  .teste-box.testing { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+
+  /* ── Spinner inline ──────────────────────────────────────────── */
+  @keyframes _spin { to { transform: rotate(360deg); } }
+  .inline-spinner {
+    display: inline-block; width: 13px; height: 13px; flex-shrink: 0;
+    border: 2px solid currentColor; border-top-color: transparent;
+    border-radius: 50%; animation: _spin .6s linear infinite;
+  }
+
+  /* ── Hint de senha ───────────────────────────────────────────── */
+  .pw-hint {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 12px; color: #9ca3af; margin-top: 4px;
+  }
+  .pw-hint i { font-size: 11px; }
+
+  /* ── Grid de checkboxes ─────────────────────────────────────── */
+  .checks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+    padding: 20px;
+  }
+</style>
+
+<!-- ══ PAGE HEADER ═══════════════════════════════════════════════ -->
+<div class="page-header">
+  <h1>
+    <i class="bi bi-envelope-gear"></i>
+    Configuração de E-mail
+  </h1>
+
+  <div style="display:flex; align-items:center; gap:10px;">
+    {% if instance %}
+      {% if instance.ativo %}
+        <span class="cfg-status ativa">
+          <i class="bi bi-circle-fill" style="font-size:7px;"></i> Ativa
+        </span>
+      {% else %}
+        <span class="cfg-status inativa">
+          <i class="bi bi-circle-fill" style="font-size:7px;"></i> Inativa
+        </span>
+      {% endif %}
+    {% endif %}
+    <a href="{% url 'tickets:dashboard' %}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+</div>
+
+<!-- ══ FORMULÁRIO ════════════════════════════════════════════════ -->
+<form method="post" id="form-config-email" autocomplete="off">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div style="background:#fee2e2; color:#dc2626; border:1px solid #fecaca;
+              border-radius:8px; padding:12px 16px; margin-bottom:16px; font-size:14px;">
+    <i class="bi bi-exclamation-triangle-fill"></i> {{ form.non_field_errors }}
+  </div>
+  {% endif %}
+
+
+  <!-- ┌─ CARD 1: PROVEDOR ──────────────────────────────────────── -->
+  <div class="detail-card">
+    <h2><i class="bi bi-cloud"></i> Provedor</h2>
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label>{{ form.provedor.label }}</label>
+        {{ form.provedor }}
+        {% if form.provedor.errors %}
+          <div class="text-danger">{{ form.provedor.errors }}</div>
+        {% endif %}
+        <span class="form-hint">
+          Ao selecionar um provedor os servidores SMTP e IMAP são preenchidos automaticamente.
+          Escolha <strong>Personalizado</strong> para definir manualmente.
+        </span>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ┌─ CARD 2: CREDENCIAIS ───────────────────────────────────── -->
+  <div class="detail-card">
+    <h2><i class="bi bi-key"></i> Credenciais</h2>
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label class="required">{{ form.email_usuario.label }}</label>
+        {{ form.email_usuario }}
+        {% if form.email_usuario.errors %}
+          <div class="text-danger">{{ form.email_usuario.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        <label>{{ form.senha.label }}</label>
+        {{ form.senha }}
+        <div class="pw-hint">
+          <i class="bi bi-shield-lock"></i>
+          {% if instance %}
+            Senha já salva — deixe em branco para manter a atual.
+          {% else %}
+            Para Gmail use uma App Password de 16 caracteres.
+          {% endif %}
+        </div>
+        {% if form.senha.errors %}
+          <div class="text-danger">{{ form.senha.errors }}</div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ┌─ CARD 3: SMTP ──────────────────────────────────────────── -->
+  <div class="detail-card">
+    <h2><i class="bi bi-send"></i> SMTP — Envio de e-mails</h2>
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label class="required">{{ form.smtp_host.label }}</label>
+        {{ form.smtp_host }}
+        {% if form.smtp_host.errors %}
+          <div class="text-danger">{{ form.smtp_host.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        <label class="required">{{ form.smtp_port.label }}</label>
+        {{ form.smtp_port }}
+        <span class="form-hint">Padrão: 587 (STARTTLS) ou 465 (SSL)</span>
+        {% if form.smtp_port.errors %}
+          <div class="text-danger">{{ form.smtp_port.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="form-group" style="justify-content:center;">
+        <label class="check-group">
+          {{ form.smtp_use_tls }}
+          <span>{{ form.smtp_use_tls.label }}</span>
+        </label>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ┌─ CARD 4: IMAP ──────────────────────────────────────────── -->
+  <div class="detail-card">
+    <h2><i class="bi bi-inbox-fill"></i> IMAP — Recebimento de tickets</h2>
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label class="required">{{ form.imap_server.label }}</label>
+        {{ form.imap_server }}
+        {% if form.imap_server.errors %}
+          <div class="text-danger">{{ form.imap_server.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        <label class="required">{{ form.imap_port.label }}</label>
+        {{ form.imap_port }}
+        <span class="form-hint">Padrão: 993 (IMAP SSL)</span>
+        {% if form.imap_port.errors %}
+          <div class="text-danger">{{ form.imap_port.errors }}</div>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <!-- Botão testar + resultado -->
+    <div style="padding: 0 20px 20px;">
+      <button type="button" id="btn-testar" class="btn btn-secondary">
+        <i class="bi bi-plug"></i> Testar conexão IMAP
+      </button>
+      <div id="teste-resultado" class="teste-box">
+        <i id="teste-icon"></i>
+        <span id="teste-msg"></span>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ┌─ CARD 5: COMPORTAMENTO ────────────────────────────────── -->
+  <div class="detail-card">
+    <h2><i class="bi bi-sliders"></i> Comportamento</h2>
+
+    <div class="form-grid" style="padding-bottom:0;">
+      <div class="form-group full-width">
+        <label class="required">{{ form.site_url.label }}</label>
+        {{ form.site_url }}
+        <span class="form-hint">{{ form.site_url.help_text }}</span>
+        {% if form.site_url.errors %}
+          <div class="text-danger">{{ form.site_url.errors }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="checks-grid">
+
+      <label class="check-group">
+        {{ form.auto_criar_usuarios }}
+        <span>{{ form.auto_criar_usuarios.label }}</span>
+      </label>
+
+      <label class="check-group">
+        {{ form.processar_anexos }}
+        <span>{{ form.processar_anexos.label }}</span>
+      </label>
+
+      <label class="check-group">
+        {{ form.enviar_confirmacao }}
+        <span>{{ form.enviar_confirmacao.label }}</span>
+      </label>
+
+      <label class="check-group">
+        {{ form.notificar_agente_resposta }}
+        <span>{{ form.notificar_agente_resposta.label }}</span>
+      </label>
+
+      <label class="check-group">
+        {{ form.notificar_cliente_resposta }}
+        <span>{{ form.notificar_cliente_resposta.label }}</span>
+      </label>
+
+      <label class="check-group">
+        {{ form.ativo }}
+        <span>{{ form.ativo.label }}</span>
+      </label>
+
+    </div>
+
+    <!-- ── Ações ── -->
+    <div class="form-actions">
+      <a href="{% url 'tickets:dashboard' %}" class="btn btn-secondary">
+        Cancelar
+      </a>
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-floppy"></i> Salvar configuração
+      </button>
+    </div>
+  </div>
+
+</form>
+
+<!-- ══ SCRIPTS ════════════════════════════════════════════════════ -->
+<script>
+/* ── Presets de servidor por provedor ─────────────────────────── */
+const PRESETS = {{ presets|safe }};
+
+document.getElementById('id_provedor').addEventListener('change', function () {
+  const preset = PRESETS[this.value];
+  if (!preset) return;
+  document.querySelector('[name=smtp_host]').value   = preset.smtp_host    || '';
+  document.querySelector('[name=smtp_port]').value   = preset.smtp_port    || '';
+  document.querySelector('[name=imap_server]').value = preset.imap_server  || '';
+  document.querySelector('[name=imap_port]').value   = preset.imap_port    || '';
+});
+
+/* ── Teste de conexão IMAP ────────────────────────────────────── */
+document.getElementById('btn-testar').addEventListener('click', function () {
+  const btn       = this;
+  const box       = document.getElementById('teste-resultado');
+  const icon      = document.getElementById('teste-icon');
+  const msg       = document.getElementById('teste-msg');
+
+  // Estado: testando
+  btn.disabled    = true;
+  btn.innerHTML   = '<span class="inline-spinner"></span> Testando...';
+  box.className   = 'teste-box testing show';
+  icon.className  = 'inline-spinner';
+  msg.textContent = 'Conectando ao servidor IMAP...';
+
+  fetch('{% url "tickets:configuracao_email_teste" %}', {
+    method:  'POST',
+    headers: {
+      'X-CSRFToken':  '{{ csrf_token }}',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      box.className  = 'teste-box ok show';
+      icon.className = 'bi bi-check-circle-fill';
+      msg.textContent = data.message || 'Conexão estabelecida com sucesso.';
+    } else {
+      box.className  = 'teste-box fail show';
+      icon.className = 'bi bi-x-circle-fill';
+      msg.textContent = data.error || 'Falha na conexão.';
+    }
+  })
+  .catch(() => {
+    box.className  = 'teste-box fail show';
+    icon.className = 'bi bi-x-circle-fill';
+    msg.textContent = 'Erro ao comunicar com o servidor. Tente novamente.';
+  })
+  .finally(() => {
+    btn.disabled  = false;
+    btn.innerHTML = '<i class="bi bi-plug"></i> Testar conexão IMAP';
+  });
+});
+</script>
+
+{% endblock %}

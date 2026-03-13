@@ -32,7 +32,7 @@ from .views import (
     NotificationCreateView,
     NotificationDeleteView, AgentVersionListView, AgentVersionCreateView, AgentTokenDeleteView, AgentVersionToggleView,
     AgentValidateTokenAPIView, AgentCheckUpdateAPIView, AgentDownloadAPIView, AgentHealthCheckAPIView,
-    AgentTokenDeactivateView, AgentTokenCreateView, AgentTokenListView,
+    AgentTokenDeactivateView, AgentTokenCreateView, AgentTokenListView, BulkNotificationCreateView,
 )
 
 app_name = 'inventario'
@@ -69,6 +69,7 @@ urlpatterns = [
     path('inventario/notifications/<int:pk>/', NotificationDetailView.as_view(), name='notifications_detail'),
     path('inventario/notifications/new/', NotificationCreateView.as_view(), name='notifications_create'),
     path('inventario/notifications/<int:pk>/delete/', NotificationDeleteView.as_view(), name='notifications_delete'),
+    path('inventario/notifications/bulk/', BulkNotificationCreateView.as_view(), name='notifications_bulk'),
 
     # ============================================================================
     # GERENCIAMENTO DE TOKENS (Requer Login)

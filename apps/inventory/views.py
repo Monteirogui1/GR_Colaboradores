@@ -29,6 +29,56 @@ from .models import Machine, BlockedSite, Notification, MachineGroup, AgentToken
 logger = logging.getLogger(__name__)
 
 
+# ============================================================================
+# HELPER DE AUTENTICAÇÃO POR TOKEN DE AGENTE
+# ============================================================================
+
+def _get_agent_token(request):
+    """
+    Extrai e valida o token de agente a partir do header Authorization.
+
+    Header esperado:
+        Authorization: Bearer <token_hash>
+
+    Retorna o objeto AgentToken se válido, ou None.
+    """
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    if not auth_header.startswith('Bearer '):
+        return None
+
+    token_hash = auth_header[7:].strip()
+    if not token_hash:
+        return None
+
+    try:
+        agent_token = AgentToken.objects.get(token_hash=token_hash, is_active=True)
+        if agent_token.is_expired():
+            return None
+        return agent_token
+    except AgentToken.DoesNotExist:
+        return None
+
+
+class AgentTokenRequiredMixin:
+    """
+    Mixin para APIView/View: bloqueia requisições sem token de agente válido.
+    Responde com 401 JSON para requisições não autenticadas.
+    """
+
+    def _authenticate(self, request):
+        """Retorna (agent_token, None) ou (None, response_de_erro)."""
+        agent_token = _get_agent_token(request)
+        if agent_token is None:
+            error_payload = {
+                'error': 'Token de agente inválido, expirado ou ausente.',
+                'detail': 'Inclua o header: Authorization: Bearer <token_hash>'
+            }
+            if isinstance(self, APIView):
+                return None, Response(error_payload, status=status.HTTP_401_UNAUTHORIZED)
+            return None, JsonResponse(error_payload, status=401)
+        return agent_token, None
+
+
 def parse_wmi_date(wmi_date_str):
     """
     Converte formato de data WMI/JSON do PowerShell/Python
@@ -168,198 +218,111 @@ class RunCommandView(LoginRequiredMixin, View):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
-class MachineNotificationView(View):
-        """
-        API REST para o agente Python buscar e gerenciar notificações
+class MachineNotificationView(AgentTokenRequiredMixin, View):
+    """
+    API REST para o agente Python buscar e gerenciar notificações.
+    PROTEGIDA — GET e POST exigem Authorization: Bearer <token_hash>
 
-        Esta view NÃO interfere com as CBVs existentes que usam templates.
-        É uma API separada exclusiva para comunicação com o agente.
+    GET  /api/notifications/?machine_name=HOSTNAME&status=pending
+    POST /api/notifications/   body: {"notification_id": 123}
+    """
 
-        Endpoints:
-            GET  /api/notifications/ - Buscar notificações pendentes
-            POST /api/notifications/ - Marcar notificação como lida
-        """
+    def get(self, request):
+        agent_token, error_response = self._authenticate(request)
+        if error_response:
+            return error_response
 
-        def get(self, request):
-            """
-            Busca notificações pendentes para uma máquina específica
+        try:
+            machine_name = request.GET.get('machine_name')
+            status_filter = request.GET.get('status', 'pending')
+            limit = int(request.GET.get('limit', 20))
 
-            Query Parameters:
-                - machine_name: Nome da máquina (hostname) - OBRIGATÓRIO
-                - status: 'pending', 'read', 'all' - padrão: 'pending'
-                - limit: Número máximo de resultados - padrão: 20
-
-            Exemplo:
-                GET /api/notifications/?machine_name=DESKTOP-ABC&status=pending
-
-            Response:
-                {
-                    "success": true,
-                    "machine_name": "DESKTOP-ABC",
-                    "total": 2,
-                    "notifications": [
-                        {
-                            "id": 1,
-                            "title": "Atualização",
-                            "message": "Reinicie o PC",
-                            "type": "warning",
-                            "priority": "high",
-                            "is_read": false,
-                            "created_at": "2025-02-04T10:00:00Z"
-                        }
-                    ]
-                }
-            """
-            try:
-                # Parâmetros
-                machine_name = request.GET.get('machine_name')
-                status = request.GET.get('status', 'pending')
-                limit = int(request.GET.get('limit', 20))
-
-                # Validação
-                if not machine_name:
-                    return JsonResponse({
-                        'success': False,
-                        'error': 'Parâmetro machine_name é obrigatório',
-                        'notifications': []
-                    }, status=400)
-
-                # Buscar máquina (por hostname, IP ou MAC)
-                try:
-                    machine = Machine.objects.get(
-                        Q(hostname__iexact=machine_name))
-
-                except Machine.DoesNotExist:
-                    # Retorna 200 com lista vazia para não quebrar o agente
-                    return JsonResponse({
-                        'success': False,
-                        'error': f'Máquina {machine_name} não encontrada',
-                        'machine_name': machine_name,
-                        'notifications': []
-                    }, status=200)
-
-                # Buscar notificações da máquina
-                notifications_query = Notification.objects.filter(machine=machine)
-
-                # Filtrar por status
-                if status == 'pending':
-                    notifications_query = notifications_query.filter(is_read=False)
-                elif status == 'read':
-                    notifications_query = notifications_query.filter(is_read=True)
-                # Se status == 'all', não filtra
-
-                # Ordenar: não lidas primeiro, depois mais recentes
-                notifications = notifications_query.order_by(
-                    'is_read',
-                    '-created_at'
-                )[:limit]
-
-                # Serializar para JSON
-                notifications_data = []
-                for notif in notifications:
-                    notifications_data.append({
-                        'id': notif.id,
-                        'title': notif.title,
-                        'message': notif.message,
-                        # Usar getattr para compatibilidade caso algum campo não exista
-                        'type': getattr(notif, 'type', 'info'),
-                        'priority': getattr(notif, 'priority', 'normal'),
-                        'status': getattr(notif, 'status', 'pending'),
-                        'is_read': notif.is_read,
-                        'created_at': notif.created_at.isoformat(),
-                    })
-
-                return JsonResponse({
-                    'success': True,
-                    'machine_name': machine.hostname,
-                    'machine_id': machine.id,
-                    'total': len(notifications_data),
-                    'notifications': notifications_data
-                })
-
-            except ValueError as e:
+            if not machine_name:
                 return JsonResponse({
                     'success': False,
-                    'error': f'Parâmetro inválido: {str(e)}',
+                    'error': 'Parâmetro machine_name é obrigatório',
                     'notifications': []
                 }, status=400)
 
-            except Exception as e:
-                return JsonResponse({
-                    'success': False,
-                    'error': f'Erro interno: {str(e)}',
-                    'notifications': []
-                }, status=500)
-        def post(self, request):
-            """
-            Marca uma notificação como lida
-
-            Body JSON:
-                {
-                    "notification_id": 123
-                }
-
-            Response:
-                {
-                    "success": true,
-                    "notification_id": 123,
-                    "is_read": true,
-                    "message": "Notificação marcada como lida"
-                }
-            """
             try:
-                import json
-
-                # Parse do body
-                try:
-                    data = json.loads(request.body)
-                except json.JSONDecodeError:
-                    return JsonResponse({
-                        'success': False,
-                        'error': 'JSON inválido no body'
-                    }, status=400)
-
-                notification_id = data.get('notification_id')
-
-                if not notification_id:
-                    return JsonResponse({
-                        'success': False,
-                        'error': 'Campo notification_id é obrigatório'
-                    }, status=400)
-
-                # Buscar notificação
-                try:
-                    notification = Notification.objects.get(id=notification_id)
-                except Notification.DoesNotExist:
-                    return JsonResponse({
-                        'success': False,
-                        'error': f'Notificação {notification_id} não encontrada'
-                    }, status=404)
-
-                # Marcar como lida
-                notification.is_read = True
-
-                # Atualizar campos extras se existirem
-                if hasattr(notification, 'status'):
-                    notification.status = 'read'
-                if hasattr(notification, 'read_at'):
-                    notification.read_at = timezone.now()
-
-                notification.save()
-
-                return JsonResponse({
-                    'success': True,
-                    'notification_id': notification.id,
-                    'is_read': notification.is_read,
-                    'message': 'Notificação marcada como lida'
-                })
-
-            except Exception as e:
+                machine = Machine.objects.get(Q(hostname__iexact=machine_name))
+            except Machine.DoesNotExist:
                 return JsonResponse({
                     'success': False,
-                    'error': f'Erro ao processar: {str(e)}'
-                }, status=500)
+                    'error': f'Máquina {machine_name} não encontrada',
+                    'machine_name': machine_name,
+                    'notifications': []
+                }, status=200)
 
+            notifications_query = Notification.objects.filter(machine=machine)
+
+            if status_filter == 'pending':
+                notifications_query = notifications_query.filter(is_read=False)
+            elif status_filter == 'read':
+                notifications_query = notifications_query.filter(is_read=True)
+
+            notifications = notifications_query.order_by('is_read', '-created_at')[:limit]
+
+            notifications_data = [{
+                'id': notif.id,
+                'title': notif.title,
+                'message': notif.message,
+                'type': getattr(notif, 'type', 'info'),
+                'priority': getattr(notif, 'priority', 'normal'),
+                'status': getattr(notif, 'status', 'pending'),
+                'is_read': notif.is_read,
+                'created_at': notif.created_at.isoformat(),
+            } for notif in notifications]
+
+            return JsonResponse({
+                'success': True,
+                'machine_name': machine.hostname,
+                'machine_id': machine.id,
+                'total': len(notifications_data),
+                'notifications': notifications_data
+            })
+
+        except ValueError as e:
+            return JsonResponse({'success': False, 'error': f'Parâmetro inválido: {str(e)}', 'notifications': []}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': f'Erro interno: {str(e)}', 'notifications': []}, status=500)
+
+    def post(self, request):
+        agent_token, error_response = self._authenticate(request)
+        if error_response:
+            return error_response
+
+        try:
+            try:
+                data = json.loads(request.body)
+            except json.JSONDecodeError:
+                return JsonResponse({'success': False, 'error': 'JSON inválido no body'}, status=400)
+
+            notification_id = data.get('notification_id')
+            if not notification_id:
+                return JsonResponse({'success': False, 'error': 'Campo notification_id é obrigatório'}, status=400)
+
+            try:
+                notification = Notification.objects.get(id=notification_id)
+            except Notification.DoesNotExist:
+                return JsonResponse({'success': False, 'error': f'Notificação {notification_id} não encontrada'}, status=404)
+
+            notification.is_read = True
+            if hasattr(notification, 'status'):
+                notification.status = 'read'
+            if hasattr(notification, 'read_at'):
+                notification.read_at = timezone.now()
+            notification.save()
+
+            return JsonResponse({
+                'success': True,
+                'notification_id': notification.id,
+                'is_read': notification.is_read,
+                'message': 'Notificação marcada como lida'
+            })
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': f'Erro ao processar: {str(e)}'}, status=500)
 
 
 class AgentDownloadView(View):
@@ -756,7 +719,10 @@ class AgentVersionToggleView(LoginRequiredMixin, View):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AgentValidateTokenAPIView(APIView):
-    """API para validar token de instalação do agente"""
+    """
+    API para validar token de instalação do agente.
+    PÚBLICA — é o endpoint de validação inicial, antes de o agente ter token confirmado.
+    """
     authentication_classes = []
     permission_classes = []
 
@@ -772,7 +738,6 @@ class AgentValidateTokenAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Busca token
             try:
                 agent_token = AgentToken.objects.get(token_hash=token, is_active=True)
             except AgentToken.DoesNotExist:
@@ -781,14 +746,12 @@ class AgentValidateTokenAPIView(APIView):
                     status=status.HTTP_401_UNAUTHORIZED
                 )
 
-            # Verifica expiração
             if agent_token.is_expired():
                 return Response(
                     {'valid': False, 'message': 'Token expirado'},
                     status=status.HTTP_401_UNAUTHORIZED
                 )
 
-            # Marca como usado se ainda não foi
             if not agent_token.used_at:
                 agent_token.mark_as_used(machine_name)
 
@@ -806,33 +769,34 @@ class AgentValidateTokenAPIView(APIView):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
-class AgentCheckUpdateAPIView(APIView):
-    """API para verificar atualizações disponíveis"""
+class AgentCheckUpdateAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    API para verificar atualizações disponíveis.
+    PROTEGIDA — exige Authorization: Bearer <token_hash>
+    """
     authentication_classes = []
     permission_classes = []
 
     def post(self, request):
+        agent_token, error_response = self._authenticate(request)
+        if error_response:
+            return error_response
+
         try:
             data = request.data
             current_version = data.get('current_version', '0.0.0')
-            machine_name = data.get('machine_name', '')
 
-            # Busca versão mais recente ativa
             latest_version = AgentVersion.objects.filter(
                 is_active=True
             ).order_by('-created_at').first()
 
             if not latest_version:
-                return Response({
-                    'update_available': False,
-                    'message': 'Nenhuma versão disponível'
-                })
+                return Response({'update_available': False, 'message': 'Nenhuma versão disponível'})
 
-            # Compara versões (simplificado)
             def version_tuple(v):
                 try:
                     return tuple(map(int, v.split('.')))
-                except:
+                except Exception:
                     return (0, 0, 0)
 
             current = version_tuple(current_version)
@@ -856,52 +820,95 @@ class AgentCheckUpdateAPIView(APIView):
             })
 
         except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
-class AgentDownloadAPIView(APIView):
-    """API para download da versão do agente"""
+class AgentDownloadAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    API para download da versão do agente.
+    PROTEGIDA — exige Authorization: Bearer <token_hash>
+    Antes estava completamente aberta (authentication_classes=[], permission_classes=[]).
+    """
     authentication_classes = []
     permission_classes = []
 
     def get(self, request, pk):
+        agent_token, error_response = self._authenticate(request)
+        if error_response:
+            return error_response
+
         try:
             version = get_object_or_404(AgentVersion, pk=pk, is_active=True)
 
             if not version.file_path:
-                return Response(
-                    {'error': 'Arquivo não encontrado'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+                return Response({'error': 'Arquivo não encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
-            # Retorna arquivo
             response = FileResponse(
                 version.file_path.open('rb'),
                 content_type='text/x-python'
             )
             response['Content-Disposition'] = f'attachment; filename="agent_{version.version}.py"'
-
             return response
 
         except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AgentHealthCheckAPIView(APIView):
-    """API de health check do servidor"""
+    """
+    API de health check do servidor.
+    PÚBLICA — não retorna dados sensíveis, usada apenas para checar conectividade.
+    """
     authentication_classes = []
     permission_classes = []
 
     def get(self, request):
-        return Response({
-            'status': 'healthy',
-            'timestamp': timezone.now().isoformat()
-        })
+        return Response({'status': 'healthy', 'timestamp': timezone.now().isoformat()})
+
+class BulkNotificationCreateView(LoginRequiredMixin, View):
+    """Envia a mesma notificação para múltiplas máquinas ou grupos"""
+    template_name = 'inventario/notification_bulk_form.html'
+
+    def get(self, request):
+        from .forms import BulkNotificationForm
+        form = BulkNotificationForm()
+        groups = MachineGroup.objects.all()
+        return render(request, self.template_name, {'form': form, 'groups': groups})
+
+    def post(self, request):
+        from .forms import BulkNotificationForm
+        form = BulkNotificationForm(request.POST)
+        groups = MachineGroup.objects.all()
+
+        if not form.is_valid():
+            return render(request, self.template_name, {'form': form, 'groups': groups})
+
+        machines = form.cleaned_data['machines']
+        title = form.cleaned_data['title']
+        message = form.cleaned_data['message']
+        notif_type = form.cleaned_data['type']
+        priority = form.cleaned_data['priority']
+        expires_at = form.cleaned_data.get('expires_at')
+
+        # Adiciona máquinas dos grupos selecionados
+        group_ids = request.POST.getlist('groups')
+        if group_ids:
+            group_machines = Machine.objects.filter(group_id__in=group_ids)
+            machines = (machines | group_machines).distinct()
+
+        created = 0
+        for machine in machines:
+            Notification.objects.create(
+                machine=machine,
+                title=title,
+                message=message,
+                type=notif_type,
+                priority=priority,
+                expires_at=expires_at,
+            )
+            created += 1
+
+        messages.success(request, f'Notificação enviada para {created} máquina(s) com sucesso!')
+        return redirect(reverse_lazy('inventario:notifications_list'))

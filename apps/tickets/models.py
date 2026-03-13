@@ -3,6 +3,15 @@ from django.conf import settings
 from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
 from apps.authentication.models import User
+import base64
+from cryptography.fernet import Fernet
+from django.conf import settings as django_settings
+
+
+def _get_fernet():
+    """Deriva chave Fernet de 32 bytes a partir da SECRET_KEY do Django."""
+    key_bytes = django_settings.SECRET_KEY.encode()[:32].ljust(32, b'0')
+    return Fernet(base64.urlsafe_b64encode(key_bytes))
 
 
 class StatusBase(models.TextChoices):
@@ -1004,3 +1013,131 @@ class PesquisaSatisfacao(models.Model):
     def __str__(self):
         status = f"Nota: {self.nota}" if self.nota else "Não respondida"
         return f"{self.ticket.numero} - {status}"
+
+
+class ConfiguracaoEmail(models.Model):
+    """
+    Configuração de e-mail IMAP/SMTP por cliente, cadastrável via interface.
+
+    Armazena credenciais criptografadas com Fernet (AES-128-CBC),
+    derivado da SECRET_KEY do Django. Nunca ficam em texto puro no banco.
+    """
+
+    class ProvedorEmail(models.TextChoices):
+        GMAIL = 'gmail', 'Gmail'
+        OUTLOOK = 'outlook', 'Outlook / Microsoft 365'
+        YAHOO = 'yahoo', 'Yahoo'
+        CUSTOM = 'custom', 'Servidor personalizado'
+
+    # Multi-tenancy: um registro por cliente (User is_staff)
+    cliente = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='configuracao_email',
+        limit_choices_to={'is_staff': True},
+        verbose_name='Cliente (administrador)',
+    )
+
+    provedor = models.CharField(
+        'Provedor',
+        max_length=20,
+        choices=ProvedorEmail.choices,
+        default=ProvedorEmail.GMAIL,
+    )
+
+    # ── SMTP (envio) ──────────────────────────────────────────────────────────
+    smtp_host = models.CharField('Servidor SMTP', max_length=255, default='smtp.gmail.com')
+    smtp_port = models.PositiveIntegerField('Porta SMTP', default=587)
+    smtp_use_tls = models.BooleanField('Usar TLS', default=True)
+
+    # ── IMAP (recebimento) ────────────────────────────────────────────────────
+    imap_server = models.CharField('Servidor IMAP', max_length=255, default='imap.gmail.com')
+    imap_port = models.PositiveIntegerField('Porta IMAP', default=993)
+
+    # ── Credenciais (armazenadas criptografadas) ──────────────────────────────
+    email_usuario = models.EmailField('E-mail', max_length=255)
+
+    # Campos _enc guardam o valor Fernet-criptografado em base64
+    _senha_enc = models.TextField('Senha (criptografada)', db_column='senha_enc', blank=True)
+
+    # ── Configurações de comportamento ────────────────────────────────────────
+    auto_criar_usuarios = models.BooleanField('Criar usuários automaticamente', default=True)
+    processar_anexos = models.BooleanField('Processar anexos', default=True)
+    enviar_confirmacao = models.BooleanField('Enviar confirmação ao solicitante', default=True)
+    notificar_agente_resposta = models.BooleanField('Notificar técnico quando cliente responde', default=True)
+    notificar_cliente_resposta = models.BooleanField('Notificar cliente quando técnico responde', default=True)
+
+    site_url = models.URLField(
+        'URL do sistema',
+        max_length=255,
+        default='https://suporte.suaempresa.com',
+        help_text='URL base usada nos links dos e-mails enviados',
+    )
+
+    ativo = models.BooleanField('Ativo', default=True)
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configuração de E-mail'
+        verbose_name_plural = 'Configurações de E-mail'
+
+    def __str__(self):
+        return f'Config e-mail — {self.email_usuario}'
+
+    # ── API de senha criptografada ────────────────────────────────────────────
+
+    def set_senha(self, senha_plain: str):
+        """Criptografa e armazena a senha."""
+        if not senha_plain:
+            return
+        f = _get_fernet()
+        self._senha_enc = f.encrypt(senha_plain.encode()).decode()
+
+    def get_senha(self) -> str:
+        """Descriptografa e retorna a senha em texto puro."""
+        if not self._senha_enc:
+            return ''
+        try:
+            f = _get_fernet()
+            return f.decrypt(self._senha_enc.encode()).decode()
+        except Exception:
+            return ''
+
+    # ── Método utilitário para o command ─────────────────────────────────────
+
+    def to_email_config_dict(self) -> dict:
+        """
+        Retorna dicionário no mesmo formato de settings.TICKET_EMAIL_CONFIG,
+        compatível com process_ticket_emails sem alterações na estrutura.
+        """
+        return {
+            'IMAP_SERVER': self.imap_server,
+            'IMAP_PORT': self.imap_port,
+            'EMAIL_USER': self.email_usuario,
+            'EMAIL_PASSWORD': self.get_senha(),
+            'AUTO_CREATE_USERS': self.auto_criar_usuarios,
+            'PROCESS_ATTACHMENTS': self.processar_anexos,
+            'SEND_CONFIRMATION': self.enviar_confirmacao,
+            'NOTIFY_AGENT_ON_REPLY': self.notificar_agente_resposta,
+            'NOTIFY_CLIENT_ON_REPLY': self.notificar_cliente_resposta,
+            'SITE_URL': self.site_url,
+        }
+
+    # ── Presets por provedor ──────────────────────────────────────────────────
+
+    PRESETS = {
+        'gmail': {
+            'smtp_host': 'smtp.gmail.com', 'smtp_port': 587,
+            'imap_server': 'imap.gmail.com', 'imap_port': 993,
+        },
+        'outlook': {
+            'smtp_host': 'smtp.office365.com', 'smtp_port': 587,
+            'imap_server': 'outlook.office365.com', 'imap_port': 993,
+        },
+        'yahoo': {
+            'smtp_host': 'smtp.mail.yahoo.com', 'smtp_port': 587,
+            'imap_server': 'imap.mail.yahoo.com', 'imap_port': 993,
+        },
+    }
