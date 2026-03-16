@@ -496,9 +496,9 @@ function selectQual(el) {
 async function doConnect() {
   const machine = $('input-machine').value.trim();
   const token   = $('input-token').value.trim();
-  if (!machine)           { setErr('Informe a máquina destino'); return; }
-  if (!token)             { setErr('Token de sessão obrigatório'); return; }
-  if (token.length < 8)   { setErr('Token deve ter no mínimo 8 caracteres'); return; }
+  if (!machine)         { setErr('Informe a máquina destino'); return; }
+  if (!token)           { setErr('Token de sessão obrigatório'); return; }
+  if (token.length < 8) { setErr('Token deve ter no mínimo 8 caracteres'); return; }
   setErr('');
   sessionToken     = token;
   connectedMachine = machine;
@@ -507,7 +507,14 @@ async function doConnect() {
   $('btn-label').textContent = 'CONECTANDO…';
   setStatus('CONNECTING…', 'connecting');
   try {
-    await openConnection(machine, token);
+    // Buscar config ICE do servidor — credenciais nunca ficam no HTML
+    const cfgResp = await fetch('/api/rdp/config/', {
+      credentials: 'same-origin',
+      headers: { 'X-CSRFToken': getCookie('csrftoken') },
+    });
+    if (!cfgResp.ok) throw new Error('Falha ao obter configuração ICE');
+    const { ice_servers } = await cfgResp.json();
+    await openConnection(machine, token, ice_servers);
   } catch (e) {
     setErr('Falha na conexão: ' + e.message);
     setStatus('ERRO', 'error');
@@ -517,20 +524,23 @@ async function doConnect() {
   }
 }
 
-function buildIceServers() {
-  const servers = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ];
+/* ── Abre RTCPeerConnection com ICE servers vindos do servidor ─────────────── */
+async function openConnection(machine, token, iceServers) {
+  if (pc) { pc.close(); pc = null; }
+
+  // TURN server customizado do painel avançado (opcional, acrescenta aos do servidor)
   const turnUrl  = $('input-turn')?.value.trim();
   const turnUser = $('input-turn-user')?.value.trim();
-  if (turnUrl) servers.push({ urls: turnUrl, username: turnUser || 'guest', credential: sessionToken });
-  return servers;
-}
+  if (turnUrl) {
+    iceServers.push({ urls: turnUrl, username: turnUser || 'rdp', credential: sessionToken });
+  }
 
-async function openConnection(machine, token) {
-  if (pc) { pc.close(); pc = null; }
-  pc = new RTCPeerConnection({ iceServers: buildIceServers(), iceTransportPolicy: 'all', bundlePolicy: 'max-bundle', rtcpMuxPolicy: 'require' });
+  pc = new RTCPeerConnection({
+    iceServers,
+    iceTransportPolicy: 'relay',   // forçar TURN — ignora candidatos com IP público
+    bundlePolicy:       'max-bundle',
+    rtcpMuxPolicy:      'require',
+  });
 
   dc = pc.createDataChannel('input', { ordered: false, maxRetransmits: 0 });
   setupFileDC(pc.createDataChannel('files', { ordered: true }));
@@ -568,23 +578,39 @@ async function openConnection(machine, token) {
   pc.oniceconnectionstatechange = () => {
     const s = pc.iceConnectionState;
     $('sb-ice').textContent = s.toUpperCase();
-    if (s === 'failed' || s === 'disconnected') { setStatus('ICE ' + s.toUpperCase(), 'error'); $('reconn-overlay').classList.add('show'); scheduleReconnect(machine, token); }
-    if (s === 'connected' || s === 'completed') { $('reconn-overlay').classList.remove('show'); }
+    if (s === 'failed' || s === 'disconnected') {
+      setStatus('ICE ' + s.toUpperCase(), 'error');
+      $('reconn-overlay').classList.add('show');
+      scheduleReconnect(machine, token);
+    }
+    if (s === 'connected' || s === 'completed') {
+      $('reconn-overlay').classList.remove('show');
+    }
   };
-  pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed') { setStatus('FALHA', 'error'); scheduleReconnect(machine, token); } };
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'failed') { setStatus('FALHA', 'error'); scheduleReconnect(machine, token); }
+  };
 
   const offer = await pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: false });
   await pc.setLocalDescription(offer);
 
+  // Aguardar ICE gathering — 25s para dar tempo ao TURN relay
   await new Promise((res, rej) => {
-    const t = setTimeout(() => rej(new Error('ICE gathering timeout (15s)')), 15000);
+    const t = setTimeout(() => rej(new Error('ICE gathering timeout (25s)')), 25000);
     if (pc.iceGatheringState === 'complete') { clearTimeout(t); return res(); }
-    pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } };
+    pc.onicegatheringstatechange = () => {
+      if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); }
+    };
   });
 
   const resp = await fetch('/api/rdp/offer/', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-RDP-Token': token, 'X-Machine-ID': machine, 'X-CSRFToken': getCookie('csrftoken') },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-RDP-Token':  token,
+      'X-Machine-ID': machine,
+      'X-CSRFToken':  getCookie('csrftoken'),
+    },
     body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }),
     credentials: 'same-origin',
   });
@@ -593,18 +619,28 @@ async function openConnection(machine, token) {
     throw new Error(data.error || `HTTP ${resp.status} — ${resp.statusText}`);
   }
   await pc.setRemoteDescription(new RTCSessionDescription(await resp.json()));
-  setTimeout(() => { try { $('sb-codec').textContent = (pc.getTransceivers()[0]?.receiver?.track?.kind || 'video').toUpperCase(); } catch (_) {} }, 2000);
+  setTimeout(() => {
+    try { $('sb-codec').textContent = (pc.getTransceivers()[0]?.receiver?.track?.kind || 'video').toUpperCase(); } catch (_) {}
+  }, 2000);
 }
 
 /* ── Reconexão ─────────────────────────────────────────────────────────────── */
 function scheduleReconnect(machine, token) {
-  if (reconnAttempts >= MAX_RECONNECT) { setStatus('FALHOU', 'error'); toast('Máximo de reconexões atingido', 'error'); $('reconn-overlay').classList.remove('show'); return; }
+  if (reconnAttempts >= MAX_RECONNECT) {
+    setStatus('FALHOU', 'error');
+    toast('Máximo de reconexões atingido', 'error');
+    $('reconn-overlay').classList.remove('show');
+    return;
+  }
   reconnAttempts++;
   const delay = Math.min(1000 * Math.pow(2, reconnAttempts), 30000);
   $('reconn-txt').textContent = `Reconectando em ${Math.round(delay/1000)}s… (${reconnAttempts}/${MAX_RECONNECT})`;
-  setTimeout(() => openConnection(machine, token), delay);
+  // Buscar nova config ICE a cada reconexão (credencial HMAC expira em 1h)
+  fetch('/api/rdp/config/', { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(({ ice_servers }) => setTimeout(() => openConnection(machine, token, ice_servers), delay))
+    .catch(() => setTimeout(() => openConnection(machine, token, []), delay));
 }
-
 /* ── Desconectar ───────────────────────────────────────────────────────────── */
 function disconnect() {
   reconnAttempts = MAX_RECONNECT;

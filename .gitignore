@@ -13,3 +13,4 @@ teste.py
 *.exe
 *.zip
 .claude
+.env

@@ -1,4 +1,4 @@
-import hashlib
+import hmac, hashlib, time as _time
 import json
 import logging
 import secrets
@@ -348,3 +348,57 @@ class RDPSessionsView(View):
             if s.get('user_id') == request.user.pk
         ]
         return JsonResponse({'sessions': user_sessions, 'max': MAX_SESSIONS})
+
+@method_decorator(login_required, name='dispatch')
+class RDPConfigView(View):
+    """
+    Entrega configuração ICE ao browser de forma segura.
+    - Requer login Django (session)
+    - Gera credenciais TURN com TTL de 1 hora via HMAC
+      (compatível com coturn --use-auth-secret)
+    - Nunca expõe a senha master no response
+
+    GET /api/rdp/config/
+    Retorna: { ice_servers: [...] }
+    """
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Não autenticado'}, status=401)
+
+        cfg  = getattr(settings, 'RDP_TURN_CONFIG', {})
+        host = cfg.get('host', '')
+        port = cfg.get('port', 3478)
+
+        # Credencial temporária HMAC — válida por 1h
+        # Funciona com coturn --use-auth-secret=<TURN_CREDENTIAL>
+        # username = "<timestamp>:<user_id>"
+        # password = HMAC-SHA1(secret, username)
+        ttl       = int(_time.time()) + 3600
+        turn_user = f"{ttl}:{request.user.pk}"
+        secret    = cfg.get('credential', '')
+        turn_pass = hmac.new(
+            secret.encode(),
+            turn_user.encode(),
+            hashlib.sha1,
+        ).digest()
+        import base64
+        turn_pass_b64 = base64.b64encode(turn_pass).decode()
+
+        ice_servers = [
+            {'urls': f'stun:{host}:{port}'},
+            {
+                'urls':       f'turn:{host}:{port}',
+                'username':   turn_user,
+                'credential': turn_pass_b64,
+            },
+            {
+                'urls':       f'turn:{host}:{port}?transport=tcp',
+                'username':   turn_user,
+                'credential': turn_pass_b64,
+            },
+        ]
+
+        resp = JsonResponse({'ice_servers': ice_servers})
+        # Não cachear — cada resposta tem TTL próprio
+        resp['Cache-Control'] = 'no-store'
+        return resp

@@ -2,11 +2,16 @@ import os
 from pathlib import Path
 
 from django.urls import reverse_lazy
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 APPS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Carrega o .env da raiz do projeto
+load_dotenv(BASE_DIR / '.env')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -284,3 +289,9 @@ RDP_SESSION_TIMEOUT       = 3600   # segundos de TTL da sessão
 RDP_MAX_SESSIONS_PER_USER = 3      # máximo de sessões simultâneas
 RDP_ALLOWED_ORIGINS       = ['https://seudominio.com']  # lista branca de origens
 AGENT_IPC_PORT            = 7070   # porta IPC do agente
+RDP_TURN_CONFIG = {
+    'host':       os.environ.get('TURN_HOST',       '192.168.100.247'),
+    'port':       int(os.environ.get('TURN_PORT',   '3478')),
+    'username':   os.environ.get('TURN_USER',       'rdp'),
+    'credential': os.environ.get('TURN_CREDENTIAL', 'rdp123'),
+}
