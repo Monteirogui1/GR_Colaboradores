@@ -277,10 +277,12 @@ class RDPOfferView(View):
 @method_decorator(login_required, name='dispatch')
 class RDPInfoView(View):
     """
-    Retorna metadados da máquina (resolução de tela, SO, etc.)
-
     GET /api/rdp/info/?machine=<hostname>
-    Headers: X-RDP-Token: <token>
+    GET /api/rdp/info/?machine=<hostname>&action=explorer_path
+
+    action=explorer_path  — retorna a pasta atualmente aberta no Windows Explorer
+                            da máquina remota consultando o IPC do agente (porta 7070).
+    (sem action)          — retorna resolução de tela, SO, etc. (comportamento original)
     """
 
     def get(self, request):
@@ -289,6 +291,7 @@ class RDPInfoView(View):
 
         machine_id = request.GET.get('machine', '').strip()
         token = request.META.get('HTTP_X_RDP_TOKEN', '').strip()
+        action = request.GET.get('action', '').strip()
 
         if not machine_id:
             return JsonResponse({'error': 'Parâmetro machine obrigatório'}, status=400)
@@ -301,7 +304,23 @@ class RDPInfoView(View):
         except Machine.DoesNotExist:
             return JsonResponse({'error': 'Máquina não encontrada'}, status=404)
 
-        # Tentar buscar resolução real do agente
+        IPC_PORT = 7070  # porta do IPC do agent_service
+
+        # ── action: explorer_path ────────────────────────────────────────────
+        if action == 'explorer_path':
+            try:
+                url = f"http://{machine.ip_address}:{IPC_PORT}/explorer/path"
+                resp = req_lib.get(url, timeout=4)
+                if resp.ok:
+                    data = resp.json()
+                    return JsonResponse({'path': data.get('path', 'downloads')})
+                else:
+                    return JsonResponse({'path': 'downloads', 'error': f'Agent HTTP {resp.status_code}'})
+            except Exception as e:
+                # Fallback silencioso — frontend trata
+                return JsonResponse({'path': 'downloads', 'error': str(e)})
+
+        # ── action padrão: info da tela ──────────────────────────────────────
         try:
             url = f"http://{machine.ip_address}:{IPC_PORT}/status"
             resp = req_lib.get(url, timeout=3)
@@ -314,7 +333,6 @@ class RDPInfoView(View):
                 'os': getattr(machine, 'os_version', '—'),
             })
         except Exception:
-            # Fallback: valores padrão
             return JsonResponse({
                 'w': 1920,
                 'h': 1080,

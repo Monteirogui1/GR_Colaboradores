@@ -10,6 +10,7 @@ import hashlib
 import logging
 import random
 import ipaddress
+import re
 from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -41,7 +42,7 @@ NOTIFICATION_POLL_INTERVAL = 120
 JITTER_MAX                 = 60
 
 # ─────────────────────────────────────────────
-# Logging — funciona em .py e .exe (PyInstaller)
+# Logging
 # ─────────────────────────────────────────────
 def _get_base_dir() -> Path:
     if getattr(sys, "frozen", False):
@@ -360,14 +361,13 @@ class ScreenTrack:
         DynTrack = type("DynScreenTrack", (base,), {
             "kind":     "video",
             "recv":     cls._recv_impl,
-            "__init__": cls._init_impl,   # inicializa _id e demais atributos do pai
+            "__init__": cls._init_impl,
         })
         instance = object.__new__(DynTrack)
         return instance
 
     @staticmethod
     def _init_impl(self):
-        """Chama o __init__ da VideoStreamTrack para inicializar _id e _timestamp."""
         from aiortc.mediastreams import VideoStreamTrack
         VideoStreamTrack.__init__(self)
 
@@ -404,7 +404,9 @@ def _handle_input_event(event: dict, session_id: str = ""):
             elif b == "right": win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN,x,y); win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP, x,y)
         elif t == "mdc":
             x, y = abs_xy(event); win32api.SetCursorPos((x,y))
-            for _ in range(2): win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y); win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,x,y)
+            for _ in range(2):
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y)
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,  x,y)
         elif t == "md":
             x, y = abs_xy(event); win32api.SetCursorPos((x,y))
             if event.get("b")=="left": win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y)
@@ -468,6 +470,71 @@ def _handle_file_chunk(data: bytes):
                 return
 
 
+def _sanitize_filename(name: str) -> str:
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)
+    name = name.strip(". ")
+    return name or "arquivo_recebido"
+
+
+def get_explorer_path() -> str:
+    """
+    Retorna o caminho da pasta atualmente aberta no Windows Explorer.
+    Usa a API COM Shell.Application — funciona apenas no contexto do usuário.
+    No agent_service (Session 0) o Explorer não é acessível via COM,
+    portanto esta função sempre retorna o fallback (Downloads).
+    A versão real fica no agent_tray que roda na sessão do usuário.
+    """
+    # agent_service roda em Session 0 (sem desktop do usuário).
+    # Delega a consulta ao Tray App via IPC loopback.
+    try:
+        resp = requests.get("http://127.0.0.1:7071/explorer/path", timeout=3)
+        if resp.ok:
+            return resp.json().get("path", "downloads")
+    except Exception:
+        pass
+    return str(Path(os.path.expanduser("~")) / "Downloads")
+
+
+def _resolve_dest_dir(dest_key: str) -> Path:
+    """
+    Resolve a chave de destino para um Path absoluto.
+    dest_key pode ser:
+      'explorer'  → pasta aberta no Explorer (via Tray App)
+      'downloads' → pasta Downloads do usuário
+      'desktop'   → pasta Desktop do usuário
+      'documents' → pasta Documents do usuário
+      qualquer string com barra ou letra: → caminho absoluto personalizado
+    """
+    home = Path(os.path.expanduser("~"))
+
+    if dest_key == "explorer":
+        raw = get_explorer_path()
+        # Se get_explorer_path retornou um dos aliases, resolve recursivamente
+        if raw in ("downloads", "desktop", "documents"):
+            return _resolve_dest_dir(raw)
+        p = Path(raw)
+        # Verifica se é caminho válido e existe; se não, usa Downloads
+        if p.is_absolute():
+            return p
+        return home / "Downloads"
+
+    dest_map = {
+        "downloads": home / "Downloads",
+        "desktop":   home / "Desktop",
+        "documents": home / "Documents",
+    }
+    if dest_key in dest_map:
+        return dest_map[dest_key]
+
+    # Caminho absoluto personalizado
+    if dest_key and (os.sep in dest_key or "/" in dest_key or
+                     (len(dest_key) >= 3 and dest_key[1:3] == ":\\")):
+        return Path(dest_key)
+
+    # Fallback
+    return home / "Downloads"
+
+
 def _handle_file_message(msg: dict, session_id: str):
     t = msg.get("t")
 
@@ -477,7 +544,7 @@ def _handle_file_message(msg: dict, session_id: str):
             return
         with _file_buffers_lock:
             _file_buffers[fid] = {"meta": msg, "chunks": [], "received": 0, "done": False}
-        logger.info(f"WebRTC file: recebendo '{msg.get('name')}' ({msg.get('size',0)} bytes)")
+        logger.info(f"WebRTC file: recebendo '{msg.get('name')}' ({msg.get('size', 0)} bytes) → dest='{msg.get('dest', 'downloads')}'")
 
     elif t == "file_end":
         fid = msg.get("id")
@@ -488,31 +555,41 @@ def _handle_file_message(msg: dict, session_id: str):
             if not buf:
                 return
             buf["done"] = True
-            data        = b"".join(buf["chunks"])
-            file_name   = buf["meta"].get("name", f"arquivo_{fid[:8]}")
+            data      = b"".join(buf["chunks"])
+            file_name = buf["meta"].get("name", f"arquivo_{fid[:8]}")
+            dest_key  = buf["meta"].get("dest", "downloads")
             _file_buffers.pop(fid, None)
+
         try:
-            desktop = Path(os.path.expanduser("~")) / "Desktop"
-            desktop.mkdir(exist_ok=True)
-            dest = desktop / _sanitize_filename(file_name)
-            dest.write_bytes(data)
-            logger.info(f"WebRTC file: '{file_name}' salvo em '{dest}'")
-            ack = json.dumps({"t": "file_done", "id": fid})
+            dest_dir = _resolve_dest_dir(dest_key)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+
+            safe_name = _sanitize_filename(file_name)
+            dest_path = dest_dir / safe_name
+
+            # Evita sobrescrever — sufixo incremental
+            if dest_path.exists():
+                stem, suffix = dest_path.stem, dest_path.suffix
+                counter = 1
+                while dest_path.exists():
+                    dest_path = dest_dir / f"{stem} ({counter}){suffix}"
+                    counter += 1
+
+            dest_path.write_bytes(data)
+            logger.info(f"WebRTC file: '{file_name}' salvo em '{dest_path}'")
+            ack = json.dumps({"t": "file_done", "id": fid, "name": file_name, "path": str(dest_path)})
+
         except Exception as e:
             logger.error(f"WebRTC file: erro ao salvar '{file_name}': {e}")
-            ack = json.dumps({"t": "file_err",  "id": fid, "reason": str(e)})
+            ack = json.dumps({"t": "file_err", "id": fid, "reason": str(e)})
+
         with _webrtc_dc_lock:
             queue = _webrtc_data_channels.get(session_id)
         if queue:
-            try: queue.put_nowait(ack)
-            except Exception: pass
-
-
-def _sanitize_filename(name: str) -> str:
-    import re
-    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)
-    name = name.strip(". ")
-    return name or "arquivo_recebido"
+            try:
+                queue.put_nowait(ack)
+            except Exception:
+                pass
 
 
 def _handle_webrtc_offer(body: dict) -> dict:
@@ -531,19 +608,13 @@ def _handle_webrtc_offer(body: dict) -> dict:
     session_id = hashlib.md5(sdp_str[:64].encode()).hexdigest()[:16]
 
     async def negotiate() -> dict:
-        pc = RTCPeerConnection()
-
-        # Criar e inicializar o track corretamente
-        # __init__ da VideoStreamTrack precisa ser chamado para criar _id
+        pc    = RTCPeerConnection()
         track = ScreenTrack()
         track.__init__()
 
-        # Usar addTransceiver com direction="sendonly" e forçar H264
-        # Isso resolve "None is not in list" causado pelo mismatch
-        # entre recvonly (browser) e sendrecv (padrão aiortc)
         try:
-            caps   = RTCRtpSender.getCapabilities("video")
-            h264   = [c for c in caps.codecs if "h264" in c.mimeType.lower()]
+            caps        = RTCRtpSender.getCapabilities("video")
+            h264        = [c for c in caps.codecs if "h264" in c.mimeType.lower()]
             transceiver = pc.addTransceiver(track, direction="sendonly")
             if h264:
                 transceiver.setCodecPreferences(h264)
@@ -551,7 +622,6 @@ def _handle_webrtc_offer(body: dict) -> dict:
             else:
                 logger.warning("WebRTC: H264 indisponível, usando codecs padrão")
         except Exception as e:
-            # Fallback: addTrack simples
             logger.warning(f"WebRTC: addTransceiver falhou ({e}), usando addTrack")
             try:
                 pc.addTrack(track)
@@ -654,11 +724,19 @@ class IPCHandler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length)) if length else {}
 
     def do_GET(self):
-        if   self.path == "/status":           self._send_json(200, STATE.snapshot())
-        elif self.path == "/notifications":    self._send_json(200, {"notifications": STATE.pop_notifications()})
-        elif self.path == "/ping":             self._send_json(200, {"pong": True})
-        elif self.path == "/webrtc/sessions":  self._send_json(200, {"sessions": STATE.list_webrtc_sessions()})
-        else:                                  self._send_json(404, {"error": "not found"})
+        if   self.path == "/status":
+            self._send_json(200, STATE.snapshot())
+        elif self.path == "/notifications":
+            self._send_json(200, {"notifications": STATE.pop_notifications()})
+        elif self.path == "/ping":
+            self._send_json(200, {"pong": True})
+        elif self.path == "/webrtc/sessions":
+            self._send_json(200, {"sessions": STATE.list_webrtc_sessions()})
+        elif self.path == "/explorer/path":
+            # Delega ao Tray App (Session do usuário) que tem acesso ao Explorer via COM
+            self._send_json(200, {"path": get_explorer_path()})
+        else:
+            self._send_json(404, {"error": "not found"})
 
     def do_POST(self):
         if self.path == "/notifications/ack":
@@ -681,7 +759,8 @@ class IPCHandler(BaseHTTPRequestHandler):
             session_id = body.get("session_id", "")
             if session_id:
                 STATE.remove_webrtc_session(session_id)
-                with _webrtc_dc_lock: _webrtc_data_channels.pop(session_id, None)
+                with _webrtc_dc_lock:
+                    _webrtc_data_channels.pop(session_id, None)
                 self._send_json(200, {"ok": True})
             else:
                 self._send_json(400, {"error": "session_id obrigatório"})

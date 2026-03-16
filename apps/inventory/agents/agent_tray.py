@@ -10,6 +10,7 @@ import tkinter as tk
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import logging
+import re
 import requests
 import av
 import mss
@@ -174,41 +175,151 @@ def _handle_file_chunk(data: bytes):
                 return
 
 
+def _sanitize_filename(name: str) -> str:
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)
+    name = name.strip(". ")
+    return name or "arquivo_recebido"
+
+
+def get_explorer_path() -> str:
+    """
+    Retorna o caminho da pasta atualmente aberta no Windows Explorer.
+    Usa a API COM Shell.Application — funciona porque o Tray App roda
+    na sessão interativa do usuário (não em Session 0).
+
+    Retorna o caminho da janela mais recente do Explorer, ou Downloads como fallback.
+    """
+    try:
+        import comtypes.client
+        import urllib.request
+
+        shell   = comtypes.client.CreateObject("Shell.Application")
+        windows = shell.Windows()
+        paths   = []
+
+        for i in range(windows.Count):
+            try:
+                win = windows.Item(i)
+                if win is None:
+                    continue
+                loc = getattr(win, "LocationURL", None)
+                if loc and loc.startswith("file:///"):
+                    # file:///C:/Pasta/SubPasta  →  C:\Pasta\SubPasta
+                    raw = loc[8:]                          # remove file:///
+                    raw = raw.replace("/", "\\")           # barras
+                    raw = urllib.request.url2pathname(raw) # decodifica %20 etc.
+                    if raw:
+                        paths.append(raw)
+            except Exception:
+                continue
+
+        if paths:
+            # Última janela = mais recentemente ativa
+            return paths[-1]
+
+    except ImportError:
+        logger.warning("get_explorer_path: comtypes não instalado (pip install comtypes)")
+    except Exception as e:
+        logger.warning(f"get_explorer_path: {e}")
+
+    # Fallback: Downloads do usuário
+    return str(Path(os.path.expanduser("~")) / "Downloads")
+
+
+def _resolve_dest_dir(dest_key: str) -> Path:
+    """
+    Resolve a chave de destino enviada pelo frontend para um Path absoluto.
+
+    Chaves reconhecidas:
+      'explorer'  → pasta aberta no Windows Explorer (via COM)
+      'downloads' → ~/Downloads
+      'desktop'   → ~/Desktop
+      'documents' → ~/Documents
+      qualquer outro valor com separador de path → caminho absoluto personalizado
+    """
+    home = Path(os.path.expanduser("~"))
+
+    if dest_key == "explorer":
+        raw = get_explorer_path()
+        # Se retornou alias, resolve recursivamente
+        if raw in ("downloads", "desktop", "documents"):
+            return _resolve_dest_dir(raw)
+        p = Path(raw)
+        if p.is_absolute():
+            return p
+        return home / "Downloads"
+
+    dest_map = {
+        "downloads": home / "Downloads",
+        "desktop":   home / "Desktop",
+        "documents": home / "Documents",
+    }
+    if dest_key in dest_map:
+        return dest_map[dest_key]
+
+    # Caminho absoluto personalizado (contém separador ou letra de drive)
+    if dest_key and (os.sep in dest_key or "/" in dest_key or
+                     (len(dest_key) >= 3 and dest_key[1:3] == ":\\")):
+        return Path(dest_key)
+
+    # Fallback
+    return home / "Downloads"
+
+
 def _handle_file_message(msg: dict, session_id: str):
     t = msg.get("t")
+
     if t == "file_start":
         fid = msg.get("id")
         if fid:
             with _file_buffers_lock:
                 _file_buffers[fid] = {"meta": msg, "chunks": [], "received": 0, "done": False}
-            logger.info(f"WebRTC file: recebendo '{msg.get('name')}'")
+            logger.info(f"WebRTC file: recebendo '{msg.get('name')}' → dest='{msg.get('dest', 'downloads')}'")
+
     elif t == "file_end":
         fid = msg.get("id")
-        if not fid: return
+        if not fid:
+            return
         with _file_buffers_lock:
             buf = _file_buffers.get(fid)
-            if not buf: return
+            if not buf:
+                return
             buf["done"] = True
-            data        = b"".join(buf["chunks"])
-            file_name   = buf["meta"].get("name", f"arquivo_{fid[:8]}")
+            data      = b"".join(buf["chunks"])
+            file_name = buf["meta"].get("name", f"arquivo_{fid[:8]}")
+            dest_key  = buf["meta"].get("dest", "downloads")
             _file_buffers.pop(fid, None)
+
         try:
-            desktop = Path(os.path.expanduser("~")) / "Desktop"
-            desktop.mkdir(exist_ok=True)
-            import re
-            safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", file_name).strip(". ") or "arquivo"
-            dest = desktop / safe_name
-            dest.write_bytes(data)
-            logger.info(f"WebRTC file: '{file_name}' salvo em '{dest}'")
-            ack = json.dumps({"t": "file_done", "id": fid})
+            dest_dir = _resolve_dest_dir(dest_key)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+
+            safe_name = _sanitize_filename(file_name)
+            dest_path = dest_dir / safe_name
+
+            # Evita sobrescrever — sufixo incremental
+            if dest_path.exists():
+                stem, suffix = dest_path.stem, dest_path.suffix
+                counter = 1
+                while dest_path.exists():
+                    dest_path = dest_dir / f"{stem} ({counter}){suffix}"
+                    counter += 1
+
+            dest_path.write_bytes(data)
+            logger.info(f"WebRTC file: '{file_name}' salvo em '{dest_path}'")
+            ack = json.dumps({"t": "file_done", "id": fid, "name": file_name, "path": str(dest_path)})
+
         except Exception as e:
             logger.error(f"WebRTC file erro: {e}")
             ack = json.dumps({"t": "file_err", "id": fid, "reason": str(e)})
+
         with _webrtc_dc_lock:
             queue = _webrtc_data_channels.get(session_id)
         if queue:
-            try: queue.put_nowait(ack)
-            except Exception: pass
+            try:
+                queue.put_nowait(ack)
+            except Exception:
+                pass
 
 
 def _handle_webrtc_offer(body: dict) -> dict:
@@ -229,7 +340,6 @@ def _handle_webrtc_offer(body: dict) -> dict:
         track = ScreenTrack()
         track.__init__()
 
-        # Forçar H264 via addTransceiver sendonly
         try:
             caps        = RTCRtpSender.getCapabilities("video")
             h264        = [c for c in caps.codecs if "h264" in c.mimeType.lower()]
@@ -335,10 +445,11 @@ class WebRTCLocalHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self._is_loopback():
             self._send_json(403, {"error": "Apenas loopback"}); return
+
         if self.path == "/health":
             self._send_json(200, {"ok": True, "version": VERSION})
+
         elif self.path == "/screen":
-            # Retorna resolução da tela para o Django /api/rdp/info/
             try:
                 import ctypes
                 user32 = ctypes.windll.user32
@@ -348,6 +459,14 @@ class WebRTCLocalHandler(BaseHTTPRequestHandler):
                 })
             except Exception:
                 self._send_json(200, {"width": 1920, "height": 1080})
+
+        elif self.path == "/explorer/path":
+            # Rota usada pelo agent_service (e pelo Django via proxy IPC)
+            # para saber a pasta atualmente aberta no Explorer do usuário.
+            path = get_explorer_path()
+            logger.info(f"Explorer path consultado: {path}")
+            self._send_json(200, {"path": path})
+
         else:
             self._send_json(404, {"error": "not found"})
 
@@ -507,7 +626,6 @@ class StatusWindow:
             self.lbl_error.config(
                 text=(err[:40]+"…") if len(err)>40 else (err or "Nenhum"),
                 fg="#f87171" if err else "#4ade80")
-            # Sessões WebRTC locais
             self.lbl_webrtc.config(
                 text=str(len(_webrtc_data_channels)),
                 fg="#4ade80" if _webrtc_data_channels else "#64748b")
