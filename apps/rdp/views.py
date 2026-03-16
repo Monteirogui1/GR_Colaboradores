@@ -61,8 +61,7 @@ def _validate_rdp_token(token: str, machine: Machine) -> bool:
     try:
         agent_token = AgentToken.objects.get(
             token_hash=token_hash,
-            ativo=True,
-            cliente=machine.cliente,
+            is_active=True,
         )
         # Verificação de expiração opcional
         if hasattr(agent_token, 'expires_at') and agent_token.expires_at:
@@ -138,7 +137,7 @@ def _require_rdp_auth(view_func):
         # 5. Buscar máquina filtrando por tenant
         tenant = _get_tenant(request.user)
         try:
-            machine = Machine.objects.get(hostname=machine_id, cliente=tenant)
+            machine = Machine.objects.get(hostname=machine_id)
         except Machine.DoesNotExist:
             logger.warning(
                 f"RDP: máquina '{machine_id}' não encontrada para tenant={tenant.pk}"

@@ -791,24 +791,33 @@ class WebRTCHandler(BaseHTTPRequestHandler):
         if self.path == "/webrtc/offer":
             body = self._read_json()
             try:
-                answer = _handle_webrtc_offer(body)
-                self._send_json(200, answer)
-            except RuntimeError as e:
-                logger.error(f"WebRTC offer error: {e}")
-                self._send_json(503, {"error": str(e)})
-            except ValueError as e:
-                logger.warning(f"WebRTC offer inválido: {e}")
-                self._send_json(400, {"error": str(e)})
+                # Delegar ao Tray App (Session do usuário) — mss funciona lá
+                resp = _session.post(
+                    "http://127.0.0.1:7071/webrtc/offer",
+                    json=body,
+                    timeout=15,
+                )
+                resp.raise_for_status()
+                self._send_json(200, resp.json())
+            except requests.exceptions.ConnectionError:
+                logger.error("WebRTC: Tray App não está rodando na porta 7071")
+                self._send_json(503, {"error": "Tray App offline — abra o agent_tray.exe"})
+            except requests.exceptions.Timeout:
+                logger.error("WebRTC: Tray App não respondeu no tempo limite")
+                self._send_json(504, {"error": "Tray App não respondeu"})
             except Exception as e:
-                logger.exception(f"WebRTC offer exception: {e}")
-                self._send_json(500, {"error": "Erro interno na negociação WebRTC"})
+                logger.exception(f"WebRTC: erro ao delegar ao Tray App: {e}")
+                self._send_json(500, {"error": f"Erro interno: {e}"})
 
         elif self.path == "/webrtc/close":
             body       = self._read_json()
             session_id = body.get("session_id", "")
             if session_id:
-                STATE.remove_webrtc_session(session_id)
-                with _webrtc_dc_lock: _webrtc_data_channels.pop(session_id, None)
+                try:
+                    _session.post("http://127.0.0.1:7071/webrtc/close",
+                                  json=body, timeout=5)
+                except Exception:
+                    pass
                 self._send_json(200, {"ok": True})
             else:
                 self._send_json(400, {"error": "session_id obrigatório"})
