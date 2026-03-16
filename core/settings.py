@@ -15,7 +15,7 @@ APPS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = 'django-insecure-rg(j=r4br+!f!43dn2s(w_(np700%1nx#pw(aq+(^7t@@sj&#9'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*']
 
@@ -50,10 +50,12 @@ INSTALLED_APPS = [
     'apps.produtos',
     'apps.movimentacao',
     'apps.notificacao',
+    'apps.rdp',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -137,9 +139,9 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-# STATICFILES_DIRS = [
-#     os.path.join(BASE_DIR, 'static'),  # Opcional: diretório para arquivos estáticos do projeto
-# ]
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),  # Opcional: diretório para arquivos estáticos do projeto
+]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -206,3 +208,79 @@ DEFAULT_FROM_EMAIL = 'Suporte <suporte@empresa.com>'
 #         'schedule': 300.0,  # A cada 5 minutos
 #     },
 # }
+
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'errors_file': {
+            'level': 'ERROR',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'errors.log',
+            'maxBytes': 10 * 1024 * 1024,   # 10 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+        'security_file': {
+            'level': 'WARNING',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'security.log',
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['errors_file'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+        'django.security': {
+            'handlers': ['security_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}
+
+
+SPECTACULAR_SETTINGS['SERVE_INCLUDE_SCHEMA'] = False
+
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '30/minute',
+        'user': '120/minute',
+    },
+}
+
+AXES_FAILURE_LIMIT = 5        # bloqueia após 5 tentativas erradas
+AXES_COOLOFF_TIME  = 1        # 1 hora de bloqueio
+AXES_LOCK_OUT_BY_COMBINATION_USER_AND_IP = True
+AXES_RESET_ON_SUCCESS = True
+
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+RDP_SESSION_TIMEOUT       = 3600   # segundos de TTL da sessão
+RDP_MAX_SESSIONS_PER_USER = 3      # máximo de sessões simultâneas
+RDP_ALLOWED_ORIGINS       = ['https://seudominio.com']  # lista branca de origens
+AGENT_IPC_PORT            = 7070   # porta IPC do agente

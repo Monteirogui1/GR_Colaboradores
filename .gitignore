@@ -12,3 +12,4 @@ apps/*/migrations/
 teste.py
 *.exe
 *.zip
+.claude

@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.contrib import admin
+from django.contrib.auth.decorators import login_required
 from django.urls import path, include
+from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from django.conf.urls.static import static
 
@@ -18,6 +20,14 @@ urlpatterns = [
     path('', include('apps.movimentacao.urls',)),
     path('api/', include('apps.inventory.urls')),
     path('', include('apps.notificacao.urls', )),
+
+    path(
+        'rdp/',
+        login_required(TemplateView.as_view(template_name='rdp/remote_desktop.html')),
+        name='remote_desktop',
+    ),
+    # API de sinalização WebRTC
+    path('api/rdp/', include('apps.rdp.urls')),
 
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
