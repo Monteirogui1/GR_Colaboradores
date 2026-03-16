@@ -185,7 +185,6 @@ class RDPOfferView(View):
 
     @_require_rdp_auth
     def post(self, request):
-        # Parse do body
         try:
             body = json.loads(request.body)
         except (json.JSONDecodeError, ValueError):
@@ -199,23 +198,20 @@ class RDPOfferView(View):
 
         machine: Machine = request.rdp_machine
 
-        # Verificar se agente está online (checkin recente)
         self._assert_agent_online(machine)
 
-        # Encaminhar SDP ao agente via IPC
         try:
-            answer = self._forward_offer_to_agent(request, machine, sdp)  # ← passar request
+            answer = self._forward_offer_to_agent(request, machine, sdp)
         except req_lib.exceptions.ConnectionError:
-            logger.error(f"RDP: agente '{machine.hostname}' ({machine.ip_address}) inacessível")
+            logger.error(f"RDP: agente '{machine.hostname}' inacessível")
             return JsonResponse({'error': 'Agente offline ou inacessível'}, status=502)
         except req_lib.exceptions.Timeout:
-            logger.error(f"RDP: timeout aguardando resposta do agente '{machine.hostname}'")
+            logger.error(f"RDP: timeout no agente '{machine.hostname}'")
             return JsonResponse({'error': 'Agente não respondeu no tempo limite'}, status=504)
         except Exception as e:
             logger.exception(f"RDP: erro IPC para '{machine.hostname}': {e}")
-            return JsonResponse({'error': 'Erro interno na sinalização'}, status=500)
+            return JsonResponse({'error': f'Erro interno: {str(e)}'}, status=500)
 
-        # Registrar sessão ativa
         session_id = secrets.token_hex(16)
         _active_sessions[session_id] = {
             'user_id': request.user.pk,
@@ -226,10 +222,7 @@ class RDPOfferView(View):
         }
         _cleanup_expired_sessions()
 
-        logger.info(
-            f"RDP: sessão {session_id[:8]}… iniciada — "
-            f"user='{request.user.username}' → machine='{machine.hostname}'"
-        )
+        logger.info(f"RDP: sessão {session_id[:8]}… — user='{request.user.username}' → '{machine.hostname}'")
 
         resp = JsonResponse(answer)
         resp['X-RDP-Session'] = session_id
@@ -250,17 +243,20 @@ class RDPOfferView(View):
 
         url = f"http://{machine.ip_address}:{WEBRTC_PORT}/webrtc/offer"
 
-        # Token de 8 chars já validado → gerar hash → buscar no banco
+        # Converter token de 8 chars para SHA-256 e buscar no banco
         rdp_token_hash = _hash_token(request.rdp_token)
+
+        logger.info(f"RDP: buscando token hash={rdp_token_hash[:16]}… para máquina {machine.hostname}")
 
         agent_token = AgentToken.objects.filter(
             token_hash=rdp_token_hash,
             is_active=True,
-            created_by=machine.cliente,
         ).first()
 
         if not agent_token:
-            raise ValueError("Token não encontrado")
+            raise ValueError(f"Token não encontrado no banco para hash {rdp_token_hash[:16]}…")
+
+        logger.info(f"RDP: encaminhando offer para {url}")
 
         headers = {"Authorization": f"Bearer {agent_token.token_hash}"}
         payload = {"sdp": sdp, "type": "offer"}
@@ -269,7 +265,9 @@ class RDPOfferView(View):
 
         answer = response.json()
         if "sdp" not in answer or answer.get("type") != "answer":
-            raise ValueError(f"Resposta inválida: {answer}")
+            raise ValueError(f"Resposta inválida do agente: {answer}")
+
+        logger.info(f"RDP: SDP answer recebido para {machine.hostname}")
         return answer
 
 
