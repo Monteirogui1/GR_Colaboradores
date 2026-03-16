@@ -358,11 +358,18 @@ class ScreenTrack:
     def __new__(cls, *args, **kwargs):
         base     = cls._get_base()
         DynTrack = type("DynScreenTrack", (base,), {
-            "kind": "video",
-            "recv": cls._recv_impl,
+            "kind":     "video",
+            "recv":     cls._recv_impl,
+            "__init__": cls._init_impl,   # inicializa _id e demais atributos do pai
         })
         instance = object.__new__(DynTrack)
         return instance
+
+    @staticmethod
+    def _init_impl(self):
+        """Chama o __init__ da VideoStreamTrack para inicializar _id e _timestamp."""
+        from aiortc.mediastreams import VideoStreamTrack
+        VideoStreamTrack.__init__(self)
 
     @staticmethod
     async def _recv_impl(self):
@@ -511,7 +518,7 @@ def _sanitize_filename(name: str) -> str:
 def _handle_webrtc_offer(body: dict) -> dict:
     import asyncio
     try:
-        from aiortc import RTCPeerConnection, RTCSessionDescription
+        from aiortc import RTCPeerConnection, RTCSessionDescription, RTCRtpSender
     except ImportError:
         logger.error("aiortc não instalado")
         raise RuntimeError("aiortc não instalado no agente")
@@ -524,9 +531,33 @@ def _handle_webrtc_offer(body: dict) -> dict:
     session_id = hashlib.md5(sdp_str[:64].encode()).hexdigest()[:16]
 
     async def negotiate() -> dict:
-        pc    = RTCPeerConnection()
+        pc = RTCPeerConnection()
+
+        # Criar e inicializar o track corretamente
+        # __init__ da VideoStreamTrack precisa ser chamado para criar _id
         track = ScreenTrack()
-        pc.addTrack(track)
+        track.__init__()
+
+        # Usar addTransceiver com direction="sendonly" e forçar H264
+        # Isso resolve "None is not in list" causado pelo mismatch
+        # entre recvonly (browser) e sendrecv (padrão aiortc)
+        try:
+            caps   = RTCRtpSender.getCapabilities("video")
+            h264   = [c for c in caps.codecs if "h264" in c.mimeType.lower()]
+            transceiver = pc.addTransceiver(track, direction="sendonly")
+            if h264:
+                transceiver.setCodecPreferences(h264)
+                logger.info(f"WebRTC: H264 configurado ({len(h264)} perfis)")
+            else:
+                logger.warning("WebRTC: H264 indisponível, usando codecs padrão")
+        except Exception as e:
+            # Fallback: addTrack simples
+            logger.warning(f"WebRTC: addTransceiver falhou ({e}), usando addTrack")
+            try:
+                pc.addTrack(track)
+            except Exception as e2:
+                logger.error(f"WebRTC: addTrack também falhou: {e2}")
+                raise
 
         send_queue: asyncio.Queue = asyncio.Queue()
         with _webrtc_dc_lock:
@@ -544,7 +575,8 @@ def _handle_webrtc_offer(body: dict) -> dict:
                             threading.Thread(target=_handle_input_event,
                                              args=(json.loads(message), session_id),
                                              daemon=True).start()
-                        except Exception: pass
+                        except Exception:
+                            pass
                 elif channel.label == "files":
                     if isinstance(message, bytes):
                         _handle_file_chunk(message)
@@ -553,7 +585,8 @@ def _handle_webrtc_offer(body: dict) -> dict:
                             threading.Thread(target=_handle_file_message,
                                              args=(json.loads(message), session_id),
                                              daemon=True).start()
-                        except Exception: pass
+                        except Exception:
+                            pass
 
             async def drain_queue():
                 while True:

@@ -1,0 +1,50 @@
+2026-03-16 10:57:28,539 [INFO] === AgentService v3.2.0 iniciando ===
+2026-03-16 10:57:28,540 [INFO] Máquina: LTNOFGUILHERME | Servidor: http://192.168.100.247:5002
+2026-03-16 10:57:28,540 [INFO] SSL verify: True | Heartbeat: 300s + jitter
+2026-03-16 10:57:28,540 [INFO] IPC    : 127.0.0.1:7070  (Tray App — local only)
+2026-03-16 10:57:28,541 [INFO] WebRTC : 0.0.0.0:7071   (Django — subnet 192.168.0.0/16)
+2026-03-16 10:57:28,542 [INFO] Thread 'ipc' iniciada
+2026-03-16 10:57:28,543 [INFO] Thread 'webrtc-http' iniciada
+2026-03-16 10:57:28,544 [INFO] Thread 'health' iniciada
+2026-03-16 10:57:28,545 [INFO] Checkin loop aguardando 32s de jitter inicial...
+2026-03-16 10:57:28,546 [INFO] Thread 'checkin' iniciada
+2026-03-16 10:57:28,546 [INFO] Thread 'notif' iniciada
+2026-03-16 10:57:28,548 [INFO] IPC server listening on 127.0.0.1:7070
+2026-03-16 10:57:28,549 [INFO] Thread 'webrtc-gc' iniciada
+2026-03-16 10:57:28,550 [INFO] Thread 'update' iniciada
+2026-03-16 10:57:28,551 [INFO] WebRTC server listening on 0.0.0.0:7071 (subnet: 192.168.0.0/16)
+2026-03-16 10:57:33,686 [WARNING] WebRTC: token inválido de 192.168.1.54
+2026-03-16 10:57:39,685 [WARNING] WebRTC: token inválido de 192.168.1.54
+2026-03-16 10:57:59,197 [WARNING] WebRTC: token inválido de 192.168.1.54
+2026-03-16 10:58:02,449 [INFO] Check-in FALHOU
+2026-03-16 10:58:04,724 [WARNING] WebRTC: token inválido de 192.168.1.54
+2026-03-16 10:58:09,486 [WARNING] WebRTC: token inválido de 192.168.1.54
+2026-03-16 10:58:14,111 [WARNING] WebRTC: token inválido de 192.168.1.54
+2026-03-16 10:58:37,217 [WARNING] WebRTC: token inválido de 192.168.1.54
+2026-03-16 10:59:14,924 [WARNING] WebRTC: token inválido de 192.168.1.54
+2026-03-16 11:00:08,534 [INFO] Codecs H264 disponíveis: 2
+2026-03-16 11:00:08,536 [WARNING] WebRTC offer inválido: None is not in list
+2026-03-16 11:01:48,618 [INFO] Serviço encerrado
+2026-03-16 11:02:51,037 [INFO] === AgentService v3.2.0 iniciando ===
+2026-03-16 11:02:51,038 [INFO] Máquina: LTNOFGUILHERME | Servidor: http://192.168.100.247:5002
+2026-03-16 11:02:51,038 [INFO] SSL verify: True | Heartbeat: 300s + jitter
+2026-03-16 11:02:51,038 [INFO] IPC    : 127.0.0.1:7070  (Tray App — local only)
+2026-03-16 11:02:51,038 [INFO] WebRTC : 0.0.0.0:7071   (Django — subnet 192.168.0.0/16)
+2026-03-16 11:02:51,040 [INFO] Thread 'ipc' iniciada
+2026-03-16 11:02:51,042 [INFO] Thread 'webrtc-http' iniciada
+2026-03-16 11:02:51,043 [INFO] Thread 'health' iniciada
+2026-03-16 11:02:51,045 [INFO] Checkin loop aguardando 27s de jitter inicial...
+2026-03-16 11:02:51,045 [INFO] Thread 'checkin' iniciada
+2026-03-16 11:02:51,047 [INFO] Thread 'notif' iniciada
+2026-03-16 11:02:51,048 [INFO] IPC server listening on 127.0.0.1:7070
+2026-03-16 11:02:51,048 [INFO] Thread 'webrtc-gc' iniciada
+2026-03-16 11:02:51,049 [INFO] Thread 'update' iniciada
+2026-03-16 11:02:51,050 [INFO] WebRTC server listening on 0.0.0.0:7071 (subnet: 192.168.0.0/16)
+2026-03-16 11:02:54,260 [INFO] WebRTC: H264 configurado (2 perfis)
+2026-03-16 11:02:54,261 [WARNING] WebRTC offer inválido: None is not in list
+2026-03-16 11:03:19,880 [INFO] Check-in FALHOU
+2026-03-16 11:03:43,811 [INFO] WebRTC: H264 configurado (2 perfis)
+2026-03-16 11:03:48,841 [INFO] WebRTC: sessão 45fe99b7… registrada
+2026-03-16 11:03:48,842 [INFO] WebRTC: SDP answer gerado para sessão 45fe99b7…
+2026-03-16 11:08:24,829 [INFO] Check-in FALHOU
+2026-03-16 11:08:27,878 [INFO] Serviço encerrado

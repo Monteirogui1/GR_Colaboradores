@@ -204,7 +204,7 @@ class RDPOfferView(View):
 
         # Encaminhar SDP ao agente via IPC
         try:
-            answer = self._forward_offer_to_agent(machine, sdp)
+            answer = self._forward_offer_to_agent(request, machine, sdp)  # ← passar request
         except req_lib.exceptions.ConnectionError:
             logger.error(f"RDP: agente '{machine.hostname}' ({machine.ip_address}) inacessível")
             return JsonResponse({'error': 'Agente offline ou inacessível'}, status=502)
@@ -245,27 +245,31 @@ class RDPOfferView(View):
         if last_seen and (timezone.now() - last_seen) > timedelta(minutes=6):
             raise ConnectionError(f"Agente '{machine.hostname}' sem heartbeat há mais de 6 minutos")
 
-    def _forward_offer_to_agent(self, machine: Machine, sdp: str) -> dict:
+    def _forward_offer_to_agent(self, request, machine: Machine, sdp: str) -> dict:
+        from apps.inventory.models import AgentToken
+
         url = f"http://{machine.ip_address}:{WEBRTC_PORT}/webrtc/offer"
-        payload = {'sdp': sdp, 'type': 'offer'}
 
-        # Autenticar com o token hash da máquina
+        # Token de 8 chars já validado → gerar hash → buscar no banco
+        rdp_token_hash = _hash_token(request.rdp_token)
+
         agent_token = AgentToken.objects.filter(
-            machine_name=machine.hostname,
+            token_hash=rdp_token_hash,
             is_active=True,
-        ).order_by('-created_at').first()
+            created_by=machine.cliente,
+        ).first()
 
-        headers = {}
-        if agent_token:
-            headers['Authorization'] = f'Bearer {agent_token.token_hash}'
+        if not agent_token:
+            raise ValueError("Token não encontrado")
 
-        response = req_lib.post(url, json=payload, headers=headers, timeout=12)
+        headers = {"Authorization": f"Bearer {agent_token.token_hash}"}
+        payload = {"sdp": sdp, "type": "offer"}
+        response = req_lib.post(url, json=payload, headers=headers, timeout=15)
         response.raise_for_status()
 
         answer = response.json()
-        if 'sdp' not in answer or answer.get('type') != 'answer':
-            raise ValueError(f"Resposta inválida do agente: {answer}")
-
+        if "sdp" not in answer or answer.get("type") != "answer":
+            raise ValueError(f"Resposta inválida: {answer}")
         return answer
 
 
