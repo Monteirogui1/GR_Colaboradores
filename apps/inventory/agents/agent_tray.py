@@ -26,10 +26,12 @@ except ImportError:
     print("ERRO: pip install pystray pillow")
     sys.exit(1)
 
-VERSION        = "3.2.0"
-IPC_URL        = "http://127.0.0.1:7070"
-WEBRTC_PORT    = 7071   # porta local — agent_service delega para cá
-POLL_INTERVAL  = 8
+VERSION               = "3.2.0"
+AGENT_TYPE            = "tray"          # identifica este exe na API de update
+IPC_URL               = "http://127.0.0.1:7070"
+WEBRTC_PORT           = 7071
+POLL_INTERVAL         = 8
+UPDATE_CHECK_INTERVAL = 3600
 
 LOG_DIR = Path(os.path.dirname(__file__)) / "logs"
 LOG_DIR.mkdir(exist_ok=True)
@@ -43,7 +45,7 @@ logger = logging.getLogger("AgentTray")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# WebRTC — captura de tela (roda na sessão do usuário ✓)
+# WebRTC
 # ═════════════════════════════════════════════════════════════════════════════
 
 _webrtc_data_channels: dict = {}
@@ -53,8 +55,6 @@ _file_buffers_lock           = threading.Lock()
 
 
 class ScreenTrack:
-    """Captura a tela principal com mss — funciona na sessão do usuário."""
-
     _aiortc_base = None
 
     @classmethod
@@ -183,11 +183,8 @@ def _sanitize_filename(name: str) -> str:
 
 def get_explorer_path() -> str:
     """
-    Retorna o caminho da pasta atualmente aberta no Windows Explorer.
-    Usa a API COM Shell.Application — funciona porque o Tray App roda
-    na sessão interativa do usuário (não em Session 0).
-
-    Retorna o caminho da janela mais recente do Explorer, ou Downloads como fallback.
+    Retorna o caminho da pasta aberta no Windows Explorer via COM.
+    Funciona apenas no contexto do usuário (sessão interativa).
     """
     try:
         import comtypes.client
@@ -204,17 +201,14 @@ def get_explorer_path() -> str:
                     continue
                 loc = getattr(win, "LocationURL", None)
                 if loc and loc.startswith("file:///"):
-                    # file:///C:/Pasta/SubPasta  →  C:\Pasta\SubPasta
-                    raw = loc[8:]                          # remove file:///
-                    raw = raw.replace("/", "\\")           # barras
-                    raw = urllib.request.url2pathname(raw) # decodifica %20 etc.
+                    raw = loc[8:].replace("/", "\\")
+                    raw = urllib.request.url2pathname(raw)
                     if raw:
                         paths.append(raw)
             except Exception:
                 continue
 
         if paths:
-            # Última janela = mais recentemente ativa
             return paths[-1]
 
     except ImportError:
@@ -222,26 +216,14 @@ def get_explorer_path() -> str:
     except Exception as e:
         logger.warning(f"get_explorer_path: {e}")
 
-    # Fallback: Downloads do usuário
     return str(Path(os.path.expanduser("~")) / "Downloads")
 
 
 def _resolve_dest_dir(dest_key: str) -> Path:
-    """
-    Resolve a chave de destino enviada pelo frontend para um Path absoluto.
-
-    Chaves reconhecidas:
-      'explorer'  → pasta aberta no Windows Explorer (via COM)
-      'downloads' → ~/Downloads
-      'desktop'   → ~/Desktop
-      'documents' → ~/Documents
-      qualquer outro valor com separador de path → caminho absoluto personalizado
-    """
     home = Path(os.path.expanduser("~"))
 
     if dest_key == "explorer":
         raw = get_explorer_path()
-        # Se retornou alias, resolve recursivamente
         if raw in ("downloads", "desktop", "documents"):
             return _resolve_dest_dir(raw)
         p = Path(raw)
@@ -257,12 +239,10 @@ def _resolve_dest_dir(dest_key: str) -> Path:
     if dest_key in dest_map:
         return dest_map[dest_key]
 
-    # Caminho absoluto personalizado (contém separador ou letra de drive)
     if dest_key and (os.sep in dest_key or "/" in dest_key or
                      (len(dest_key) >= 3 and dest_key[1:3] == ":\\")):
         return Path(dest_key)
 
-    # Fallback
     return home / "Downloads"
 
 
@@ -274,7 +254,7 @@ def _handle_file_message(msg: dict, session_id: str):
         if fid:
             with _file_buffers_lock:
                 _file_buffers[fid] = {"meta": msg, "chunks": [], "received": 0, "done": False}
-            logger.info(f"WebRTC file: recebendo '{msg.get('name')}' → dest='{msg.get('dest', 'downloads')}'")
+            logger.info(f"WebRTC file: recebendo '{msg.get('name')}' dest='{msg.get('dest', 'downloads')}'")
 
     elif t == "file_end":
         fid = msg.get("id")
@@ -293,22 +273,17 @@ def _handle_file_message(msg: dict, session_id: str):
         try:
             dest_dir = _resolve_dest_dir(dest_key)
             dest_dir.mkdir(parents=True, exist_ok=True)
-
             safe_name = _sanitize_filename(file_name)
             dest_path = dest_dir / safe_name
-
-            # Evita sobrescrever — sufixo incremental
             if dest_path.exists():
                 stem, suffix = dest_path.stem, dest_path.suffix
                 counter = 1
                 while dest_path.exists():
                     dest_path = dest_dir / f"{stem} ({counter}){suffix}"
                     counter += 1
-
             dest_path.write_bytes(data)
             logger.info(f"WebRTC file: '{file_name}' salvo em '{dest_path}'")
             ack = json.dumps({"t": "file_done", "id": fid, "name": file_name, "path": str(dest_path)})
-
         except Exception as e:
             logger.error(f"WebRTC file erro: {e}")
             ack = json.dumps({"t": "file_err", "id": fid, "reason": str(e)})
@@ -416,13 +391,8 @@ def _handle_webrtc_offer(body: dict) -> dict:
 
 # ─────────────────────────────────────────────
 # Servidor WebRTC local — 127.0.0.1:7071
-# Só aceita conexões do loopback (agent_service)
 # ─────────────────────────────────────────────
 class WebRTCLocalHandler(BaseHTTPRequestHandler):
-    """
-    Recebe SDP offer do agent_service via loopback.
-    Sem autenticação extra — tráfego é estritamente local (127.0.0.1).
-    """
 
     def log_message(self, fmt, *args):
         logger.debug(f"WebRTC-Local {fmt % args}")
@@ -461,8 +431,6 @@ class WebRTCLocalHandler(BaseHTTPRequestHandler):
                 self._send_json(200, {"width": 1920, "height": 1080})
 
         elif self.path == "/explorer/path":
-            # Rota usada pelo agent_service (e pelo Django via proxy IPC)
-            # para saber a pasta atualmente aberta no Explorer do usuário.
             path = get_explorer_path()
             logger.info(f"Explorer path consultado: {path}")
             self._send_json(200, {"path": path})
@@ -492,7 +460,6 @@ class WebRTCLocalHandler(BaseHTTPRequestHandler):
 
 
 def start_webrtc_local_server():
-    """Inicia o servidor WebRTC local em thread dedicada."""
     server = HTTPServer(("127.0.0.1", WEBRTC_PORT), WebRTCLocalHandler)
     logger.info(f"WebRTC local server listening on 127.0.0.1:{WEBRTC_PORT}")
     server.serve_forever()
@@ -651,6 +618,144 @@ class StatusWindow:
 
 
 # ─────────────────────────────────────────────
+# Auto-update — tray
+# ─────────────────────────────────────────────
+def _apply_tray_update(server_url: str, token_hash: str, ssl_v, info: dict):
+    """
+    Aplica atualização do agent_tray.exe.
+
+    O tray NÃO é um serviço Windows — o .bat reinicia o processo
+    diretamente com 'start "" agent_tray.exe' após a substituição.
+    O ícone desaparece e reaparece brevemente.
+    """
+    download_url = info.get("download_url")
+    remote_sha   = (info.get("sha256") or "").lower().strip()
+
+    if not download_url:
+        logger.warning("Update tray: download_url ausente")
+        return
+
+    if getattr(sys, "frozen", False):
+        exe_path = Path(sys.executable).resolve()
+    else:
+        exe_path = Path(os.path.abspath(__file__)).resolve()
+        logger.info("Update tray: modo .py — simulando caminho .exe")
+
+    exe_dir  = exe_path.parent
+    new_exe  = exe_dir / "agent_tray_new.exe"
+    bat_path = exe_dir / "_update_tray.bat"
+
+    try:
+        # 1. Download
+        logger.info(f"Update tray: baixando versão {info.get('version')}…")
+        headers = {"Authorization": f"Bearer {token_hash}"} if token_hash else {}
+        r = requests.get(download_url, headers=headers, verify=ssl_v, timeout=120, stream=True)
+        if r.status_code != 200:
+            logger.error(f"Update tray: download falhou HTTP {r.status_code}")
+            return
+        new_exe.write_bytes(r.content)
+        logger.info(f"Update tray: {len(r.content):,} bytes salvos")
+
+        # 2. SHA-256
+        if remote_sha:
+            local_sha = hashlib.sha256(new_exe.read_bytes()).hexdigest().lower()
+            if local_sha != remote_sha:
+                logger.error("Update tray: SHA-256 INVÁLIDO — abortando")
+                new_exe.unlink(missing_ok=True)
+                return
+            logger.info("Update tray: SHA-256 OK")
+        else:
+            logger.warning("Update tray: sem sha256 do servidor — verificação ignorada")
+
+        # 3. Script de substituição
+        bat = (
+            f'@echo off\n'
+            f'rem agent_tray auto-update — v{info.get("version")}\n'
+            f'timeout /t 3 /nobreak > nul\n'
+            f'\n'
+            f'if exist "{exe_path}.bak" del /F /Q "{exe_path}.bak"\n'
+            f'if exist "{exe_path}" move /Y "{exe_path}" "{exe_path}.bak"\n'
+            f'move /Y "{new_exe}" "{exe_path}"\n'
+            f'if %ERRORLEVEL% neq 0 (\n'
+            f'  if exist "{exe_path}.bak" move /Y "{exe_path}.bak" "{exe_path}"\n'
+            f'  if exist "{new_exe}" del /F /Q "{new_exe}"\n'
+            f'  del /F /Q "%~f0" & exit /b 1\n'
+            f')\n'
+            f'\n'
+            f'start "" "{exe_path}"\n'
+            f'del /F /Q "%~f0"\n'
+            f'exit /b 0\n'
+        )
+        bat_path.write_text(bat, encoding="ascii", errors="replace")
+        logger.info(f"Update tray: script criado — {bat_path.name}")
+
+        # 4. Executa detached e encerra o tray
+        import subprocess
+        subprocess.Popen(
+            ["cmd.exe", "/c", str(bat_path)],
+            creationflags=(
+                subprocess.DETACHED_PROCESS |
+                subprocess.CREATE_NO_WINDOW |
+                subprocess.CREATE_NEW_PROCESS_GROUP
+            ),
+            close_fds=True,
+        )
+        logger.info("Update tray: script iniciado — encerrando tray para substituição")
+        time.sleep(1)
+        sys.exit(0)
+
+    except Exception as e:
+        logger.error(f"Update tray: falha — {e}")
+        for tmp in [new_exe, bat_path]:
+            try:
+                if tmp.exists():
+                    tmp.unlink()
+            except Exception:
+                pass
+
+
+def _start_update_loop(server_url: str, token_hash: str, ssl_v):
+    """
+    Inicia thread de auto-update do tray.
+    Consulta o servidor a cada UPDATE_CHECK_INTERVAL enviando agent_type='tray'.
+    """
+    def _loop():
+        time.sleep(90)   # aguarda estabilização
+        ep = "/api/inventario/agent/update/"
+        while True:
+            try:
+                headers = {"Authorization": f"Bearer {token_hash}"} if token_hash else {}
+                resp = requests.post(
+                    server_url + ep,
+                    json={
+                        "current_version": VERSION,
+                        "machine_name":    os.environ.get("COMPUTERNAME", socket.gethostname()),
+                        "agent_type":      AGENT_TYPE,
+                    },
+                    headers=headers,
+                    verify=ssl_v,
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    info = resp.json()
+                    if info.get("update_available"):
+                        logger.info(
+                            f"Update tray disponível: {VERSION} → {info.get('version')} "
+                            f"(obrigatório={info.get('is_mandatory')})"
+                        )
+                        _apply_tray_update(server_url, token_hash, ssl_v, info)
+                else:
+                    logger.debug(f"Update tray check: HTTP {resp.status_code}")
+            except Exception as e:
+                logger.warning(f"Update tray check: {e}")
+            time.sleep(UPDATE_CHECK_INTERVAL)
+
+    t = threading.Thread(target=_loop, daemon=True, name="update-tray")
+    t.start()
+    logger.info("Update loop do tray iniciado")
+
+
+# ─────────────────────────────────────────────
 # Ícone do System Tray
 # ─────────────────────────────────────────────
 class TrayIcon:
@@ -713,6 +818,11 @@ class TrayIcon:
         if self.icon: self.icon.stop()
 
     def run(self):
+        # Lê configurações do ambiente (mesmas variáveis do agent_service)
+        server_url = os.environ.get("AGENT_SERVER_URL", "http://192.168.100.247:5002")
+        token_hash = os.environ.get("AGENT_TOKEN_HASH", "")
+        ssl_v      = os.environ.get("AGENT_SSL_VERIFY", "true").lower() != "false"
+
         self.icon = pystray.Icon(
             "inventory_agent",
             self._make_image("unknown"),
@@ -721,6 +831,7 @@ class TrayIcon:
         )
         threading.Thread(target=self._poll_loop,           daemon=True, name="poll").start()
         threading.Thread(target=start_webrtc_local_server, daemon=True, name="webrtc-local").start()
+        _start_update_loop(server_url, token_hash, ssl_v)   # auto-update do tray
         logger.info(f"Tray iniciado | WebRTC local em 127.0.0.1:{WEBRTC_PORT}")
         self.icon.run()
 
@@ -760,7 +871,7 @@ class TrayIcon:
 # Ponto de entrada
 # ─────────────────────────────────────────────
 def main():
-    logger.info(f"=== AgentTray v{VERSION} iniciando ===")
+    logger.info(f"=== AgentTray v{VERSION} ({AGENT_TYPE}) iniciando ===")
     logger.info(f"WebRTC local: 127.0.0.1:{WEBRTC_PORT}")
 
     if not IPCClient.is_service_running():

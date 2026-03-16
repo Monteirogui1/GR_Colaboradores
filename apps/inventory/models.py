@@ -384,10 +384,27 @@ class AgentToken(models.Model):
 class AgentVersion(models.Model):
     """Versões do agente disponíveis"""
 
+    AGENT_TYPE_CHOICES = [
+        ('service', 'Agent Service (agent_service.exe)'),
+        ('tray', 'Agent Tray (agent_tray.exe)'),
+    ]
+
     version = models.CharField(max_length=20, unique=True, verbose_name="Versão")
+    agent_type = models.CharField(
+        max_length=10,
+        choices=AGENT_TYPE_CHOICES,
+        default='service',
+        verbose_name="Tipo de Agente",
+    )
     file_path = models.FileField(
         upload_to='agent_versions/',
         verbose_name="Arquivo"
+    )
+    sha256 = models.CharField(
+        max_length=64,
+        blank=True,
+        verbose_name="SHA-256 do arquivo",
+        help_text="Preenchido automaticamente ao salvar",
     )
     release_notes = models.TextField(verbose_name="Notas de Lançamento")
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
@@ -410,6 +427,17 @@ class AgentVersion(models.Model):
 
     def __str__(self):
         return f"Versão {self.version}"
+
+    def save(self, *args, **kwargs):
+        """Calcula SHA-256 automaticamente ao salvar se o arquivo mudou."""
+        if self.file_path and not self.sha256:
+            import hashlib
+            try:
+                self.file_path.seek(0)
+                self.sha256 = hashlib.sha256(self.file_path.read()).hexdigest()
+            except Exception:
+                pass
+        super().save(*args, **kwargs)
 
     def get_status_display(self):
         """Retorna o status da versão para exibição"""

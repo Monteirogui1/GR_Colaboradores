@@ -1,4 +1,3 @@
-{% load static %}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -18,7 +17,7 @@ html,body{height:100%;overflow:hidden;background:#07090c;}
 }
 body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color:var(--txt);}
 
-/* TOPBAR */
+/* ── TOPBAR ── */
 #topbar{display:flex;align-items:center;height:40px;background:var(--s1);border-bottom:1px solid var(--b1);padding:0 10px;gap:3px;flex-shrink:0;z-index:50;}
 .brand{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;letter-spacing:.16em;color:var(--acc);text-decoration:none;padding:0 10px 0 2px;border-right:1px solid var(--b1);margin-right:5px;white-space:nowrap;}
 .brand svg{width:14px;height:14px;}
@@ -33,7 +32,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 .tspc{flex:1;}
 #tbst{font-size:9px;letter-spacing:.1em;color:var(--t3);padding:0 8px;}
 
-/* SELF-WARN BAR */
+/* ── SELF-WARN ── */
 #selfbar{display:none;align-items:center;gap:9px;padding:5px 14px;background:rgba(251,191,36,.07);border-bottom:1px solid rgba(251,191,36,.18);font-size:10px;color:var(--wrn);letter-spacing:.04em;flex-shrink:0;}
 #selfbar.show{display:flex;}
 #selfbar svg{width:12px;height:12px;flex-shrink:0;}
@@ -44,10 +43,10 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 .sbabtn.ig{border-color:var(--t3);color:var(--t3);background:transparent;}
 .sbabtn.ig:hover{background:rgba(255,255,255,.05);color:var(--t2);}
 
-/* BODY */
+/* ── BODY ── */
 #body{flex:1;position:relative;overflow:hidden;}
 
-/* CONNECT SCREEN */
+/* ── CONNECT SCREEN ── */
 #cs{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:40;transition:opacity .3s ease;}
 #cs.out{opacity:0;pointer-events:none;}
 #cs::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(0,200,160,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,200,160,.03) 1px,transparent 1px);background-size:30px 30px;mask-image:radial-gradient(ellipse 55% 55% at 50% 50%,black 15%,transparent 80%);}
@@ -89,27 +88,13 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 @keyframes spin{to{transform:rotate(360deg);}}
 .errmsg{font-size:10px;color:var(--err);text-align:center;min-height:13px;letter-spacing:.04em;}
 
-/* VIDEO — cursor padrão do sistema, sem cursor customizado */
+/* ── VIDEO ── */
 #vw{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#030507;}
 #vw.show{display:flex;}
-/* O vídeo ocupa o máximo possível mantendo aspect ratio */
-#rv{
-  display:block;
-  /* object-fit:contain para não cortar */
-  object-fit:contain;
-  /* Ocupa toda a área disponível */
-  width:100%;
-  height:100%;
-  /* cursor padrão do sistema — sem cursor.none */
-  cursor:default;
-}
-/* Quando view-only, cursor de olho */
+#rv{display:block;width:100%;height:100%;object-fit:contain;cursor:default;}
 #vw.viewonly #rv{cursor:not-allowed;}
-
-/* overlay view-only (não bloqueia visualmente, só semânticamente) */
 #voov{display:none;position:absolute;inset:0;z-index:8;}
 #voov.show{display:block;}
-
 #mtag{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:8px;background:rgba(7,9,12,.82);border:1px solid var(--b2);border-radius:20px;padding:4px 12px;z-index:15;backdrop-filter:blur(4px);}
 #mtagname{font-size:10px;color:var(--t2);letter-spacing:.06em;}
 .mdot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 5px var(--ok);}
@@ -126,6 +111,8 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 .dico svg{width:22px;height:22px;color:var(--a2);}
 .dtxt{font-size:12px;font-weight:700;color:var(--a2);letter-spacing:.08em;text-transform:uppercase;}
 .dsub{font-size:9px;color:var(--t3);letter-spacing:.06em;}
+
+/* ── STATS ── */
 #stats{position:absolute;bottom:28px;left:10px;display:none;background:rgba(7,9,12,.9);border:1px solid var(--b2);border-radius:var(--r2);padding:10px 14px;z-index:12;backdrop-filter:blur(4px);min-width:200px;}
 #stats.show{display:block;}
 .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;}
@@ -134,7 +121,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 .sv{font-size:13px;font-weight:700;color:var(--t2);}
 .sv.g{color:var(--ok);}.sv.w{color:var(--wrn);}.sv.b{color:var(--err);}
 
-/* SIDE PANELS — usam position:absolute para NÃO deslocar o vídeo */
+/* ── PANELS ── */
 .panel{position:absolute;right:0;top:0;bottom:0;width:280px;background:var(--s1);border-left:1px solid var(--b1);display:flex;flex-direction:column;z-index:30;transform:translateX(100%);transition:transform .24s cubic-bezier(.4,0,.2,1);}
 .panel.open{transform:translateX(0);}
 .ph{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;border-bottom:1px solid var(--b1);}
@@ -150,25 +137,25 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 .pbtn:hover{background:rgba(255,255,255,.07);color:var(--txt);}
 .pbtn.acc{border-color:rgba(0,200,160,.28);color:var(--acc);background:var(--ad);}
 .pbtn.acc:hover{background:rgba(0,200,160,.2);}
-
 /* Destino de arquivo */
 .dpreset{padding:3px 8px;border:1px solid var(--b2);border-radius:var(--r);background:var(--bg);color:var(--t3);font-family:var(--mn);font-size:8px;letter-spacing:.06em;cursor:pointer;transition:all var(--tr);}
 .dpreset:hover{border-color:rgba(0,200,160,.3);color:var(--acc);}
 .dpreset.on{border-color:rgba(0,200,160,.4);color:var(--acc);background:var(--ad);}
-#explorer-card.on{border-color:rgba(0,200,160,.5)!important;background:var(--ad)!important;}
-#explorer-card:hover{border-color:rgba(0,200,160,.35);}
-
+#explcard{transition:border-color var(--tr);}
+#explcard.on{border-color:rgba(0,200,160,.5)!important;background:var(--ad)!important;}
 #flist{display:flex;flex-direction:column;gap:5px;}
-.fi{display:flex;align-items:center;gap:7px;padding:7px 9px;background:var(--bg);border:1px solid var(--b1);border-radius:var(--r);}
+.fi{display:flex;align-items:center;gap:7px;padding:7px 9px;background:var(--bg);border:1px solid var(--b1);border-radius:var(--r);flex-direction:column;align-items:flex-start;}
+.fi-row{display:flex;align-items:center;gap:7px;width:100%;}
 .fii{width:11px;height:11px;color:var(--a2);flex-shrink:0;}
 .fin{flex:1;font-size:10px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .fis{font-size:9px;color:var(--t3);flex-shrink:0;}
-.fi-prog{height:2px;background:var(--b2);border-radius:1px;overflow:hidden;margin-top:3px;}
+.fi-prog{height:2px;background:var(--b2);border-radius:1px;overflow:hidden;width:100%;}
 .fi-bar{height:100%;background:var(--a2);width:0%;transition:width .1s;}
 .fi-bar.done{background:var(--acc);}
 .fi-bar.err{background:var(--err);}
+.fi-st{font-size:9px;color:var(--t3);}
 
-/* STATUS BAR */
+/* ── STATUS BAR ── */
 #sbar{display:flex;align-items:center;height:22px;background:var(--s1);border-top:1px solid var(--b1);flex-shrink:0;overflow:hidden;}
 .sit{display:flex;align-items:center;gap:5px;padding:0 11px;border-right:1px solid var(--b1);height:100%;font-size:8px;letter-spacing:.08em;color:var(--t3);white-space:nowrap;}
 .sil{text-transform:uppercase;}
@@ -182,7 +169,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 #pauseind.show{display:flex;}
 @keyframes bw{0%,100%{opacity:1}50%{opacity:.4}}
 
-/* TOASTS */
+/* ── TOASTS ── */
 #toasts{position:fixed;top:48px;right:10px;z-index:200;display:flex;flex-direction:column;gap:5px;pointer-events:none;}
 .t{padding:7px 13px;border-radius:var(--r);font-size:10px;letter-spacing:.05em;border-width:1px;border-style:solid;opacity:0;transform:translateX(18px);transition:all .18s ease;pointer-events:none;white-space:nowrap;}
 .t.show{opacity:1;transform:translateX(0);}
@@ -194,6 +181,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 </head>
 <body>
 
+<!-- TOPBAR -->
 <div id="topbar">
   <a class="brand" href="{% url 'home:dashboard' %}">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="5" height="4" rx="1"/><rect x="9" y="3" width="5" height="4" rx="1"/><rect x="2" y="9" width="5" height="4" rx="1"/><rect x="9" y="9" width="5" height="4" rx="1"/></svg>RDP
@@ -228,7 +216,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
   </button>
   <div class="tdiv"></div>
   <button class="tb" id="btncad" disabled onclick="sendCAD()">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v5l3 2"/><circle cx="8" cy="8" r="6"/></svg>CTRL+ALT+DEL
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v5l3 2"/><circle cx="8" cy="8" r="6"/></svg>C+A+DEL
   </button>
   <div class="tspc"></div>
   <span id="tbst">OFFLINE</span>
@@ -238,6 +226,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
   </button>
 </div>
 
+<!-- SELF-WARN -->
 <div id="selfbar">
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 6v3M8 11v.5"/><path d="M7.1 2.5L1.6 12A1 1 0 002.5 13.5h11a1 1 0 00.9-1.5L8.9 2.5a1 1 0 00-1.8 0z"/></svg>
   <span><strong>ATENÇÃO:</strong> Você está conectado ao próprio computador. Input pausado para evitar loop.</span>
@@ -247,6 +236,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
   </div>
 </div>
 
+<!-- BODY -->
 <div id="body">
 
   <!-- CONNECT SCREEN -->
@@ -260,7 +250,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
         </div>
         <div id="sdinline">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 6v3M8 11v.5"/><path d="M7.1 2.5L1.6 12A1 1 0 002.5 13.5h11a1 1 0 00.9-1.5L8.9 2.5a1 1 0 00-1.8 0z"/></svg>
-          <span>Este parece ser <strong>seu próprio PC</strong>. Input será pausado ao conectar. Recomendamos <strong>Somente Visualização</strong>.</span>
+          <span>Este parece ser <strong>seu próprio PC</strong>. Input será pausado ao conectar.</span>
         </div>
         <div class="f">
           <label>Access Token</label>
@@ -307,7 +297,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
     </div>
   </div>
 
-  <!-- VIDEO WRAP -->
+  <!-- VIDEO -->
   <div id="vw">
     <div id="voov"></div>
     <video id="rv" autoplay playsinline></video>
@@ -319,7 +309,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
     <div id="dropov">
       <div class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/><path d="M8 8v4M6 10l2-2 2 2"/></svg></div>
       <div class="dtxt">SOLTAR PARA ENVIAR</div>
-      <div class="dsub">WEBRTC · DESTINO: <span id="drop-dest-lbl">Downloads</span></div>
+      <div class="dsub" id="drop-dest-lbl">DESTINO: Explorer</div>
     </div>
     <div id="stats">
       <div class="sgrid">
@@ -352,42 +342,33 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
       <button class="phx" onclick="closePanel('ppfile')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><path d="M12 4L4 12M4 4l8 8"/></svg></button>
     </div>
     <div class="pb">
-
-      <!-- Destino — Explorer path ou fallbacks -->
       <div class="f">
         <label>Destino na máquina remota</label>
-
-        <!-- Explorer path card -->
-        <div id="explorer-card" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--b2);border-radius:var(--r);cursor:pointer;transition:border-color var(--tr)" onclick="selDest('explorer')" title="Pasta atualmente aberta no Explorer">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--acc)" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/></svg>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:2px">Explorer (pasta aberta)</div>
-            <div id="explorer-path" style="font-size:10px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Consultando…</div>
+        <!-- Explorer card -->
+        <div id="explcard" onclick="selDest('explorer')" title="Pasta aberta no Explorer" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--b2);border-radius:var(--r);cursor:pointer;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--acc)" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/></svg>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:2px;">Explorer (pasta aberta)</div>
+            <div id="explpath" style="font-size:10px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Consultando…</div>
           </div>
-          <button onclick="event.stopPropagation();refreshExplorerPath()" style="background:none;border:none;color:var(--t3);cursor:pointer;padding:2px;flex-shrink:0;display:flex;align-items:center" title="Atualizar">
+          <button onclick="event.stopPropagation();refreshExplorer()" style="background:none;border:none;color:var(--t3);cursor:pointer;padding:2px;display:flex;align-items:center;" title="Atualizar">
             <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8a6 6 0 1110.5-4"/><path d="M12 1v4H8"/></svg>
           </button>
         </div>
-
         <!-- Outros destinos -->
-        <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">
+        <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;">
           <div class="dpreset" data-path="downloads" onclick="selDest('downloads')">Downloads</div>
           <div class="dpreset" data-path="desktop"   onclick="selDest('desktop')">Desktop</div>
           <div class="dpreset" data-path="documents" onclick="selDest('documents')">Documentos</div>
           <div class="dpreset" data-path="custom"    onclick="selDest('custom')">Outro…</div>
         </div>
-
-        <!-- Caminho personalizado -->
-        <div class="fw" id="custom-dest-row" style="display:none;margin-top:6px">
-          <input id="custdest" type="text" placeholder="Ex: C:\Projetos\Arquivos" style="padding-right:10px">
+        <div class="fw" id="custdestrow" style="display:none;margin-top:6px;">
+          <input id="custdest" type="text" placeholder="Ex: C:\Projetos" style="padding-right:10px;">
         </div>
-
-        <!-- Label do destino ativo -->
-        <div style="margin-top:6px;font-size:9px;color:var(--t3)">
-          Enviando para: <span id="active-dest-lbl" style="color:var(--acc);font-weight:600">Explorer</span>
+        <div style="margin-top:5px;font-size:9px;color:var(--t3);">
+          Enviando para: <span id="destlbl" style="color:var(--acc);font-weight:600;">Explorer</span>
         </div>
       </div>
-
       <button class="pbtn acc" onclick="document.getElementById('finput').click()">SELECIONAR ARQUIVO</button>
       <input type="file" id="finput" style="display:none" multiple onchange="uploadFiles(this.files)">
       <div style="padding:10px;border:1px dashed var(--b2);border-radius:var(--r);text-align:center;font-size:9px;color:var(--t3);cursor:pointer" onclick="document.getElementById('finput').click()">
@@ -397,7 +378,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
     </div>
   </div>
 
-</div><!-- /#body -->
+</div>
 
 <!-- STATUS BAR -->
 <div id="sbar">
@@ -412,602 +393,626 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 <div id="toasts"></div>
 
 <script>
-/* ══ ESTADO ══════════════════════════════════ */
-let pc=null,dc=null,fileDC=null;
-let sessToken='',connMachine='';
-let screenW=1920,screenH=1080;
-let quality='AUTO',icePolicy='all';
-let reconnAtt=0; const MAX_R=5;
-let statsTimer=null;
-let paused=false,viewOnly=false,isSelf=false;
-let destMode='downloads'; // destino de arquivo
+// ═══════════════════════════════════════
+// ESTADO — declarado UMA única vez
+// ═══════════════════════════════════════
+var pc = null, dc = null, fileDC = null;
+var sessToken = '', connMachine = '';
+var screenW = 1920, screenH = 1080;
+var quality = 'AUTO', icePolicy = 'all';
+var reconnAtt = 0;
+var MAX_R = 5;
+var statsTimer = null;
+var paused = false, viewOnly = false, isSelf = false;
+var destMode = 'explorer';    // modo de destino ativo
+var explorerPath = '';        // caminho real retornado pelo agente
 
-/* ══ HELPERS ═════════════════════════════════ */
-const $=id=>document.getElementById(id);
-const sbMsg=t=>$('sbmsg').textContent=t;
-const setErr=t=>$('errmsg').textContent=t;
-function setStatus(txt,cls=''){
-  $('sbstat').textContent=$('tbst').textContent=txt;
-  const d=$('sdot');
-  d.className='sdot'+(cls==='ok'?' ok':cls==='err'?' err':cls==='w'?' w':'');
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+function $(id){ return document.getElementById(id); }
+function sbMsg(t){ $('sbmsg').textContent = t; }
+function setErr(t){ $('errmsg').textContent = t; }
+function setStatus(txt, cls){
+  cls = cls || '';
+  $('sbstat').textContent = $('tbst').textContent = txt;
+  var d = $('sdot');
+  d.className = 'sdot' + (cls==='ok' ? ' ok' : cls==='err' ? ' err' : cls==='w' ? ' w' : '');
 }
-function toast(msg,type='info',ms=3000){
-  const el=document.createElement('div');
-  el.className=`t ${type}`;el.textContent=msg;
+function toast(msg, type, ms){
+  type = type || 'info'; ms = ms || 3000;
+  var el = document.createElement('div');
+  el.className = 't ' + type;
+  el.textContent = msg;
   $('toasts').appendChild(el);
-  requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('show')));
-  setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),250);},ms);
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){ el.classList.add('show'); }); });
+  setTimeout(function(){ el.classList.remove('show'); setTimeout(function(){ el.remove(); }, 250); }, ms);
 }
 function getCookie(n){
-  return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith(n+'='))?.split('=')[1]??'';
+  var c = document.cookie.split(';').map(function(x){ return x.trim(); }).find(function(x){ return x.startsWith(n+'='); });
+  return c ? c.split('=')[1] : '';
 }
 
-/* ══ SELF-CONNECT DETECTION ══════════════════ */
-const SELF_IDS=['localhost','127.0.0.1','::1',window.location.hostname];
-(async()=>{
-  try{
-    const p=new RTCPeerConnection({iceServers:[]});
+// ═══════════════════════════════════════
+// SELF-CONNECT
+// ═══════════════════════════════════════
+var SELF_IDS = ['localhost', '127.0.0.1', '::1', window.location.hostname];
+(function(){
+  try {
+    var p = new RTCPeerConnection({ iceServers: [] });
     p.createDataChannel('');
-    await p.setLocalDescription(await p.createOffer());
-    await new Promise(r=>setTimeout(r,600));
-    (p.localDescription?.sdp?.match(/a=candidate:.+? .+? .+? .+? (\S+)/g)||[]).forEach(c=>{
-      const ip=c.split(' ')[4];
-      if(ip&&!ip.includes('0.0.0.0'))SELF_IDS.push(ip.toLowerCase());
+    p.createOffer().then(function(o){ return p.setLocalDescription(o); }).then(function(){
+      setTimeout(function(){
+        var sdp = p.localDescription && p.localDescription.sdp || '';
+        var matches = sdp.match(/a=candidate:.+? .+? .+? .+? (\S+)/g) || [];
+        matches.forEach(function(c){
+          var ip = c.split(' ')[4];
+          if(ip && !ip.includes('0.0.0.0')) SELF_IDS.push(ip.toLowerCase());
+        });
+        p.close();
+      }, 600);
     });
-    p.close();
-  }catch(_){}
+  } catch(e){}
 })();
-function chkSelf(v){
-  v=v.trim().toLowerCase();
-  isSelf=v.length>1&&SELF_IDS.some(s=>s&&s.toLowerCase()===v);
-  $('sdinline').classList.toggle('show',isSelf);
-}
-function closeSelfBar(){$('selfbar').classList.remove('show');}
 
-/* ══ INPUT PAUSE / VIEW-ONLY ═════════════════ */
+function chkSelf(v){
+  v = v.trim().toLowerCase();
+  isSelf = v.length > 1 && SELF_IDS.some(function(s){ return s && s.toLowerCase() === v; });
+  $('sdinline').classList.toggle('show', isSelf);
+}
+function closeSelfBar(){ $('selfbar').classList.remove('show'); }
+
+// ═══════════════════════════════════════
+// PAUSE / VIEW-ONLY
+// ═══════════════════════════════════════
 function protectSelf(){
-  if(!isSelf)return;
+  if(!isSelf) return;
   doPause();
   $('selfbar').classList.add('show');
-  toast('Input pausado — seu próprio PC detectado','warn',5000);
+  toast('Input pausado — seu próprio PC detectado', 'warn', 5000);
 }
 function doPause(){
-  paused=true;
+  paused = true;
   $('btnpause').classList.add('on');
-  $('btnpause').innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><polygon points="5,3 13,8 5,13" fill="currentColor"/></svg><span>RETOMAR INPUT</span>';
+  $('btnpause').innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><polygon points="5,3 13,8 5,13" fill="currentColor"/></svg><span>RETOMAR INPUT</span>';
   $('pauseind').classList.add('show');
   sbMsg('Input pausado.');
 }
 function doResume(){
-  paused=false;
+  paused = false;
   $('btnpause').classList.remove('on');
-  $('btnpause').innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/></svg><span id="pauselbl">PAUSAR INPUT</span>';
+  $('btnpause').innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/></svg><span>PAUSAR INPUT</span>';
   $('pauseind').classList.remove('show');
   sbMsg('Input ativo.');
 }
 function togglePause(){
-  if(viewOnly){toast('Desative "Somente Visualização" primeiro','warn');return;}
-  paused?doResume():doPause();
+  if(viewOnly){ toast('Desative "Somente Visualização" primeiro', 'warn'); return; }
+  paused ? doResume() : doPause();
 }
 function setVO(on){
-  viewOnly=on;
-  $('voov').classList.toggle('show',on);
-  $('vobadge').classList.toggle('show',on);
-  $('vw').classList.toggle('viewonly',on);
-  $('btnvo').classList.toggle('on',on);
-  $('btnpause').disabled=on;
-  if(on)doPause();else doResume();
-  toast(on?'Somente Visualização ativado':'Modo interativo retomado',on?'warn':'ok');
+  viewOnly = on;
+  $('voov').classList.toggle('show', on);
+  $('vobadge').classList.toggle('show', on);
+  $('vw').classList.toggle('viewonly', on);
+  $('btnvo').classList.toggle('on', on);
+  $('btnpause').disabled = on;
+  if(on) doPause(); else doResume();
+  toast(on ? 'Somente Visualização ativado' : 'Modo interativo retomado', on ? 'warn' : 'ok');
 }
-function toggleVO(){setVO(!viewOnly);}
-function resumeFromSelf(){isSelf=false;closeSelfBar();setVO(false);toast('Input retomado com cuidado!','warn',4000);}
+function toggleVO(){ setVO(!viewOnly); }
+function resumeFromSelf(){ isSelf = false; closeSelfBar(); setVO(false); toast('Input retomado com cuidado!', 'warn', 4000); }
 
-/* ══ DESTINO DE ARQUIVO ══════════════════════
-   Comportamento idêntico ao TeamViewer:
-   - Ao abrir o painel, consulta a pasta atual
-     do Explorer na máquina remota via IPC
-   - O usuário pode trocar para Downloads/Desktop/Docs/personalizado
-   - O destino ativo é enviado no file_start
-════════════════════════════════════════════════ */
-let destMode='explorer';
-let explorerPath='downloads'; // caminho real retornado pelo agente
-
-function setActiveDestLabel(){
-  const labels={explorer:'Explorer (pasta aberta)',downloads:'Downloads',desktop:'Desktop',documents:'Documentos',custom:'Personalizado'};
-  $('active-dest-lbl').textContent=labels[destMode]||destMode;
-}
-
+// ═══════════════════════════════════════
+// DESTINO DE ARQUIVO
+// ═══════════════════════════════════════
 function selDest(mode){
-  destMode=mode;
-  // Reset visuais
-  document.querySelectorAll('.dpreset').forEach(e=>e.classList.remove('on'));
-  $('explorer-card').classList.remove('on');
-  $('custom-dest-row').style.display='none';
-  if(mode==='explorer'){
-    $('explorer-card').classList.add('on');
-  }else if(mode==='custom'){
-    document.querySelector(`.dpreset[data-path="custom"]`).classList.add('on');
-    $('custom-dest-row').style.display='';
-  }else{
-    const el=document.querySelector(`.dpreset[data-path="${mode}"]`);
-    if(el)el.classList.add('on');
+  destMode = mode;
+  document.querySelectorAll('.dpreset').forEach(function(e){ e.classList.remove('on'); });
+  $('explcard').classList.remove('on');
+  $('custdestrow').style.display = 'none';
+  if(mode === 'explorer'){
+    $('explcard').classList.add('on');
+  } else if(mode === 'custom'){
+    var el = document.querySelector('.dpreset[data-path="custom"]');
+    if(el) el.classList.add('on');
+    $('custdestrow').style.display = '';
+  } else {
+    var el = document.querySelector('.dpreset[data-path="' + mode + '"]');
+    if(el) el.classList.add('on');
   }
-  setActiveDestLabel();
-  const lbl={explorer:explorerPath,downloads:'Downloads',desktop:'Desktop',documents:'Documentos',custom:'personalizado'}[mode]||mode;
-  $('drop-dest-lbl').textContent=mode==='explorer'?(explorerPath.split('\\').pop()||'Explorer'):lbl;
+  var labels = { explorer:'Explorer', downloads:'Downloads', desktop:'Desktop', documents:'Documentos', custom:'Personalizado' };
+  $('destlbl').textContent = labels[mode] || mode;
+  var dropLbl = mode === 'explorer' ? ('DESTINO: ' + (explorerPath ? explorerPath.split('\\').pop() || 'Explorer' : 'Explorer'))
+              : 'DESTINO: ' + (labels[mode] || mode);
+  $('drop-dest-lbl').textContent = dropLbl;
 }
 
 function getDestPath(){
-  if(destMode==='explorer') return 'explorer';    // agente usa get_explorer_path()
-  if(destMode==='custom'){
-    const v=$('custdest').value.trim();
-    return v||'downloads';
+  if(destMode === 'explorer') return 'explorer';
+  if(destMode === 'custom'){
+    var v = $('custdest').value.trim();
+    return v || 'downloads';
   }
   return destMode;
 }
 
-async function refreshExplorerPath(){
-  const el=$('explorer-path');
-  el.textContent='Consultando…';
-  el.style.color='var(--t3)';
-  try{
-    // Consulta a rota /explorer/path do agente via Django proxy
-    // O agente_service expõe /explorer/path no IPC (porta 7070)
-    // O agent_tray expõe o mesmo no WebRTC local (porta 7071)
-    // O Django pode repassar via /api/rdp/info/?machine=X&action=explorer_path
-    // Por ora, consulta diretamente a rota de info com parâmetro action
-    const r=await fetch(`/api/rdp/info/?machine=${encodeURIComponent(connMachine)}&action=explorer_path`,{
-      credentials:'same-origin',
-      headers:{'X-RDP-Token':sessToken,'X-CSRFToken':getCookie('csrftoken')},
-    });
-    if(r.ok){
-      const d=await r.json();
-      explorerPath=d.path||'downloads';
-      el.textContent=explorerPath;
-      el.style.color='var(--txt)';
-      if(destMode==='explorer'){
-        $('drop-dest-lbl').textContent=explorerPath.split('\\').pop()||'Explorer';
-      }
-    }else{
-      throw new Error(r.status);
-    }
-  }catch(_){
-    el.textContent='Não disponível — usando Downloads';
-    el.style.color='var(--wrn)';
-    explorerPath='downloads';
-  }
+function refreshExplorer(){
+  var el = $('explpath');
+  el.textContent = 'Consultando…';
+  el.style.color = 'var(--t3)';
+  fetch('/api/rdp/info/?machine=' + encodeURIComponent(connMachine) + '&action=explorer_path', {
+    credentials: 'same-origin',
+    headers: { 'X-RDP-Token': sessToken, 'X-CSRFToken': getCookie('csrftoken') }
+  })
+  .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+  .then(function(d){
+    explorerPath = d.path || '';
+    el.textContent = explorerPath || 'Não disponível';
+    el.style.color = explorerPath ? 'var(--txt)' : 'var(--wrn)';
+    if(destMode === 'explorer') selDest('explorer');
+  })
+  .catch(function(){
+    el.textContent = 'Não disponível — usando Downloads';
+    el.style.color = 'var(--wrn)';
+    explorerPath = '';
+  });
 }
 
-/* ══ UI HELPERS ══════════════════════════════ */
+// ═══════════════════════════════════════
+// UI
+// ═══════════════════════════════════════
 function toggleEye(){
-  const i=$('inptoken'),s=i.type==='password';
-  i.type=s?'text':'password';
-  $('eyeo').style.display=s?'none':'';
-  $('eyec').style.display=s?'':'none';
+  var i = $('inptoken'), s = i.type === 'password';
+  i.type = s ? 'text' : 'password';
+  $('eyeo').style.display = s ? 'none' : '';
+  $('eyec').style.display = s ? '' : 'none';
 }
-function toggleAdv(){$('advtog').classList.toggle('open');$('advb').classList.toggle('open');}
-function selQ(el){document.querySelectorAll('.qopt').forEach(e=>e.classList.remove('on'));el.classList.add('on');quality=el.dataset.q;}
-function selIce(el){document.querySelectorAll('.iceopt').forEach(e=>e.classList.remove('on'));el.classList.add('on');icePolicy=el.dataset.v;}
+function toggleAdv(){ $('advtog').classList.toggle('open'); $('advb').classList.toggle('open'); }
+function selQ(el){ document.querySelectorAll('.qopt').forEach(function(e){ e.classList.remove('on'); }); el.classList.add('on'); quality = el.dataset.q; }
+function selIce(el){ document.querySelectorAll('.iceopt').forEach(function(e){ e.classList.remove('on'); }); el.classList.add('on'); icePolicy = el.dataset.v; }
 function cycleQual(){
-  const o=['AUTO','HIGH','MEDIUM','LOW'];
-  quality=o[(o.indexOf(quality)+1)%o.length];
-  $('quallbl').textContent=quality;
-  send({t:'quality',q:quality});
+  var o = ['AUTO','HIGH','MEDIUM','LOW'];
+  quality = o[(o.indexOf(quality)+1)%o.length];
+  $('quallbl').textContent = quality;
+  send({ t:'quality', q:quality });
 }
 function setConnUI(on){
-  ['btnpause','btnvo','btnqual','btnclip','btnfile','btnstats','btnfs','btncad'].forEach(id=>{
-    if($(id))$(id).disabled=!on;
+  ['btnpause','btnvo','btnqual','btnclip','btnfile','btnstats','btnfs','btncad'].forEach(function(id){
+    if($(id)) $(id).disabled = !on;
   });
-  $('btndisc').style.display=on?'':'none';
-  $('btnback').style.display=on?'':'none';
-  if(on)$('btnpause').disabled=viewOnly;
+  $('btndisc').style.display = on ? '' : 'none';
+  $('btnback').style.display = on ? '' : 'none';
+  if(on) $('btnpause').disabled = viewOnly;
 }
-function goBack(){disconnect();}
+function goBack(){ disconnect(); }
 function togglePanel(id){
-  ['ppclip','ppfile'].forEach(p=>{
-    if(p!==id)$(p).classList.remove('open');
+  ['ppclip','ppfile'].forEach(function(p){
+    if(p !== id) $(p).classList.remove('open');
     else $(p).classList.toggle('open');
   });
-  const m={'ppclip':'btnclip','ppfile':'btnfile'};
-  Object.entries(m).forEach(([p,b])=>{if($(b))$(b).classList.toggle('on',$(p).classList.contains('open'));});
-  // Ao abrir painel de arquivos, consulta pasta atual do Explorer
-  if(id==='ppfile' && $('ppfile').classList.contains('open') && pc){
-    refreshExplorerPath();
+  var m = { ppclip:'btnclip', ppfile:'btnfile' };
+  Object.keys(m).forEach(function(p){
+    var b = $(m[p]);
+    if(b) b.classList.toggle('on', $(p).classList.contains('open'));
+  });
+  if(id === 'ppfile' && $('ppfile').classList.contains('open') && pc){
+    selDest('explorer');
+    refreshExplorer();
   }
 }
 function closePanel(id){
   $(id).classList.remove('open');
-  const m={'ppclip':'btnclip','ppfile':'btnfile'};
-  if(m[id]&&$(m[id]))$(m[id]).classList.remove('on');
+  var m = { ppclip:'btnclip', ppfile:'btnfile' };
+  if(m[id] && $(m[id])) $(m[id]).classList.remove('on');
 }
-function toggleStats(){$('stats').classList.toggle('show');$('btnstats').classList.toggle('on',$('stats').classList.contains('show'));}
+function toggleStats(){ $('stats').classList.toggle('show'); $('btnstats').classList.toggle('on', $('stats').classList.contains('show')); }
 function toggleFS(){
-  if(!document.fullscreenElement)document.documentElement.requestFullscreen().catch(()=>{});
-  else document.exitFullscreen().catch(()=>{});
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function(){});
+  else document.exitFullscreen().catch(function(){});
 }
 
-/* ══ COORDENADAS: relativas 0-1 (agente usa abs_xy) ══
-   O agente converte: abs_x = x * screen_width
-   IMPORTANTE: usar as dimensões RENDERIZADAS do vídeo,
-   não as dimensões do stream — o vídeo usa object-fit:contain
-   então pode ter letterbox (barras pretas). Precisa calcular
-   a área real do vídeo dentro do elemento.
-════════════════════════════════════════════════════════ */
+// ═══════════════════════════════════════
+// COORDENADAS 0-1 corrigindo letterbox
+// ═══════════════════════════════════════
 function videoRect(){
-  const v=$('rv');
-  const vw=v.clientWidth, vh=v.clientHeight;
-  // Aspect ratio do stream
-  const sw=screenW, sh=screenH;
-  const streamAR=sw/sh;
-  const elemAR=vw/vh;
-  let renderW,renderH,offsetX,offsetY;
-  if(streamAR>elemAR){
-    // Letterbox vertical (barras em cima/baixo)
-    renderW=vw;
-    renderH=vw/streamAR;
-    offsetX=0;
-    offsetY=(vh-renderH)/2;
-  }else{
-    // Letterbox horizontal (barras nas laterais)
-    renderH=vh;
-    renderW=vh*streamAR;
-    offsetX=(vw-renderW)/2;
-    offsetY=0;
+  var v = $('rv');
+  var vw = v.clientWidth, vh = v.clientHeight;
+  var streamAR = screenW / screenH;
+  var elemAR   = vw / vh;
+  var renderW, renderH, offsetX, offsetY;
+  if(streamAR > elemAR){
+    renderW = vw; renderH = vw / streamAR;
+    offsetX = 0;  offsetY = (vh - renderH) / 2;
+  } else {
+    renderH = vh; renderW = vh * streamAR;
+    offsetX = (vw - renderW) / 2; offsetY = 0;
   }
-  return {renderW,renderH,offsetX,offsetY};
+  return { renderW:renderW, renderH:renderH, offsetX:offsetX, offsetY:offsetY };
 }
-
 function relPos(e){
-  const v=$('rv');
-  const rect=v.getBoundingClientRect();
-  const cx=e.clientX-rect.left;
-  const cy=e.clientY-rect.top;
-  const {renderW,renderH,offsetX,offsetY}=videoRect();
-  // Clamp dentro da área de renderização
-  const rx=Math.max(0,Math.min(renderW,cx-offsetX));
-  const ry=Math.max(0,Math.min(renderH,cy-offsetY));
-  // Normalizar para 0-1
-  return {x:rx/renderW, y:ry/renderH};
+  var v = $('rv');
+  var rect = v.getBoundingClientRect();
+  var cx = e.clientX - rect.left;
+  var cy = e.clientY - rect.top;
+  var r = videoRect();
+  var rx = Math.max(0, Math.min(r.renderW, cx - r.offsetX));
+  var ry = Math.max(0, Math.min(r.renderH, cy - r.offsetY));
+  return { x: rx / r.renderW, y: ry / r.renderH };
 }
 
-/* ══ CONNECT ══════════════════════════════════ */
-async function doConnect(){
-  const machine=$('inpmachine').value.trim();
-  const token=$('inptoken').value.trim();
-  if(!machine){setErr('Informe a máquina destino');return;}
-  if(!token){setErr('Token obrigatório');return;}
-  if(token.length<8){setErr('Token deve ter ≥ 8 caracteres');return;}
-  setErr('');sessToken=token;connMachine=machine;
-  $('connbtn').disabled=true;$('spin').classList.add('show');$('connlbl').textContent='CONECTANDO…';
-  setStatus('CONNECTING…','w');sbMsg('Obtendo configuração ICE…');
-  try{
-    const r=await fetch('/api/rdp/config/',{credentials:'same-origin',headers:{'X-CSRFToken':getCookie('csrftoken')}});
-    if(!r.ok)throw new Error('Falha ao obter configuração ICE');
-    const{ice_servers}=await r.json();
-    await openConn(machine,token,ice_servers);
-  }catch(e){
-    setErr('Erro: '+e.message);setStatus('ERRO','err');sbMsg('Falha: '+e.message);
-    $('connbtn').disabled=false;$('spin').classList.remove('show');$('connlbl').textContent='CONECTAR';
-  }
+// ═══════════════════════════════════════
+// CONNECT
+// ═══════════════════════════════════════
+function doConnect(){
+  var machine = $('inpmachine').value.trim();
+  var token   = $('inptoken').value.trim();
+  if(!machine){ setErr('Informe a máquina destino'); return; }
+  if(!token){ setErr('Token obrigatório'); return; }
+  if(token.length < 8){ setErr('Token deve ter >= 8 caracteres'); return; }
+  setErr('');
+  sessToken = token; connMachine = machine;
+  $('connbtn').disabled = true;
+  $('spin').classList.add('show');
+  $('connlbl').textContent = 'CONECTANDO…';
+  setStatus('CONNECTING…', 'w');
+  sbMsg('Obtendo configuração ICE…');
+  fetch('/api/rdp/config/', { credentials:'same-origin', headers:{ 'X-CSRFToken':getCookie('csrftoken') } })
+    .then(function(r){ if(!r.ok) throw new Error('Falha ao obter ICE'); return r.json(); })
+    .then(function(d){ return openConn(machine, token, d.ice_servers); })
+    .catch(function(e){
+      setErr('Erro: ' + e.message);
+      setStatus('ERRO', 'err');
+      sbMsg('Falha: ' + e.message);
+      $('connbtn').disabled = false;
+      $('spin').classList.remove('show');
+      $('connlbl').textContent = 'CONECTAR';
+    });
 }
 
-async function openConn(machine,token,iceServers){
-  if(pc){pc.close();pc=null;}
-  const tu=$('inpturn')?.value.trim(),tuu=$('inpturnuser')?.value.trim();
-  if(tu)iceServers.push({urls:tu,username:tuu||'rdp',credential:sessToken});
-  pc=new RTCPeerConnection({
-    iceServers,
-    iceTransportPolicy:icePolicy,
-    bundlePolicy:'max-bundle',rtcpMuxPolicy:'require',
+function openConn(machine, token, iceServers){
+  if(pc){ pc.close(); pc = null; }
+  var tu = $('inpturn') && $('inpturn').value.trim();
+  var tuu = $('inpturnuser') && $('inpturnuser').value.trim();
+  if(tu) iceServers.push({ urls:tu, username:tuu||'rdp', credential:sessToken });
+
+  pc = new RTCPeerConnection({
+    iceServers: iceServers,
+    iceTransportPolicy: icePolicy,
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
   });
-  dc=pc.createDataChannel('input',{ordered:false,maxRetransmits:0});
-  setupFileDC(pc.createDataChannel('files',{ordered:true}));
-  dc.onopen=()=>{
-    toast('Sessão estabelecida','ok');setConnUI(true);
-    send({t:'quality',q:quality});sbMsg('Sessão ativa — '+new Date().toLocaleTimeString());
+
+  dc = pc.createDataChannel('input', { ordered:false, maxRetransmits:0 });
+  setupFileDC(pc.createDataChannel('files', { ordered:true }));
+
+  dc.onopen = function(){
+    toast('Sessão estabelecida', 'ok');
+    setConnUI(true);
+    send({ t:'quality', q:quality });
+    sbMsg('Sessão ativa — ' + new Date().toLocaleTimeString());
     protectSelf();
   };
-  dc.onmessage=handleDC;
-  pc.ontrack=e=>{
-    const v=$('rv');v.srcObject=e.streams[0];
-    v.onloadedmetadata=()=>{
-      // Atualizar dimensões do stream
-      screenW=v.videoWidth||1920;
-      screenH=v.videoHeight||1080;
+  dc.onmessage = handleDC;
+
+  pc.ontrack = function(e){
+    var v = $('rv');
+    v.srcObject = e.streams[0];
+    v.onloadedmetadata = function(){
+      screenW = v.videoWidth  || 1920;
+      screenH = v.videoHeight || 1080;
       $('cs').classList.add('out');
-      setTimeout(()=>{$('cs').style.display='none';},320);
+      setTimeout(function(){ $('cs').style.display = 'none'; }, 320);
       $('vw').classList.add('show');
-      $('mtag').style.display='flex';
-      $('mtagname').textContent=connMachine;
-      $('sbmac').textContent=connMachine;
-      setStatus('CONNECTED','ok');reconnAtt=0;setupInput();startStats();
-      setTimeout(()=>{try{$('sbcodec').textContent=(pc.getTransceivers()[0]?.receiver?.track?.kind||'video').toUpperCase();}catch(_){}},2000);
+      $('mtag').style.display = 'flex';
+      $('mtagname').textContent = connMachine;
+      $('sbmac').textContent = connMachine;
+      setStatus('CONNECTED', 'ok');
+      reconnAtt = 0;
+      setupInput();
+      startStats();
+      setTimeout(function(){
+        try { $('sbcodec').textContent = (pc.getTransceivers()[0].receiver.track.kind || 'video').toUpperCase(); } catch(e){}
+      }, 2000);
     };
-    // Atualizar dimensões quando o tamanho mudar
-    v.addEventListener('resize',()=>{
-      if(v.videoWidth)screenW=v.videoWidth;
-      if(v.videoHeight)screenH=v.videoHeight;
+    v.addEventListener('resize', function(){
+      if(v.videoWidth)  screenW = v.videoWidth;
+      if(v.videoHeight) screenH = v.videoHeight;
     });
   };
-  pc.oniceconnectionstatechange=()=>{
-    const s=pc.iceConnectionState;$('sice').textContent=s.toUpperCase();
-    if(s==='failed'||s==='disconnected'){setStatus('ICE '+s.toUpperCase(),'err');$('reconn').classList.add('show');schedReconn(machine,token);}
-    if(s==='connected'||s==='completed')$('reconn').classList.remove('show');
+
+  pc.oniceconnectionstatechange = function(){
+    var s = pc.iceConnectionState;
+    $('sice').textContent = s.toUpperCase();
+    if(s === 'failed' || s === 'disconnected'){
+      setStatus('ICE ' + s.toUpperCase(), 'err');
+      $('reconn').classList.add('show');
+      schedReconn(machine, token);
+    }
+    if(s === 'connected' || s === 'completed') $('reconn').classList.remove('show');
   };
-  pc.onconnectionstatechange=()=>{if(pc.connectionState==='failed'){setStatus('FALHA','err');schedReconn(machine,token);}};
+  pc.onconnectionstatechange = function(){
+    if(pc.connectionState === 'failed'){ setStatus('FALHA', 'err'); schedReconn(machine, token); }
+  };
 
   sbMsg('Criando SDP offer…');
-  const offer=await pc.createOffer({offerToReceiveVideo:true,offerToReceiveAudio:false});
-  await pc.setLocalDescription(offer);
-  await new Promise((res,rej)=>{
-    const t=setTimeout(()=>rej(new Error('ICE gathering timeout (25s)')),25000);
-    if(pc.iceGatheringState==='complete'){clearTimeout(t);return res();}
-    pc.onicegatheringstatechange=()=>{if(pc.iceGatheringState==='complete'){clearTimeout(t);res();}};
-  });
-  sbMsg('Enviando offer ao agente…');
-  const resp=await fetch('/api/rdp/offer/',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','X-RDP-Token':token,'X-Machine-ID':machine,'X-CSRFToken':getCookie('csrftoken')},
-    body:JSON.stringify({sdp:pc.localDescription.sdp,type:pc.localDescription.type}),
-    credentials:'same-origin',
-  });
-  if(!resp.ok){const d=await resp.json().catch(()=>({}));throw new Error(d.error||`HTTP ${resp.status}`);}
-  sbMsg('Estabelecendo WebRTC…');
-  await pc.setRemoteDescription(new RTCSessionDescription(await resp.json()));
+  return pc.createOffer({ offerToReceiveVideo:true, offerToReceiveAudio:false })
+    .then(function(offer){ return pc.setLocalDescription(offer); })
+    .then(function(){
+      return new Promise(function(res, rej){
+        var t = setTimeout(function(){ rej(new Error('ICE gathering timeout (25s)')); }, 25000);
+        if(pc.iceGatheringState === 'complete'){ clearTimeout(t); res(); return; }
+        pc.onicegatheringstatechange = function(){
+          if(pc.iceGatheringState === 'complete'){ clearTimeout(t); res(); }
+        };
+      });
+    })
+    .then(function(){
+      sbMsg('Enviando offer ao agente…');
+      return fetch('/api/rdp/offer/', {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'X-RDP-Token':   token,
+          'X-Machine-ID':  machine,
+          'X-CSRFToken':   getCookie('csrftoken')
+        },
+        body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }),
+        credentials: 'same-origin'
+      });
+    })
+    .then(function(resp){
+      if(!resp.ok) return resp.json().then(function(d){ throw new Error(d.error || 'HTTP ' + resp.status); });
+      return resp.json();
+    })
+    .then(function(answer){
+      sbMsg('Estabelecendo WebRTC…');
+      return pc.setRemoteDescription(new RTCSessionDescription(answer));
+    });
 }
 
-/* ══ RECONN / DISCONNECT ═════════════════════ */
-function schedReconn(machine,token){
-  if(reconnAtt>=MAX_R){setStatus('FALHOU','err');toast('Máximo de reconexões','err');$('reconn').classList.remove('show');return;}
+// ═══════════════════════════════════════
+// RECONEXÃO / DESCONEXÃO
+// ═══════════════════════════════════════
+function schedReconn(machine, token){
+  if(reconnAtt >= MAX_R){ setStatus('FALHOU','err'); toast('Máximo de reconexões','err'); $('reconn').classList.remove('show'); return; }
   reconnAtt++;
-  const delay=Math.min(1000*Math.pow(2,reconnAtt),30000);
-  $('recontxt').textContent=`Reconectando em ${Math.round(delay/1000)}s… (${reconnAtt}/${MAX_R})`;
-  fetch('/api/rdp/config/',{credentials:'same-origin'})
-    .then(r=>r.json()).then(({ice_servers})=>setTimeout(()=>openConn(machine,token,ice_servers),delay))
-    .catch(()=>setTimeout(()=>openConn(machine,token,[]),delay));
+  var delay = Math.min(1000 * Math.pow(2, reconnAtt), 30000);
+  $('recontxt').textContent = 'Reconectando em ' + Math.round(delay/1000) + 's… (' + reconnAtt + '/' + MAX_R + ')';
+  fetch('/api/rdp/config/', { credentials:'same-origin' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ setTimeout(function(){ openConn(machine, token, d.ice_servers); }, delay); })
+    .catch(function(){ setTimeout(function(){ openConn(machine, token, []); }, delay); });
 }
+
 function disconnect(){
-  reconnAtt=MAX_R;stopStats();
-  if(dc){try{dc.close();}catch(_){}dc=null;}
-  if(fileDC){try{fileDC.close();}catch(_){}fileDC=null;}
-  if(pc){pc.close();pc=null;}
+  reconnAtt = MAX_R; stopStats();
+  if(dc){ try{ dc.close(); }catch(e){} dc = null; }
+  if(fileDC){ try{ fileDC.close(); }catch(e){} fileDC = null; }
+  if(pc){ pc.close(); pc = null; }
   $('vw').classList.remove('show','viewonly');
-  $('cs').style.display='';$('cs').classList.remove('out');
-  $('connbtn').disabled=false;$('spin').classList.remove('show');$('connlbl').textContent='CONECTAR';
-  $('reconn').classList.remove('show');$('mtag').style.display='none';
-  $('selfbar').classList.remove('show');$('vobadge').classList.remove('show');$('voov').classList.remove('show');
-  $('pauseind').classList.remove('show');$('stats').classList.remove('show');
-  ['ppclip','ppfile'].forEach(p=>$(p).classList.remove('open'));
-  setConnUI(false);setStatus('OFFLINE');sbMsg('Sessão encerrada — '+new Date().toLocaleTimeString());
-  toast('Sessão encerrada','info');
-  paused=viewOnly=isSelf=false;$('sbmac').textContent=$('sbcodec').textContent='—';
+  $('cs').style.display = ''; $('cs').classList.remove('out');
+  $('connbtn').disabled = false; $('spin').classList.remove('show'); $('connlbl').textContent = 'CONECTAR';
+  $('reconn').classList.remove('show'); $('mtag').style.display = 'none';
+  $('selfbar').classList.remove('show'); $('vobadge').classList.remove('show'); $('voov').classList.remove('show');
+  $('pauseind').classList.remove('show'); $('stats').classList.remove('show');
+  ['ppclip','ppfile'].forEach(function(p){ $(p).classList.remove('open'); });
+  setConnUI(false); setStatus('OFFLINE'); sbMsg('Sessão encerrada — ' + new Date().toLocaleTimeString());
+  toast('Sessão encerrada', 'info');
+  paused = false; viewOnly = false; isSelf = false;
+  $('sbmac').textContent = $('sbcodec').textContent = '—';
 }
-function send(obj){if(dc&&dc.readyState==='open')try{dc.send(JSON.stringify(obj));}catch(_){}}
 
-/* ══ INPUT ════════════════════════════════════
-   Formato dos eventos (compatível com agente):
-   mm  = mousemove  {t,x,y}   x,y em 0-1
-   mc  = click      {t,x,y,b} b='left'|'right'
-   mdc = dblclick   {t,x,y}
-   md  = mousedown  {t,x,y,b}
-   mu  = mouseup    {t,x,y,b}
-   mb  = middle     {t,d}
-   ms  = scroll     {t,d}
-   msh = hscroll    {t,d}
-   kp  = key press  {t,k}
-   kc  = combo      {t,k,mods:[]}
-   cad = ctrl+alt+del
-══════════════════════════════════════════════ */
-let capturedKeys=new Set();
-let mouseButtonDown=false;
+function send(obj){
+  if(dc && dc.readyState === 'open') try{ dc.send(JSON.stringify(obj)); }catch(e){}
+}
 
+// ═══════════════════════════════════════
+// INPUT
+// ═══════════════════════════════════════
 function setupInput(){
-  const v=$('rv');
+  var v = $('rv');
 
-  v.addEventListener('mousemove',e=>{
-    if(paused||viewOnly)return;
-    const p=relPos(e);
-    send({t:'mm',...p});
+  v.addEventListener('mousemove', function(e){
+    if(paused || viewOnly) return;
+    var p = relPos(e);
+    send({ t:'mm', x:p.x, y:p.y });
   });
 
-  v.addEventListener('mousedown',e=>{
-    if(paused||viewOnly)return;
+  v.addEventListener('mousedown', function(e){
+    if(paused || viewOnly) return;
     e.preventDefault();
-    const p=relPos(e);
-    if(e.button===0){
-      mouseButtonDown=true;
-      send({t:'md',b:'left',...p});
+    var p = relPos(e);
+    if(e.button === 0) send({ t:'md', b:'left',  x:p.x, y:p.y });
+    if(e.button === 2) send({ t:'md', b:'right', x:p.x, y:p.y });
+    if(e.button === 1){ e.preventDefault(); send({ t:'mb', d:true }); }
+  });
+
+  v.addEventListener('mouseup', function(e){
+    if(e.button === 1){ send({ t:'mb', d:false }); return; }
+    if(paused || viewOnly) return;
+    e.preventDefault();
+    var p = relPos(e);
+    if(e.button === 0){
+      send({ t:'mu', b:'left', x:p.x, y:p.y });
+      send({ t:'mc', b:'left', x:p.x, y:p.y });
     }
-    if(e.button===2) send({t:'md',b:'right',...p});
-    if(e.button===1){e.preventDefault();send({t:'mb',d:true});}
+    if(e.button === 2) send({ t:'mc', b:'right', x:p.x, y:p.y });
   });
 
-  v.addEventListener('mouseup',e=>{
-    if(e.button===1){send({t:'mb',d:false});return;}
-    if(paused||viewOnly)return;
+  v.addEventListener('dblclick', function(e){
+    if(paused || viewOnly) return;
     e.preventDefault();
-    const p=relPos(e);
-    if(e.button===0){
-      mouseButtonDown=false;
-      send({t:'mu',b:'left',...p});
-      // Também envia click para garantir compatibilidade
-      send({t:'mc',b:'left',...p});
-    }
-    if(e.button===2) send({t:'mc',b:'right',...p});
+    var p = relPos(e);
+    send({ t:'mdc', x:p.x, y:p.y });
   });
 
-  v.addEventListener('dblclick',e=>{
-    if(paused||viewOnly)return;
+  v.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+
+  v.addEventListener('wheel', function(e){
+    if(paused || viewOnly) return;
     e.preventDefault();
-    send({t:'mdc',...relPos(e)});
-  });
+    if(e.deltaY) send({ t:'ms',  d: e.deltaY > 0 ? -3 : 3 });
+    if(e.deltaX) send({ t:'msh', d: e.deltaX > 0 ? -3 : 3 });
+  }, { passive:false });
 
-  v.addEventListener('contextmenu',e=>{e.preventDefault();});
-
-  v.addEventListener('wheel',e=>{
-    if(paused||viewOnly)return;
-    e.preventDefault();
-    if(e.deltaY)send({t:'ms',d:e.deltaY>0?-3:3});
-    if(e.deltaX)send({t:'msh',d:e.deltaX>0?-3:3});
-  },{passive:false});
-
-  // Teclado — mapa de teclas especiais para pyautogui
-  const KEY_MAP={
-    Enter:'enter',Backspace:'backspace',Tab:'tab',Escape:'escape',Delete:'delete',
-    Insert:'insert',Home:'home',End:'end',PageUp:'pageup',PageDown:'pagedown',
-    CapsLock:'capslock',ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',
-    ' ':'space',F1:'f1',F2:'f2',F3:'f3',F4:'f4',F5:'f5',F6:'f6',
-    F7:'f7',F8:'f8',F9:'f9',F10:'f10',F11:'f11',F12:'f12',
-    PrintScreen:'printscreen',ScrollLock:'scrolllock',Pause:'pause',
-    NumLock:'numlock',
+  var KEY_MAP = {
+    Enter:'enter', Backspace:'backspace', Tab:'tab', Escape:'escape', Delete:'delete',
+    Insert:'insert', Home:'home', End:'end', PageUp:'pageup', PageDown:'pagedown',
+    CapsLock:'capslock', ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right',
+    ' ':'space', F1:'f1', F2:'f2', F3:'f3', F4:'f4', F5:'f5', F6:'f6',
+    F7:'f7', F8:'f8', F9:'f9', F10:'f10', F11:'f11', F12:'f12',
+    PrintScreen:'printscreen', ScrollLock:'scrolllock', Pause:'pause', NumLock:'numlock'
   };
 
-  document.addEventListener('keydown',e=>{
-    if(!$('vw').classList.contains('show'))return;
-    if(paused||viewOnly)return;
-    if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
+  document.addEventListener('keydown', function(e){
+    if(!$('vw').classList.contains('show')) return;
+    if(paused || viewOnly) return;
+    if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
     e.preventDefault();
-
-    const mods=[];
-    if(e.ctrlKey) mods.push('ctrl');
-    if(e.altKey)  mods.push('alt');
-    if(e.shiftKey)mods.push('shift');
-    if(e.metaKey) mods.push('win');
-
-    const mapped=KEY_MAP[e.key];
-
-    if(mods.length>0){
-      // Combinação de teclas
-      const k=mapped||(e.key.length===1?e.key.toLowerCase():e.key.toLowerCase());
-      send({t:'kc',k,mods});
-    }else if(mapped){
-      // Tecla especial sem modificador
-      send({t:'kp',k:mapped});
-    }else if(e.key.length===1){
-      // Caractere normal — usa typewrite para suporte a acentos
-      send({t:'kt',k:e.key});
+    var mods = [];
+    if(e.ctrlKey)  mods.push('ctrl');
+    if(e.altKey)   mods.push('alt');
+    if(e.shiftKey) mods.push('shift');
+    if(e.metaKey)  mods.push('win');
+    var mapped = KEY_MAP[e.key];
+    if(mods.length > 0){
+      var k = mapped || (e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase());
+      send({ t:'kc', k:k, mods:mods });
+    } else if(mapped){
+      send({ t:'kp', k:mapped });
+    } else if(e.key.length === 1){
+      send({ t:'kt', k:e.key });
     }
   });
 
-  // Drop de arquivos na área de vídeo
-  v.addEventListener('dragover',e=>{e.preventDefault();$('dropov').classList.add('show');});
-  v.addEventListener('dragleave',()=>$('dropov').classList.remove('show'));
-  v.addEventListener('drop',e=>{
-    e.preventDefault();$('dropov').classList.remove('show');
+  v.addEventListener('dragover',  function(e){ e.preventDefault(); $('dropov').classList.add('show'); });
+  v.addEventListener('dragleave', function(){ $('dropov').classList.remove('show'); });
+  v.addEventListener('drop', function(e){
+    e.preventDefault(); $('dropov').classList.remove('show');
     uploadFiles(e.dataTransfer.files);
   });
 }
 
 function sendCAD(){
-  if(paused||viewOnly){toast('Ative o input primeiro','warn');return;}
-  send({t:'cad'});toast('Ctrl+Alt+Del enviado','info');
+  if(paused || viewOnly){ toast('Ative o input primeiro', 'warn'); return; }
+  send({ t:'cad' }); toast('Ctrl+Alt+Del enviado', 'info');
 }
 
-/* ══ DATA CHANNEL ════════════════════════════ */
+// ═══════════════════════════════════════
+// DATA CHANNEL
+// ═══════════════════════════════════════
 function handleDC(e){
-  try{
-    const m=JSON.parse(e.data);
-    if(m.t==='clipboard'){$('clipta').value=m.text;toast('Clipboard recebido','ok');}
-    if(m.t==='file_done')toast('Arquivo recebido: '+m.name,'ok');
-    if(m.t==='file_err') toast('Erro ao receber: '+m.reason,'err');
-  }catch(_){}
+  try {
+    var m = JSON.parse(e.data);
+    if(m.t === 'clipboard'){ $('clipta').value = m.text; toast('Clipboard recebido', 'ok'); }
+    if(m.t === 'file_done') toast('Arquivo recebido: ' + (m.name||''), 'ok');
+    if(m.t === 'file_err')  toast('Erro: ' + (m.reason||''), 'err');
+  } catch(ex){}
 }
 
-/* ══ CLIPBOARD ════════════════════════════════ */
-function sendClip(){const t=$('clipta').value;if(!t){toast('Nenhum texto','warn');return;}send({t:'clipboard_set',text:t});toast('Clipboard enviado','ok');}
-function reqClip(){send({t:'clipboard_req'});sbMsg('Solicitando clipboard remoto…');}
+// ═══════════════════════════════════════
+// CLIPBOARD
+// ═══════════════════════════════════════
+function sendClip(){
+  var t = $('clipta').value;
+  if(!t){ toast('Nenhum texto', 'warn'); return; }
+  send({ t:'clipboard_set', text:t }); toast('Clipboard enviado', 'ok');
+}
+function reqClip(){ send({ t:'clipboard_req' }); sbMsg('Solicitando clipboard remoto…'); }
 
-/* ══ ARQUIVOS ═════════════════════════════════
-   Envia dest no file_start para o agente salvar
-   no caminho correto da máquina remota.
-   O agente interpreta: 'downloads','desktop',
-   'documents' como pastas do usuário,
-   ou um caminho personalizado.
-════════════════════════════════════════════════ */
+// ═══════════════════════════════════════
+// ARQUIVOS
+// ═══════════════════════════════════════
 function setupFileDC(ch){
-  fileDC=ch;
-  fileDC.binaryType='arraybuffer';
-  fileDC.onerror=e=>toast('Erro canal arquivos','err');
+  fileDC = ch;
+  fileDC.binaryType = 'arraybuffer';
+  fileDC.onerror = function(){ toast('Erro canal arquivos', 'err'); };
 }
-
 function uploadFiles(files){
-  if(!fileDC||fileDC.readyState!=='open'){toast('Canal de arquivos indisponível','err');return;}
-  Array.from(files).forEach(file=>uploadFile(file));
+  if(!fileDC || fileDC.readyState !== 'open'){ toast('Canal de arquivos indisponível', 'err'); return; }
+  Array.from(files).forEach(function(f){ uploadFile(f); });
 }
+function uploadFile(file){
+  var id = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+  var CHUNK = 16384;
+  var dest  = getDestPath();
 
-async function uploadFile(file){
-  const id=crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2);
-  const CHUNK=16384;
-  const dest=getDestPath();
-
-  // Item na lista
-  const item=document.createElement('div');
-  item.className='fi';item.style.flexDirection='column';item.style.alignItems='flex-start';
-  item.innerHTML=`
-    <div style="display:flex;align-items:center;gap:7px;width:100%">
-      <svg class="fii" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/></svg>
-      <span class="fin">${file.name}</span>
-      <span class="fis">${fmtSize(file.size)}</span>
-    </div>
-    <div class="fi-prog" style="width:100%"><div class="fi-bar" id="fb-${id}"></div></div>
-    <div style="font-size:9px;color:var(--t3)" id="fs-${id}">Enviando…</div>`;
+  var item = document.createElement('div');
+  item.className = 'fi';
+  item.innerHTML =
+    '<div class="fi-row">' +
+    '<svg class="fii" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/></svg>' +
+    '<span class="fin">' + file.name + '</span>' +
+    '<span class="fis">' + fmtSize(file.size) + '</span>' +
+    '</div>' +
+    '<div class="fi-prog"><div class="fi-bar" id="fb-' + id + '"></div></div>' +
+    '<div class="fi-st" id="fs-' + id + '">Enviando…</div>';
   $('flist').prepend(item);
 
-  const bar=$(`fb-${id}`),status=$(`fs-${id}`);
+  var bar = $('fb-' + id), status = $('fs-' + id);
+  fileDC.send(JSON.stringify({ t:'file_start', id:id, name:file.name, size:file.size, dest:dest }));
 
-  // Envia metadados com destino
-  fileDC.send(JSON.stringify({t:'file_start',id,name:file.name,size:file.size,dest}));
-
-  const buf=await file.arrayBuffer();
-  let sent=0;
-  while(sent<file.size){
-    while(fileDC.bufferedAmount>4*1024*1024)await new Promise(r=>setTimeout(r,50));
-    const chunk=buf.slice(sent,sent+CHUNK);
-    fileDC.send(chunk);
-    sent+=chunk.byteLength;
-    const pct=Math.round(sent/file.size*100);
-    bar.style.width=pct+'%';
-    status.textContent=`Enviando… ${pct}%`;
-  }
-  fileDC.send(JSON.stringify({t:'file_end',id}));
-  status.textContent='Aguardando confirmação…';
-  bar.classList.add('done');
+  file.arrayBuffer().then(function(buf){
+    var sent = 0;
+    function sendChunk(){
+      if(sent >= file.size){
+        fileDC.send(JSON.stringify({ t:'file_end', id:id }));
+        status.textContent = 'Aguardando confirmação…';
+        bar.classList.add('done');
+        return;
+      }
+      if(fileDC.bufferedAmount > 4*1024*1024){ setTimeout(sendChunk, 50); return; }
+      var chunk = buf.slice(sent, sent + CHUNK);
+      fileDC.send(chunk);
+      sent += chunk.byteLength;
+      var pct = Math.round(sent / file.size * 100);
+      bar.style.width = pct + '%';
+      status.textContent = 'Enviando… ' + pct + '%';
+      setTimeout(sendChunk, 0);
+    }
+    sendChunk();
+  });
 }
-
 function fmtSize(b){
-  if(b<1024)return b+' B';
-  if(b<1048576)return (b/1024).toFixed(1)+' KB';
-  if(b<1073741824)return (b/1048576).toFixed(1)+' MB';
-  return (b/1073741824).toFixed(2)+' GB';
+  if(b < 1024) return b + ' B';
+  if(b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if(b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
 }
 
-/* ══ STATS ════════════════════════════════════ */
+// ═══════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════
 function startStats(){
-  stopStats();let lb=0,lf=0,lt=Date.now();
-  statsTimer=setInterval(async()=>{
-    if(!pc)return;
-    try{
-      const ss=await pc.getStats();
-      ss.forEach(r=>{
-        if(r.type==='inbound-rtp'&&r.kind==='video'){
-          const now=Date.now(),dt=(now-lt)/1000;if(dt<=0)return;
-          const fps=Math.round((r.framesDecoded-lf)/dt),bwK=Math.round((r.bytesReceived-lb)/dt*8/1024);
-          lf=r.framesDecoded;lb=r.bytesReceived;lt=now;
-          sv('sfps',fps+' fps',fps>=25?'g':fps>=15?'w':'b');
-          sv('sbw',bwK>=1024?(bwK/1024).toFixed(1)+' Mbps':bwK+' kbps',bwK>=1000?'g':bwK>=200?'w':'b');
-          sv('sloss',(r.packetsLost||0)+'',r.packetsLost===0?'g':r.packetsLost<20?'w':'b');
-          if(r.frameWidth){$('sres').textContent=r.frameWidth+'×'+r.frameHeight;screenW=r.frameWidth;screenH=r.videoHeight||r.frameHeight;}
+  stopStats();
+  var lb = 0, lf = 0, lt = Date.now();
+  statsTimer = setInterval(function(){
+    if(!pc) return;
+    pc.getStats().then(function(ss){
+      ss.forEach(function(r){
+        if(r.type === 'inbound-rtp' && r.kind === 'video'){
+          var now = Date.now(), dt = (now - lt) / 1000; if(dt <= 0) return;
+          var fps = Math.round((r.framesDecoded - lf) / dt);
+          var bwK = Math.round((r.bytesReceived - lb) / dt * 8 / 1024);
+          lf = r.framesDecoded; lb = r.bytesReceived; lt = now;
+          sv('sfps',  fps + ' fps',  fps >= 25 ? 'g' : fps >= 15 ? 'w' : 'b');
+          sv('sbw',   bwK >= 1024 ? (bwK/1024).toFixed(1)+' Mbps' : bwK+' kbps', bwK >= 1000 ? 'g' : bwK >= 200 ? 'w' : 'b');
+          sv('sloss', (r.packetsLost||0)+'', (r.packetsLost||0) === 0 ? 'g' : (r.packetsLost||0) < 20 ? 'w' : 'b');
+          if(r.frameWidth){ $('sres').textContent = r.frameWidth + '×' + r.frameHeight; screenW = r.frameWidth; screenH = r.frameHeight; }
         }
-        if(r.type==='candidate-pair'&&r.state==='succeeded'){
-          const rtt=Math.round((r.currentRoundTripTime||0)*1000);
-          sv('srtt',rtt+' ms',rtt<50?'g':rtt<150?'w':'b');
+        if(r.type === 'candidate-pair' && r.state === 'succeeded'){
+          var rtt = Math.round((r.currentRoundTripTime||0)*1000);
+          sv('srtt', rtt + ' ms', rtt < 50 ? 'g' : rtt < 150 ? 'w' : 'b');
         }
       });
-    }catch(_){}
-  },1000);
+    }).catch(function(){});
+  }, 1000);
 }
-function sv(id,text,cls){const el=$(id);el.textContent=text;el.className='sv '+cls;}
-function stopStats(){if(statsTimer){clearInterval(statsTimer);statsTimer=null;}}
+function sv(id, text, cls){ var el = $(id); el.textContent = text; el.className = 'sv ' + cls; }
+function stopStats(){ if(statsTimer){ clearInterval(statsTimer); statsTimer = null; } }
+
+// Inicializa o destino padrão no load
+selDest('explorer');
 </script>
 </body>
 </html>

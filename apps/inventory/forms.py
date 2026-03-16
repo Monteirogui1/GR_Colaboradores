@@ -191,82 +191,83 @@ class AgentTokenGenerateForm(forms.Form):
 
 
 class AgentVersionForm(forms.ModelForm):
-    """Formulário para criação de versão do agente"""
+    """Formulário para criação/edição de versão do agente."""
 
     class Meta:
         model = AgentVersion
-        fields = ['version', 'file_path', 'release_notes', 'is_mandatory']
+        fields = ['version', 'agent_type', 'file_path', 'release_notes', 'is_mandatory']
         widgets = {
             'version': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Ex: 2.1.0'
+                'placeholder': '3.2.0',
+            }),
+            'agent_type': forms.Select(attrs={
+                'class': 'form-control',
             }),
             'file_path': forms.FileInput(attrs={
                 'class': 'form-control',
-                'accept': '.py'
+                'accept': '.py,.exe',
             }),
             'release_notes': forms.Textarea(attrs={
                 'class': 'form-control',
-                'rows': 8,
-                'placeholder': '- Correções de bugs\n- Melhorias de performance\n- Novas funcionalidades'
+                'rows': 6,
+                'placeholder': '- Correção no update loop\n- SHA-256 adicionado\n- Suporte a agent_type',
             }),
             'is_mandatory': forms.CheckboxInput(attrs={
-                'class': 'form-check-input'
+                'class': 'form-check-input',
             }),
         }
         labels = {
             'version': 'Versão',
-            'file_path': 'Arquivo do Agente (agent.py)',
+            'agent_type': 'Tipo de Agente',
+            'file_path': 'Arquivo (.py em dev · .exe em produção)',
             'release_notes': 'Notas de Lançamento',
             'is_mandatory': 'Atualização Obrigatória',
         }
         help_texts = {
-            'version': 'Formato: MAJOR.MINOR.PATCH (ex: 2.1.0)',
-            'file_path': 'Arquivo Python do agente atualizado',
-            'release_notes': 'Descreva as mudanças nesta versão',
-            'is_mandatory': 'Se marcado, todos os agentes serão forçados a atualizar',
+            'version': 'Formato MAJOR.MINOR.PATCH — ex: 3.2.0',
+            'agent_type': 'service = agent_service.exe · tray = agent_tray.exe',
+            'file_path': 'Tamanho máximo 50 MB',
+            'release_notes': 'Descreva o que mudou nesta versão',
+            'is_mandatory': 'Se marcado, todos os agentes deste tipo serão forçados a atualizar',
         }
 
+    # ── Validações ────────────────────────────────────────────────────────────
+
     def clean_version(self):
-        """Valida formato da versão"""
-        version = self.cleaned_data.get('version')
-
-        # Verifica formato básico
+        version = self.cleaned_data.get('version', '').strip()
         if not version:
-            raise forms.ValidationError("Versão é obrigatória")
-
-        # Valida formato (simplificado)
+            raise forms.ValidationError('Versão é obrigatória.')
         parts = version.split('.')
         if len(parts) != 3:
-            raise forms.ValidationError(
-                "Versão deve estar no formato MAJOR.MINOR.PATCH (ex: 2.1.0)"
-            )
-
-        try:
-            for part in parts:
-                int(part)
-        except ValueError:
-            raise forms.ValidationError(
-                "Versão deve conter apenas números separados por pontos"
-            )
-
+            raise forms.ValidationError('Use o formato MAJOR.MINOR.PATCH (ex: 3.2.0).')
+        for p in parts:
+            if not p.isdigit():
+                raise forms.ValidationError('A versão deve conter apenas números separados por pontos.')
         return version
 
     def clean_file_path(self):
-        """Valida arquivo do agente"""
         file = self.cleaned_data.get('file_path')
-
         if file:
-            # Verifica extensão
-            if not file.name.endswith('.py'):
-                raise forms.ValidationError(
-                    "Arquivo deve ser um script Python (.py)"
-                )
-
-            # Verifica tamanho (max 5MB)
-            if file.size > 5 * 1024 * 1024:
-                raise forms.ValidationError(
-                    "Arquivo muito grande. Tamanho máximo: 5MB"
-                )
-
+            ext = file.name.rsplit('.', 1)[-1].lower() if '.' in file.name else ''
+            if ext not in ('py', 'exe'):
+                raise forms.ValidationError('Extensão inválida. Use .py (dev) ou .exe (produção).')
+            if file.size > 50 * 1024 * 1024:
+                raise forms.ValidationError('Arquivo muito grande. Limite: 50 MB.')
         return file
+
+    def clean(self):
+        cleaned = super().clean()
+        version = cleaned.get('version')
+        agent_type = cleaned.get('agent_type')
+        # Impede duplicata versão + tipo (exceto no próprio objeto em edição)
+        if version and agent_type:
+            qs = AgentVersion.objects.filter(version=version, agent_type=agent_type)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError(
+                    f'Já existe uma versão {version} para o tipo "{agent_type}". '
+                    f'Use uma versão diferente ou remova a existente.'
+                )
+        return cleaned

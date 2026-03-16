@@ -1,175 +1,307 @@
 {% extends 'layouts/base.html' %}
-
-{% block title %}Nova Versão - Agente{% endblock %}
+{% block title %}Nova Versão — Agente{% endblock %}
 
 {% block conteudo %}
-<div class="content">
-    <div class="page-header">
-        <h1>{% if object %}Editar Versão{% else %}Nova Versão do Agente{% endif %}</h1>
-        <a href="{% url 'inventario:version_list' %}" class="btn btn-secondary">Voltar</a>
+<style>
+/* ── Escopo desta página ─────────────────────────────────────────── */
+.av-wrap{max-width:860px;}
+.av-card{background:#fff;border:1px solid #e8eaed;border-radius:10px;overflow:hidden;margin-bottom:20px;}
+.av-card-head{padding:16px 20px;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:10px;}
+.av-card-head i{font-size:16px;color:#1a73e8;}
+.av-card-head h2{font-size:15px;font-weight:600;color:#1e293b;margin:0;}
+.av-card-body{padding:20px;}
+
+/* Grid do form */
+.av-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.av-grid .span2{grid-column:1/-1;}
+.fg{display:flex;flex-direction:column;gap:5px;}
+.fg label{font-size:12px;font-weight:600;color:#374151;letter-spacing:.02em;}
+.fg .form-control,.fg select.form-control{width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:14px;color:#1e293b;background:#fff;transition:border .15s,box-shadow .15s;}
+.fg .form-control:focus,.fg select.form-control:focus{outline:none;border-color:#1a73e8;box-shadow:0 0 0 3px rgba(26,115,232,.12);}
+.fg textarea.form-control{min-height:110px;resize:vertical;}
+.fg .hint{font-size:11px;color:#9ca3af;margin-top:2px;}
+.fg .field-err{font-size:11px;color:#dc2626;margin-top:3px;}
+
+/* Upload zone */
+.upload-zone{border:2px dashed #d1d5db;border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all .15s;background:#fafafa;}
+.upload-zone:hover,.upload-zone.drag{border-color:#1a73e8;background:#eff6ff;}
+.upload-zone i{font-size:28px;color:#9ca3af;display:block;margin-bottom:6px;}
+.upload-zone .uz-label{font-size:13px;color:#374151;font-weight:500;}
+.upload-zone .uz-hint{font-size:11px;color:#9ca3af;margin-top:3px;}
+.upload-zone .uz-file{font-size:12px;color:#1a73e8;font-weight:600;margin-top:6px;display:none;}
+.upload-zone input[type=file]{display:none;}
+
+/* Badge tipo */
+.type-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.type-opt{border:2px solid #e8eaed;border-radius:8px;padding:12px 14px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:10px;}
+.type-opt:hover{border-color:#93c5fd;background:#eff6ff;}
+.type-opt.selected{border-color:#1a73e8;background:#eff6ff;}
+.type-opt i{font-size:20px;color:#6b7280;}
+.type-opt.selected i{color:#1a73e8;}
+.type-opt .to-name{font-size:13px;font-weight:600;color:#374151;}
+.type-opt .to-desc{font-size:11px;color:#9ca3af;}
+
+/* Checkbox obrigatória */
+.mandatory-box{display:flex;align-items:flex-start;gap:10px;padding:14px;border:1px solid #e8eaed;border-radius:8px;background:#fafafa;cursor:pointer;transition:all .15s;}
+.mandatory-box:hover{border-color:#fca5a5;background:#fff5f5;}
+.mandatory-box.active{border-color:#ef4444;background:#fff5f5;}
+.mandatory-box input{margin-top:2px;accent-color:#ef4444;width:16px;height:16px;cursor:pointer;flex-shrink:0;}
+.mandatory-box .mb-text .mb-title{font-size:13px;font-weight:600;color:#374151;}
+.mandatory-box .mb-text .mb-hint{font-size:11px;color:#9ca3af;margin-top:2px;}
+
+/* Info cards */
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.info-item{padding:14px;border-radius:8px;border:1px solid #e8eaed;}
+.info-item .ii-head{font-size:12px;font-weight:700;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.info-item .ii-head i{font-size:14px;}
+.info-item ul{list-style:none;padding:0;margin:0;}
+.info-item ul li{font-size:12px;color:#6b7280;padding:3px 0;display:flex;align-items:flex-start;gap:6px;}
+.info-item ul li::before{content:"›";color:#9ca3af;flex-shrink:0;}
+
+/* Fluxo */
+.flow{display:flex;align-items:flex-start;gap:0;margin-top:4px;}
+.flow-step{flex:1;text-align:center;position:relative;}
+.flow-step:not(:last-child)::after{content:"";position:absolute;top:18px;left:60%;width:80%;height:2px;background:#e8eaed;}
+.flow-dot{width:36px;height:36px;border-radius:50%;background:#1a73e8;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;}
+.flow-label{font-size:11px;font-weight:600;color:#374151;}
+.flow-sub{font-size:10px;color:#9ca3af;margin-top:2px;}
+
+/* Errors */
+.form-errors{background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:14px 16px;margin-bottom:20px;}
+.form-errors strong{font-size:13px;color:#dc2626;display:flex;align-items:center;gap:6px;}
+.form-errors ul{margin:8px 0 0 4px;padding:0;list-style:none;}
+.form-errors ul li{font-size:12px;color:#dc2626;padding:2px 0;}
+
+/* Actions */
+.av-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:16px 20px;border-top:1px solid #f3f4f6;background:#fafafa;}
+</style>
+
+<div class="content av-wrap">
+
+  <!-- Cabeçalho -->
+  <div class="page-header">
+    <div>
+      <h1 style="font-size:20px;color:#1e293b;">Nova Versão do Agente</h1>
+      <p style="font-size:13px;color:#9ca3af;margin-top:4px;">Faça upload do executável compilado para distribuição automática</p>
+    </div>
+    <a href="{% url 'inventario:version_list' %}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+
+  <!-- Erros globais -->
+  {% if form.errors %}
+  <div class="form-errors">
+    <strong><i class="bi bi-exclamation-triangle-fill"></i> Corrija os erros abaixo:</strong>
+    <ul>
+      {% for field in form %}{% for err in field.errors %}<li>{{ field.label }}: {{ err }}</li>{% endfor %}{% endfor %}
+      {% for err in form.non_field_errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" id="av-form">
+    {% csrf_token %}
+
+    <!-- Bloco 1: Identificação -->
+    <div class="av-card">
+      <div class="av-card-head">
+        <i class="bi bi-tag-fill"></i>
+        <h2>Identificação</h2>
+      </div>
+      <div class="av-card-body">
+        <div class="av-grid">
+
+          <!-- Versão -->
+          <div class="fg">
+            <label for="{{ form.version.id_for_label }}">Número de versão</label>
+            <input type="text"
+                   id="{{ form.version.id_for_label }}"
+                   name="{{ form.version.html_name }}"
+                   value="{{ form.version.value|default:'' }}"
+                   class="form-control"
+                   placeholder="3.2.0">
+            <span class="hint">{{ form.version.help_text }}</span>
+            {% for e in form.version.errors %}<span class="field-err">{{ e }}</span>{% endfor %}
+          </div>
+
+          <!-- Tipo de agente — cards visuais -->
+          <div class="fg">
+            <label>Tipo de agente</label>
+            <div class="type-grid" id="type-grid">
+              <div class="type-opt {% if form.agent_type.value == 'service' or not form.agent_type.value %}selected{% endif %}"
+                   data-val="service" onclick="selType(this)">
+                <i class="bi bi-gear-fill"></i>
+                <div>
+                  <div class="to-name">Service</div>
+                  <div class="to-desc">agent_service.exe</div>
+                </div>
+              </div>
+              <div class="type-opt {% if form.agent_type.value == 'tray' %}selected{% endif %}"
+                   data-val="tray" onclick="selType(this)">
+                <i class="bi bi-window-sidebar"></i>
+                <div>
+                  <div class="to-name">Tray</div>
+                  <div class="to-desc">agent_tray.exe</div>
+                </div>
+              </div>
+            </div>
+            <input type="hidden" id="{{ form.agent_type.id_for_label }}" name="{{ form.agent_type.html_name }}"
+                   value="{{ form.agent_type.value|default:'service' }}">
+            <span class="hint">{{ form.agent_type.help_text }}</span>
+            {% for e in form.agent_type.errors %}<span class="field-err">{{ e }}</span>{% endfor %}
+          </div>
+
+        </div>
+      </div>
     </div>
 
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-
-        {% if form.errors %}
-        <div style="background: #fee; border: 1px solid #fcc; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-            <strong style="color: #c00;">⚠ Erros no formulário:</strong>
-            <ul style="margin: 10px 0 0 20px; color: #c00;">
-                {% for field in form %}
-                    {% for error in field.errors %}
-                        <li>{{ field.label }}: {{ error }}</li>
-                    {% endfor %}
-                {% endfor %}
-                {% for error in form.non_field_errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
-            </ul>
+    <!-- Bloco 2: Arquivo -->
+    <div class="av-card">
+      <div class="av-card-head">
+        <i class="bi bi-file-earmark-arrow-up-fill"></i>
+        <h2>Arquivo do Executável</h2>
+      </div>
+      <div class="av-card-body">
+        <div class="fg">
+          <label>Selecione o arquivo</label>
+          <div class="upload-zone" id="upload-zone"
+               onclick="document.getElementById('{{ form.file_path.id_for_label }}').click()"
+               ondragover="uzDrag(event,true)" ondragleave="uzDrag(event,false)"
+               ondrop="uzDrop(event)">
+            <i class="bi bi-cloud-upload"></i>
+            <span class="uz-label">Clique para selecionar ou arraste o arquivo aqui</span>
+            <span class="uz-hint">.py (desenvolvimento) · .exe (produção PyInstaller) · máx 50 MB</span>
+            <span class="uz-file" id="uz-file-name"></span>
+          </div>
+          <input type="file"
+                 id="{{ form.file_path.id_for_label }}"
+                 name="{{ form.file_path.html_name }}"
+                 accept=".py,.exe"
+                 onchange="uzPick(this)">
+          {% for e in form.file_path.errors %}<span class="field-err">{{ e }}</span>{% endfor %}
         </div>
-        {% endif %}
-
-        <div class="form-grid">
-            <div class="form-group">
-                {{ form.version.label_tag }}
-                {{ form.version }}
-                <small class="form-text">{{ form.version.help_text }}</small>
-                {% if form.version.errors %}
-                    <div class="text-danger">{{ form.version.errors }}</div>
-                {% endif %}
-            </div>
-
-            <div class="form-group">
-                {{ form.file_path.label_tag }}
-                {{ form.file_path }}
-                <small class="form-text">{{ form.file_path.help_text }}</small>
-                {% if form.file_path.errors %}
-                    <div class="text-danger">{{ form.file_path.errors }}</div>
-                {% endif %}
-            </div>
-
-            <div class="form-group full-width">
-                {{ form.release_notes.label_tag }}
-                {{ form.release_notes }}
-                <small class="form-text">{{ form.release_notes.help_text }}</small>
-                {% if form.release_notes.errors %}
-                    <div class="text-danger">{{ form.release_notes.errors }}</div>
-                {% endif %}
-            </div>
-
-            <div class="form-group">
-                <div class="form-check">
-                    {{ form.is_mandatory }}
-                    {{ form.is_mandatory.label_tag }}
-                </div>
-                <small class="form-text">{{ form.is_mandatory.help_text }}</small>
-                {% if form.is_mandatory.errors %}
-                    <div class="text-danger">{{ form.is_mandatory.errors }}</div>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Salvar Versão</button>
-            <a href="{% url 'inventario:version_list' %}" class="btn btn-secondary">Cancelar</a>
-        </div>
-    </form>
-
-    <!-- Cards Informativos Lado a Lado -->
-    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 30px;">
-        <!-- Versionamento Semântico -->
-        <div class="detail-card">
-            <h2>📋 Versionamento Semântico</h2>
-            <div class="detail-content">
-                <p style="margin-bottom: 15px;"><strong>Formato: MAJOR.MINOR.PATCH</strong></p>
-                
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 10px;">
-                    <strong style="color: #0066cc;">MAJOR</strong> (ex: <code>2</code>.0.0)
-                    <div style="font-size: 13px; color: #666; margin-top: 5px;">Mudanças incompatíveis com versões anteriores</div>
-                </div>
-                
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 10px;">
-                    <strong style="color: #0066cc;">MINOR</strong> (ex: 2.<code>1</code>.0)
-                    <div style="font-size: 13px; color: #666; margin-top: 5px;">Novas funcionalidades compatíveis</div>
-                </div>
-                
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 4px;">
-                    <strong style="color: #0066cc;">PATCH</strong> (ex: 2.1.<code>5</code>)
-                    <div style="font-size: 13px; color: #666; margin-top: 5px;">Correções de bugs</div>
-                </div>
-
-                <p style="margin-top: 15px; margin-bottom: 5px;"><strong>Exemplos:</strong></p>
-                <ul style="margin: 0; padding-left: 20px;">
-                    <li><code>2.0.0</code> - Nova versão principal</li>
-                    <li><code>2.1.0</code> - Adicionar funcionalidades</li>
-                    <li><code>2.1.1</code> - Corrigir bugs</li>
-                </ul>
-            </div>
-        </div>
-
-        <!-- Atenção -->
-        <div class="detail-card" style="border-left: 4px solid #ff9800;">
-            <h2 style="color: #ff9800;">⚠ Importante</h2>
-            <div class="detail-content">
-                <div style="background: #fff3e0; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
-                    <strong style="display: block; margin-bottom: 8px;">Antes de Criar</strong>
-                    <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
-                        <li>Teste a nova versão completamente</li>
-                        <li>Verifique compatibilidade</li>
-                        <li>Documente todas as mudanças</li>
-                    </ul>
-                </div>
-
-                <div style="background: #ffebee; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
-                    <strong style="display: block; margin-bottom: 8px; color: #c00;">Versão Obrigatória</strong>
-                    <p style="margin: 0; font-size: 14px;">
-                        Se marcada, <strong>todos os agentes</strong> serão forçados a atualizar imediatamente
-                    </p>
-                </div>
-
-                <div style="background: #e3f2fd; padding: 15px; border-radius: 4px;">
-                    <strong style="display: block; margin-bottom: 8px;">Requisitos</strong>
-                    <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
-                        <li>Arquivo Python completo do agente</li>
-                        <li>Tamanho máximo: 5MB</li>
-                        <li>Extensão: .py</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
 
-    <!-- Fluxo de Atualização -->
-    <div class="detail-card" style="margin-top: 20px;">
-        <h2>🔄 Como Funciona a Atualização</h2>
-        <div class="detail-content">
-            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; text-align: center;">
-                <div>
-                    <div style="width: 50px; height: 50px; background: #0066cc; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold; font-size: 20px;">1</div>
-                    <div style="font-size: 13px; font-weight: bold;">Criar Versão</div>
-                    <div style="font-size: 12px; color: #666;">Upload do arquivo</div>
-                </div>
-                <div>
-                    <div style="width: 50px; height: 50px; background: #0066cc; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold; font-size: 20px;">2</div>
-                    <div style="font-size: 13px; font-weight: bold;">Versão Ativa</div>
-                    <div style="font-size: 12px; color: #666;">Disponível para download</div>
-                </div>
-                <div>
-                    <div style="width: 50px; height: 50px; background: #0066cc; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold; font-size: 20px;">3</div>
-                    <div style="font-size: 13px; font-weight: bold;">Agente Verifica</div>
-                    <div style="font-size: 12px; color: #666;">A cada 1 hora</div>
-                </div>
-                <div>
-                    <div style="width: 50px; height: 50px; background: #0066cc; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold; font-size: 20px;">4</div>
-                    <div style="font-size: 13px; font-weight: bold;">Download</div>
-                    <div style="font-size: 12px; color: #666;">Baixa nova versão</div>
-                </div>
-                <div>
-                    <div style="width: 50px; height: 50px; background: #28a745; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: bold; font-size: 20px;">✓</div>
-                    <div style="font-size: 13px; font-weight: bold;">Atualizado</div>
-                    <div style="font-size: 12px; color: #666;">Reinicia automaticamente</div>
-                </div>
-            </div>
+    <!-- Bloco 3: Notas e Obrigatoriedade -->
+    <div class="av-card">
+      <div class="av-card-head">
+        <i class="bi bi-journal-text"></i>
+        <h2>Notas &amp; Configurações</h2>
+      </div>
+      <div class="av-card-body" style="display:flex;flex-direction:column;gap:16px;">
+
+        <!-- Notas de lançamento -->
+        <div class="fg">
+          <label for="{{ form.release_notes.id_for_label }}">Notas de lançamento</label>
+          <textarea id="{{ form.release_notes.id_for_label }}"
+                    name="{{ form.release_notes.html_name }}"
+                    class="form-control"
+                    rows="5"
+                    placeholder="- Correção no update loop&#10;- SHA-256 verificado antes de aplicar&#10;- Suporte a agent_type no endpoint">{{ form.release_notes.value|default:'' }}</textarea>
+          {% for e in form.release_notes.errors %}<span class="field-err">{{ e }}</span>{% endfor %}
         </div>
+
+        <!-- Atualização obrigatória -->
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#374151;">Obrigatoriedade</label>
+          <label class="mandatory-box {% if form.is_mandatory.value %}active{% endif %}" id="mandatory-box"
+                 for="{{ form.is_mandatory.id_for_label }}">
+            <input type="checkbox"
+                   id="{{ form.is_mandatory.id_for_label }}"
+                   name="{{ form.is_mandatory.html_name }}"
+                   {% if form.is_mandatory.value %}checked{% endif %}
+                   onchange="toggleMandatory(this)">
+            <div class="mb-text">
+              <div class="mb-title">Atualização obrigatória</div>
+              <div class="mb-hint">Todos os agentes deste tipo serão forçados a atualizar imediatamente, independente da versão atual</div>
+            </div>
+          </label>
+        </div>
+
+      </div>
+      <!-- Actions dentro do card -->
+      <div class="av-actions">
+        <a href="{% url 'inventario:version_list' %}" class="btn btn-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-cloud-upload"></i> Publicar Versão
+        </button>
+      </div>
     </div>
+
+  </form>
+
+  <!-- Info cards -->
+  <div class="info-grid">
+    <div class="info-item" style="background:#eff6ff;border-color:#bfdbfe;">
+      <div class="ii-head" style="color:#1d4ed8;"><i class="bi bi-info-circle-fill"></i> Versionamento semântico</div>
+      <ul>
+        <li><strong>MAJOR</strong> — mudanças incompatíveis com versão anterior</li>
+        <li><strong>MINOR</strong> — novas funcionalidades compatíveis</li>
+        <li><strong>PATCH</strong> — correções de bugs e ajustes</li>
+        <li>Cada par versão + tipo deve ser único</li>
+      </ul>
+    </div>
+    <div class="info-item" style="background:#f0fdf4;border-color:#bbf7d0;">
+      <div class="ii-head" style="color:#15803d;"><i class="bi bi-shield-fill-check"></i> Segurança do update</div>
+      <ul>
+        <li>SHA-256 calculado automaticamente ao salvar</li>
+        <li>Agente verifica hash antes de aplicar</li>
+        <li>Arquivo corrompido é rejeitado silenciosamente</li>
+        <li>Backup .bak criado antes da substituição</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Fluxo de atualização -->
+  <div class="av-card" style="margin-top:14px;">
+    <div class="av-card-head">
+      <i class="bi bi-arrow-repeat"></i>
+      <h2>Fluxo de atualização automática</h2>
+    </div>
+    <div class="av-card-body">
+      <div class="flow">
+        {% for step in "12345" %}
+        <div class="flow-step">
+          <div class="flow-dot">{{ step }}</div>
+          {% if step == "1" %}<div class="flow-label">Upload</div><div class="flow-sub">Admin publica aqui</div>
+          {% elif step == "2" %}<div class="flow-label">Checagem</div><div class="flow-sub">Agente verifica a cada hora</div>
+          {% elif step == "3" %}<div class="flow-label">Download</div><div class="flow-sub">Baixa *_new.exe</div>
+          {% elif step == "4" %}<div class="flow-label">SHA-256</div><div class="flow-sub">Valida integridade</div>
+          {% elif step == "5" %}<div class="flow-label">Substituição</div><div class="flow-sub">BAT detached + restart</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
 </div>
+
+<script>
+function selType(el){
+  document.querySelectorAll('.type-opt').forEach(e=>e.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('{{ form.agent_type.id_for_label }}').value = el.dataset.val;
+}
+function uzPick(input){
+  const f = input.files[0];
+  if(!f) return;
+  const fn = document.getElementById('uz-file-name');
+  fn.textContent = f.name + ' (' + (f.size/1024/1024).toFixed(2) + ' MB)';
+  fn.style.display = 'block';
+  document.getElementById('upload-zone').classList.add('drag');
+}
+function uzDrag(e,on){ e.preventDefault(); document.getElementById('upload-zone').classList.toggle('drag',on); }
+function uzDrop(e){
+  e.preventDefault();
+  const inp = document.getElementById('{{ form.file_path.id_for_label }}');
+  inp.files = e.dataTransfer.files;
+  uzPick(inp);
+}
+function toggleMandatory(cb){
+  document.getElementById('mandatory-box').classList.toggle('active', cb.checked);
+}
+</script>
 {% endblock %}

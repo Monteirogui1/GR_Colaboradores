@@ -768,11 +768,18 @@ class AgentValidateTokenAPIView(APIView):
             )
 
 
-@method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(csrf_exempt, name="dispatch")
 class AgentCheckUpdateAPIView(AgentTokenRequiredMixin, APIView):
     """
-    API para verificar atualizações disponíveis.
-    PROTEGIDA — exige Authorization: Bearer <token_hash>
+    Verifica se há atualização disponível para o agente.
+
+    POST /api/inventario/agent/update/
+    Headers: Authorization: Bearer <token_hash>
+    Body: {
+        "current_version": "3.2.0",
+        "machine_name":    "PC-NOME",
+        "agent_type":      "service"   # ou "tray"
+    }
     """
     authentication_classes = []
     permission_classes = []
@@ -784,43 +791,63 @@ class AgentCheckUpdateAPIView(AgentTokenRequiredMixin, APIView):
 
         try:
             data = request.data
-            current_version = data.get('current_version', '0.0.0')
+            current_version = data.get("current_version", "0.0.0")
+            agent_type = data.get("agent_type", "service").strip().lower()
 
-            latest_version = AgentVersion.objects.filter(
-                is_active=True
-            ).order_by('-created_at').first()
+            # Valida agent_type
+            if agent_type not in ("service", "tray"):
+                return Response(
+                    {"update_available": False, "error": "agent_type inválido"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-            if not latest_version:
-                return Response({'update_available': False, 'message': 'Nenhuma versão disponível'})
+            # Busca a versão mais recente ativa para este tipo
+            latest = (
+                AgentVersion.objects
+                .filter(is_active=True, agent_type=agent_type)
+                .order_by("-created_at")
+                .first()
+            )
+
+            if not latest:
+                return Response({
+                    "update_available": False,
+                    "message": f"Nenhuma versão ativa disponível para agent_type={agent_type}",
+                })
 
             def version_tuple(v):
                 try:
-                    return tuple(map(int, v.split('.')))
+                    return tuple(map(int, str(v).split(".")))
                 except Exception:
                     return (0, 0, 0)
 
-            current = version_tuple(current_version)
-            latest = version_tuple(latest_version.version)
+            is_newer = version_tuple(latest.version) > version_tuple(current_version)
 
-            if latest > current or latest_version.is_mandatory:
+            if is_newer or latest.is_mandatory:
                 return Response({
-                    'update_available': True,
-                    'version': latest_version.version,
-                    'download_url': request.build_absolute_uri(
-                        f'/api/inventario/agent/download/{latest_version.pk}/'
+                    "update_available": True,
+                    "version": latest.version,
+                    "agent_type": agent_type,
+                    "download_url": request.build_absolute_uri(
+                        f"/api/inventario/agent/download/{latest.pk}/"
                     ),
-                    'release_notes': latest_version.release_notes,
-                    'is_mandatory': latest_version.is_mandatory
+                    "sha256": latest.sha256,  # ← NOVO: hash para verificação
+                    "release_notes": latest.release_notes,
+                    "is_mandatory": latest.is_mandatory,
                 })
 
             return Response({
-                'update_available': False,
-                'current_version': current_version,
-                'latest_version': latest_version.version
+                "update_available": False,
+                "current_version": current_version,
+                "latest_version": latest.version,
+                "agent_type": agent_type,
             })
 
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 @method_decorator(csrf_exempt, name='dispatch')
