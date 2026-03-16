@@ -289,6 +289,7 @@ RDP_SESSION_TIMEOUT       = 3600   # segundos de TTL da sessão
 RDP_MAX_SESSIONS_PER_USER = 3      # máximo de sessões simultâneas
 RDP_ALLOWED_ORIGINS       = ['https://seudominio.com']  # lista branca de origens
 AGENT_IPC_PORT            = 7070   # porta IPC do agente
+AGENT_WEBRTC_PORT         = 7071
 RDP_TURN_CONFIG = {
     'host':       os.environ.get('TURN_HOST',       '192.168.100.247'),
     'port':       int(os.environ.get('TURN_PORT',   '3478')),

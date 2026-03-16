@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # ── Constantes ────────────────────────────────────────────────────────────────
 IPC_PORT = getattr(settings, 'AGENT_IPC_PORT', 7070)
+WEBRTC_PORT = getattr(settings, 'AGENT_WEBRTC_PORT', 7071)
 SESSION_TTL = getattr(settings, 'RDP_SESSION_TIMEOUT', 3600)
 MAX_SESSIONS = getattr(settings, 'RDP_MAX_SESSIONS_PER_USER', 3)
 
@@ -245,19 +246,20 @@ class RDPOfferView(View):
             raise ConnectionError(f"Agente '{machine.hostname}' sem heartbeat há mais de 6 minutos")
 
     def _forward_offer_to_agent(self, machine: Machine, sdp: str) -> dict:
-        """
-        Envia o SDP offer ao agente via HTTP local (IPC).
-
-        O agente expõe POST /webrtc/offer na porta IPC_PORT.
-        Em produção:
-          - Use VPN/túnel privado entre Django e agente
-          - Nunca exponha IPC_PORT na internet
-          - Considere mTLS entre Django e agente para ambientes críticos
-        """
-        url = f"http://{machine.ip_address}:{IPC_PORT}/webrtc/offer"
+        url = f"http://{machine.ip_address}:{WEBRTC_PORT}/webrtc/offer"
         payload = {'sdp': sdp, 'type': 'offer'}
 
-        response = req_lib.post(url, json=payload, timeout=12)
+        # Autenticar com o token hash da máquina
+        agent_token = AgentToken.objects.filter(
+            machine_name=machine.hostname,
+            is_active=True,
+        ).order_by('-created_at').first()
+
+        headers = {}
+        if agent_token:
+            headers['Authorization'] = f'Bearer {agent_token.token_hash}'
+
+        response = req_lib.post(url, json=payload, headers=headers, timeout=12)
         response.raise_for_status()
 
         answer = response.json()
