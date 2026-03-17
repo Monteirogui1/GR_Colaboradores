@@ -1549,43 +1549,48 @@ class ConfiguracaoEmailTesteView(LoginRequiredMixin, View):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AgentTicketListAPIView(AgentTokenRequiredMixin, APIView):
-    """
-    GET /tickets/api/agent/list/
-    Retorna tickets vinculados à máquina que fez a requisição.
-
-    Estratégia (OR):
-      1. ticket.machine = esta máquina              ← direto, campo novo
-      2. ticket.solicitante.username = loggedUser   ← retrocompatibilidade
-    """
     authentication_classes = []
     permission_classes = []
 
     def get(self, request):
         from apps.inventory.models import Machine
+        from django.contrib.auth import get_user_model
         from django.db.models import Q
+        User = get_user_model()
 
         agent_token, err = self._authenticate(request)
         if err:
             return err
 
         machine_name = agent_token.machine_name
-        if not machine_name:
-            return Response(
-                {'ok': False, 'error': 'Token sem machine_name. Reinstale o agente.'},
-                status=400,
-            )
+        email        = request.GET.get("email", "").strip()
+        logged_user  = request.GET.get("logged_user", "").strip()
 
-        try:
-            machine = Machine.objects.get(hostname__iexact=machine_name)
-        except Machine.DoesNotExist:
-            return Response(
-                {'ok': False, 'error': f'Máquina "{machine_name}" não encontrada.'},
-                status=404,
-            )
+        if not email:
+            return Response({'ok': False, 'error': 'Parâmetro email obrigatório.'}, status=400)
 
-        filtro = Q(machine=machine)
-        if machine.loggedUser:
-            filtro |= Q(solicitante__username=machine.loggedUser)
+        # Resolve o solicitante pelo e-mail
+        solicitante = User.objects.filter(email=email).first()
+        if not solicitante:
+            return Response({'ok': True, 'tickets': [],
+                             'warning': f'Usuário com e-mail {email} não cadastrado.'})
+
+        # Filtro base: todos os chamados deste solicitante
+        filtro = Q(solicitante=solicitante)
+
+        # Se souber a máquina, restringe ainda mais para não vazar
+        # chamados de outras máquinas abertos via web por este mesmo usuário
+        # (opcional — remova o bloco abaixo se quiser ver todos)
+        if machine_name:
+            try:
+                from apps.inventory.models import Machine
+                machine = Machine.objects.get(hostname__iexact=machine_name)
+                # mostra: chamados desta máquina OU chamados sem máquina vinculada
+                filtro = Q(solicitante=solicitante) & (
+                    Q(machine=machine) | Q(machine__isnull=True)
+                )
+            except Machine.DoesNotExist:
+                pass  # máquina não encontrada — usa filtro só por e-mail
 
         tickets = (
             Ticket.objects
@@ -1596,8 +1601,8 @@ class AgentTicketListAPIView(AgentTokenRequiredMixin, APIView):
         )
 
         return Response({
-            'ok': True,
-            'machine': machine_name,
+            'ok':     True,
+            'email':  email,
             'tickets': [
                 {
                     'id':         t.pk,
@@ -1723,15 +1728,6 @@ class AgentTicketReplyAPIView(AgentTokenRequiredMixin, APIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
-    """
-    POST /tickets/api/agent/criar/
-    Cria ticket vinculando a máquina de origem via Ticket.machine.
-
-    Body JSON:
-        { "assunto": "...", "descricao": "...", "tipo_chamado": "..." }
-
-    Solicitante resolvido por Machine.loggedUser → User.username ou User.email.
-    """
     authentication_classes = []
     permission_classes = []
 
@@ -1744,70 +1740,47 @@ class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
         if err:
             return err
 
-        machine_name = agent_token.machine_name
-        if not machine_name:
-            return Response(
-                {'ok': False, 'error': 'Token sem machine_name. Reinstale o agente.'},
-                status=400,
-            )
-
-        try:
-            machine = Machine.objects.get(hostname__iexact=machine_name)
-        except Machine.DoesNotExist:
-            return Response(
-                {'ok': False, 'error': f'Máquina "{machine_name}" não encontrada.'},
-                status=404,
-            )
-
+        email_solicitante = request.data.get('email_solicitante', '').strip()
+        logged_user       = request.data.get('logged_user', '').strip()
+        tipo_chamado_nome = request.data.get('tipo_chamado', '').strip()
         assunto           = request.data.get('assunto', '').strip()
         descricao         = request.data.get('descricao', '').strip()
-        tipo_chamado_nome = request.data.get('tipo_chamado', '').strip()
 
-        if not assunto or not descricao:
+        if not all([email_solicitante, assunto, descricao]):
             return Response(
-                {'ok': False, 'error': 'Campos obrigatórios: assunto e descricao.'},
-                status=400,
-            )
+                {'ok': False, 'error': 'Campos obrigatórios: email_solicitante, assunto, descricao.'},
+                status=400)
 
-        # Resolve solicitante pelo usuário logado na máquina
-        solicitante = None
-        if machine.loggedUser:
-            solicitante = (
-                User.objects.filter(username=machine.loggedUser).first()
-                or User.objects.filter(email=machine.loggedUser).first()
-            )
-
+        solicitante = User.objects.filter(email=email_solicitante).first()
         if not solicitante:
             return Response(
-                {
-                    'ok': False,
-                    'error': (
-                        f'Usuário "{machine.loggedUser or "desconhecido"}" '
-                        f'não encontrado. Verifique se o usuário Windows '
-                        f'está cadastrado no sistema.'
-                    ),
-                },
-                status=404,
-            )
+                {'ok': False, 'error': f'Nenhum usuário com e-mail {email_solicitante} encontrado.'},
+                status=404)
 
         status_inicial = Status.objects.filter(
-            status_base=StatusBase.ABERTO, ativo=True
-        ).first()
+            status_base=StatusBase.ABERTO, ativo=True).first()
         if not status_inicial:
             return Response(
-                {'ok': False, 'error': 'Nenhum status "Aberto" configurado.'},
-                status=500,
-            )
+                {'ok': False, 'error': 'Nenhum status "Aberto" configurado.'}, status=500)
 
         servico = None
         if tipo_chamado_nome:
             servico = Servico.objects.filter(
-                nome__icontains=tipo_chamado_nome, ativo=True
-            ).first()
+                nome__icontains=tipo_chamado_nome, ativo=True).first()
+
+        # Tenta vincular a máquina pelo token
+        machine = None
+        machine_name = agent_token.machine_name
+        if machine_name:
+            try:
+                from apps.inventory.models import Machine
+                machine = Machine.objects.get(hostname__iexact=machine_name)
+            except Machine.DoesNotExist:
+                pass
 
         ticket = Ticket.objects.create(
             solicitante=solicitante,
-            machine=machine,                    # ← vincula a máquina diretamente
+            machine=machine,                   # FK direto na máquina
             status=status_inicial,
             servico=servico,
             assunto=assunto,
@@ -1816,8 +1789,55 @@ class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
             cliente=solicitante if solicitante.is_staff else solicitante,
         )
 
+        return Response({'ok': True, 'numero': ticket.numero, 'id': ticket.pk})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AgentMachineInfoAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    GET /tickets/api/agent/machine/
+    Retorna info da máquina + ativos vinculados para exibir na aba Informações.
+    """
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        from apps.inventory.models import Machine
+
+        agent_token, err = self._authenticate(request)
+        if err:
+            return err
+
+        machine_name = agent_token.machine_name
+        if not machine_name:
+            return Response({'ok': False, 'error': 'Token sem machine_name.'}, status=400)
+
+        try:
+            machine = Machine.objects.get(hostname__iexact=machine_name)
+        except Machine.DoesNotExist:
+            return Response({'ok': False, 'error': f'Máquina "{machine_name}" não encontrada.'}, status=404)
+
+        # Ativos vinculados
+        ativos = []
+        try:
+            from apps.ativos.models import Ativo
+            for a in Ativo.objects.filter(computador=machine).select_related('categoria'):
+                ativos.append({
+                    'nome':      a.nome,
+                    'etiqueta':  a.etiqueta,
+                    'categoria': a.categoria.nome if a.categoria else '',
+                })
+        except Exception:
+            pass
+
+        checkin = machine.last_seen.strftime('%d/%m/%Y %H:%M') if machine.last_seen else '—'
+
         return Response({
-            'ok':     True,
-            'numero': ticket.numero,
-            'id':     ticket.pk,
+            'ok':          True,
+            'hostname':    machine.hostname,
+            'online':      machine.is_online,
+            'ip':          machine.ip_address or '—',
+            'logged_user': machine.loggedUser or '—',
+            'last_checkin': checkin,
+            'ativos':      ativos,
         })
