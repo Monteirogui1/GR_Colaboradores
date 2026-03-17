@@ -939,3 +939,49 @@ class BulkNotificationCreateView(LoginRequiredMixin, View):
 
         messages.success(request, f'Notificação enviada para {created} máquina(s) com sucesso!')
         return redirect(reverse_lazy('inventario:notifications_list'))
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AgentMachineInfoAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    GET /api/inventario/agent/machine/
+    Retorna info da máquina + ativos vinculados para a aba Informações do chamados.py
+    """
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        agent_token, err = self._authenticate(request)
+        if err:
+            return err
+
+        machine_name = agent_token.machine_name
+        if not machine_name:
+            return Response({'ok': False, 'error': 'Token sem machine_name.'}, status=400)
+
+        try:
+            machine = Machine.objects.get(hostname__iexact=machine_name)
+        except Machine.DoesNotExist:
+            return Response({'ok': False, 'error': f'Máquina "{machine_name}" não encontrada.'}, status=404)
+
+        ativos = []
+        try:
+            from apps.ativos.models import Ativo
+            for a in Ativo.objects.filter(computador=machine).select_related('categoria'):
+                ativos.append({
+                    'nome':      a.nome,
+                    'etiqueta':  a.etiqueta or '',
+                    'categoria': a.categoria.nome if a.categoria else '',
+                })
+        except Exception:
+            pass
+
+        return Response({
+            'ok':           True,
+            'hostname':     machine.hostname,
+            'online':       machine.is_online,
+            'ip':           machine.ip_address or '—',
+            'logged_user':  machine.loggedUser or '—',
+            'last_checkin': machine.last_seen.strftime('%d/%m/%Y %H:%M') if machine.last_seen else '—',
+            'ativos':       ativos,
+        })

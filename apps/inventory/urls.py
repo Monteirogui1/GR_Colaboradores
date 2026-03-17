@@ -33,6 +33,7 @@ from .views import (
     NotificationDeleteView, AgentVersionListView, AgentVersionCreateView, AgentTokenDeleteView, AgentVersionToggleView,
     AgentValidateTokenAPIView, AgentCheckUpdateAPIView, AgentDownloadAPIView, AgentHealthCheckAPIView,
     AgentTokenDeactivateView, AgentTokenCreateView, AgentTokenListView, BulkNotificationCreateView,
+    AgentMachineInfoAPIView,
 )
 
 app_name = 'inventario'
@@ -148,4 +149,9 @@ urlpatterns = [
         AgentHealthCheckAPIView.as_view(),
         name='api_health_check'
     ),
+    path(
+    'inventario/agent/machine/',
+    AgentMachineInfoAPIView.as_view(),
+    name='api_agent_machine',
+),
 ]
