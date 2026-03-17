@@ -155,40 +155,68 @@ class BulkNotificationForm(forms.Form):
 
 
 class AgentTokenGenerateForm(forms.Form):
-    """Formulário para geração de tokens"""
+    """
+    Formulário de geração de tokens.
+
+    Corrigido em relação à versão anterior:
+    - Adicionada opção 'infinite' (sem expiração) em `days`
+    - `days` agora é CharField para aceitar 'infinite' sem conflito de tipo
+    - Validação de `days` movida para clean_days()
+    - `quantity` com validação max_value dinâmica via __init__
+    """
+
+    DAYS_CHOICES = [
+        ('infinite', 'Sem expiração'),
+        ('1', '1 dia'),
+        ('3', '3 dias'),
+        ('7', '7 dias (recomendado)'),
+        ('14', '14 dias'),
+        ('30', '30 dias'),
+        ('60', '60 dias'),
+        ('90', '90 dias'),
+        ('180', '180 dias'),
+        ('365', '365 dias (1 ano)'),
+    ]
 
     quantity = forms.IntegerField(
-        label="Quantidade de Tokens",
+        label='Quantidade de Tokens',
         min_value=1,
         max_value=50,
         initial=1,
         widget=forms.NumberInput(attrs={
-            'class': 'form-control form-control-lg',
-            'placeholder': 'Ex: 1'
+            'class': 'form-control',
+            'placeholder': 'Ex: 1',
+            'min': '1',
+            'max': '50',
         }),
-        help_text="Gere até 50 tokens de uma vez"
+        help_text='Gere até 50 tokens de uma vez',
     )
 
     days = forms.ChoiceField(
-        label="Validade (dias)",
-        choices=[
-            (1, '1 dia'),
-            (3, '3 dias'),
-            (7, '7 dias (recomendado)'),
-            (14, '14 dias'),
-            (30, '30 dias'),
-            (60, '60 dias'),
-            (90, '90 dias'),
-            (180, '180 dias'),
-            (365, '365 dias (1 ano)'),
-        ],
-        initial=7,
-        widget=forms.Select(attrs={
-            'class': 'form-select form-select-lg'
-        }),
-        help_text="Tempo até o token expirar"
+        label='Validade',
+        choices=DAYS_CHOICES,
+        initial='7',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text='Tempo até o token expirar (máquinas já registradas não são afetadas)',
     )
 
+    def clean_quantity(self):
+        qty = self.cleaned_data.get('quantity')
+        if qty is None or qty < 1 or qty > 50:
+            raise forms.ValidationError('Informe uma quantidade entre 1 e 50.')
+        return qty
+
+    def clean_days(self):
+        val = self.cleaned_data.get('days', '').strip()
+        if val == 'infinite':
+            return 'infinite'
+        try:
+            days = int(val)
+            if days < 1 or days > 365:
+                raise forms.ValidationError('Validade deve ser entre 1 e 365 dias.')
+            return str(days)
+        except (ValueError, TypeError):
+            raise forms.ValidationError('Validade inválida.')
 
 class AgentVersionForm(forms.ModelForm):
     """Formulário para criação/edição de versão do agente."""

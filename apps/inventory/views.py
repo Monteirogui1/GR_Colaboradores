@@ -23,7 +23,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
 from django.db.models import Q
-from .forms import MachineForm, NotificationForm, BlockedSiteForm, MachineGroupForm
+from .forms import MachineForm, NotificationForm, BlockedSiteForm, MachineGroupForm, AgentTokenGenerateForm
 from .models import Machine, BlockedSite, Notification, MachineGroup, AgentToken, AgentVersion, AgentTokenUsage
 
 logger = logging.getLogger(__name__)
@@ -634,81 +634,81 @@ class AgentTokenListView(LoginRequiredMixin, ListView):
 
 
 class AgentTokenCreateView(LoginRequiredMixin, CreateView):
-    """Gera novos tokens de instalação"""
+    """Gera novos tokens de instalação via AgentTokenGenerateForm."""
     model = AgentToken
     template_name = 'inventario/agent_token_create.html'
-    fields = []
+    fields = []  # campos controlados pelo form customizado
     success_url = reverse_lazy('inventario:token_list')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['form'] = AgentTokenGenerateForm(self.request.POST or None)
         context['default_days'] = 7
         context['max_quantity'] = 50
         return context
 
     def post(self, request, *args, **kwargs):
+        form = AgentTokenGenerateForm(request.POST)
+
+        if not form.is_valid():
+            # Reexibe o template com erros
+            return render(request, self.template_name, {
+                'form': form,
+                'default_days': 7,
+                'max_quantity': 50,
+            })
+
+        quantity = form.cleaned_data['quantity']
+        days_val = form.cleaned_data['days']
+
         try:
-            # Quantidade de tokens
-            quantity = int(request.POST.get('quantity', 1))
-            if quantity < 1 or quantity > 50:
-                raise ValueError("Quantidade deve ser entre 1 e 50")
-
-            # Validade em dias
-            days = request.POST.get('days', '7')
-
-            # Verifica se é validade infinita
-            if days == 'infinite':
-                # Define data muito distante (100 anos no futuro)
+            if days_val == 'infinite':
                 expires_at = timezone.now() + timedelta(days=36500)
-                validity_text = "sem expiração"
+                validity_text = 'sem expiração'
             else:
-                days = int(days)
-                if days < 1 or days > 365:
-                    raise ValueError("Validade deve ser entre 1 e 365 dias ou infinita")
+                days = int(days_val)
                 expires_at = timezone.now() + timedelta(days=days)
-                validity_text = f"{days} dias"
+                validity_text = f'{days} dias'
 
-            generated_tokens = []
-
+            generated = []
             for _ in range(quantity):
-                # Gera token único
-                while True:
+                # Garante unicidade
+                for _ in range(10):
                     token = AgentToken.generate_token()
                     token_hash = AgentToken.hash_token(token)
-
                     if not AgentToken.objects.filter(token=token).exists():
                         break
 
-                # Cria registro
                 agent_token = AgentToken.objects.create(
                     token=token,
                     token_hash=token_hash,
                     created_by=request.user,
-                    expires_at=expires_at
+                    expires_at=expires_at,
                 )
-
-                generated_tokens.append(agent_token)
+                generated.append(agent_token)
 
             if quantity == 1:
                 messages.success(
                     request,
-                    f"✅ Token gerado: <strong>{generated_tokens[0].token}</strong>",
-                    extra_tags='safe'
+                    f'✅ Token gerado: <strong>{generated[0].token}</strong> '
+                    f'— validade: {validity_text}',
+                    extra_tags='safe',
                 )
             else:
                 messages.success(
                     request,
-                    f"✅ {quantity} tokens gerados com sucesso!"
+                    f'✅ {quantity} tokens gerados com sucesso! Validade: {validity_text}.',
                 )
 
             return redirect(self.success_url)
 
-        except ValueError as e:
-            messages.error(request, f"❌ Erro: {str(e)}")
-            return redirect('inventario:token_create')
         except Exception as e:
-            messages.error(request, f"❌ Erro ao gerar token: {str(e)}")
-            return redirect('inventario:token_create')
+            messages.error(request, f'❌ Erro ao gerar token: {e}')
+            return render(request, self.template_name, {
+                'form': form,
+                'default_days': 7,
+                'max_quantity': 50,
+            })
 
 
 class AgentTokenDeactivateView(LoginRequiredMixin, View):
