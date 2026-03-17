@@ -178,12 +178,13 @@ class TicketForm(forms.ModelForm):
     class Meta:
         model = Ticket
         fields = [
-            'solicitante', 'status', 'categoria', 'urgencia', 'servico',
+            'solicitante', 'machine', 'status', 'categoria', 'urgencia', 'servico',
             'justificativa', 'responsavel', 'assunto', 'descricao',
             'tipo_ticket', 'tags', 'cc', 'ticket_pai'
         ]
         widgets = {
             'solicitante': forms.Select(attrs={'class': 'form-control', 'required': True}),
+            'machine': forms.Select(attrs={'class': 'form-control'}),
             'status': forms.Select(attrs={'class': 'form-control'}),
             'categoria': forms.Select(attrs={'class': 'form-control'}),
             'urgencia': forms.Select(attrs={'class': 'form-control'}),
@@ -228,6 +229,16 @@ class TicketForm(forms.ModelForm):
             self.fields['status'].queryset = Status.objects.filter(cliente=cliente, ativo=True)
             self.fields['servico'].queryset = Servico.objects.filter(cliente=cliente, ativo=True)
             self.fields['justificativa'].queryset = Justificativa.objects.filter(cliente=cliente, ativo=True)
+
+        if not (self.usuario and self.usuario.is_staff):
+            self.fields.pop('machine', None)
+        else:
+            from apps.inventory.models import Machine
+            from django.db.models import Q
+            cliente = self.usuario
+            self.fields['machine'].queryset = Machine.objects.all()
+            self.fields['machine'].required = False
+            self.fields['machine'].label = "Máquina de origem"
 
     def clean(self):
         cleaned_data = super().clean()

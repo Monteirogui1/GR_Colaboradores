@@ -29,6 +29,14 @@
                 {{ form.solicitante }}
                 {% if form.solicitante.errors %}<div class="text-danger">{{ form.solicitante.errors }}</div>{% endif %}
             </div>
+            {% if user.is_staff and form.machine %}
+            <div class="form-group">
+                {{ form.machine.label_tag }}
+                {{ form.machine }}
+                {% if form.machine.errors %}<div class="text-danger">{{ form.machine.errors }}</div>{% endif %}
+                <span class="form-hint">Máquina vinculada automaticamente ao abrir via agente</span>
+            </div>
+            {% endif %}
             {% if user.is_staff %}
             <div class="form-group">
                 {{ form.responsavel.label_tag }}

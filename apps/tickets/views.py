@@ -261,7 +261,8 @@ class TicketDetailView(LoginRequiredMixin, ClienteObjectMixin, DetailView):
         return super().get_queryset().select_related(
             'solicitante', 'responsavel', 'status', 'categoria',
             'urgencia', 'servico', 'justificativa', 'contrato_sla',
-            'regra_sla_aplicada', 'ticket_pai'
+            'regra_sla_aplicada', 'ticket_pai',
+            'machine',
         ).prefetch_related(
             'acoes__autor',
             'anexos',

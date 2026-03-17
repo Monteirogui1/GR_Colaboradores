@@ -17,8 +17,6 @@ Requisitos do servidor (apps/tickets/views.py + urls.py):
 """
 
 import os
-import re
-import json
 import threading
 import tkinter as tk
 from tkinter import ttk, font as tkfont, messagebox
@@ -30,72 +28,58 @@ logger = logging.getLogger("AgentTray")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Paleta — dark sidebar + light main (igual notification usa BG/BORDER)
+# Paleta
 # ═════════════════════════════════════════════════════════════════════════════
 _C = {
     # sidebar escura
-    "sb_bg":       "#111827",
-    "sb_hdr":      "#0d1420",
-    "sb_border":   "#1f2937",
-    "sb_hover":    "#1c2a3a",
-    "sb_active":   "#1e3a5f",
-    "sb_text":     "#f9fafb",
-    "sb_muted":    "#6b7280",
-    "sb_entry_bg": "#1f2937",
-    "sb_entry_bd": "#374151",
-    # área principal clara
+    "sb_bg":       "#0f172a",
+    "sb_hdr":      "#0d1117",
+    "sb_hover":    "#161f2e",
+    "sb_active":   "#1e3354",
+    "sb_text":     "#f8fafc",
+    "sb_muted":    "#475569",
+    "sb_num":      "#334155",
+    "sb_entry_bg": "#131c2e",
+    "sb_entry_bd": "#1e293b",
+    # main area
     "main_bg":     "#ffffff",
-    "chat_bg":     "#f3f4f6",
-    "border":      "#e5e7eb",
-    "text":        "#111827",
-    "muted":       "#6b7280",
-    "hint":        "#9ca3af",
+    "chat_bg":     "#f8fafc",
+    "border":      "#f1f5f9",
+    "border_md":   "#e2e8f0",
+    "text":        "#0f172a",
+    "muted":       "#64748b",
+    "hint":        "#94a3b8",
     # balões
     "staff_bg":    "#2563eb",
     "staff_fg":    "#ffffff",
     "user_bg":     "#ffffff",
-    "user_bd":     "#e5e7eb",
-    "user_fg":     "#111827",
+    "user_bd":     "#e2e8f0",
+    "user_fg":     "#1e293b",
     # botões / inputs
     "blue":        "#2563eb",
     "blue_hov":    "#1d4ed8",
-    "inp_bg":      "#f9fafb",
-    "inp_bd":      "#d1d5db",
+    "inp_bg":      "#f8fafc",
+    "inp_bd":      "#e2e8f0",
     "inp_focus":   "#2563eb",
-    # modal overlay
-    "overlay":     "#00000070",
 }
 
-# badges por status
-_BADGE = {
-    "Aberto":       ("#dbeafe", "#1e40af"),
-    "Em andamento": ("#fef3c7", "#92400e"),
-    "Resolvido":    ("#d1fae5", "#065f46"),
-    "Fechado":      ("#f3f4f6", "#374151"),
-    "Cancelado":    ("#fee2e2", "#7f1d1d"),
-}
-_STRIPE = {
-    "Aberto":       "#3b82f6",
-    "Em andamento": "#f59e0b",
-    "Resolvido":    "#10b981",
-    "Fechado":      "#6b7280",
-    "Cancelado":    "#ef4444",
+# Status → (pill_bg, pill_fg, stripe)
+_STATUS = {
+    "Aberto":       ("#dbeafe", "#1e40af", "#3b82f6"),
+    "Em andamento": ("#fef3c7", "#92400e", "#f59e0b"),
+    "Resolvido":    ("#d1fae5", "#065f46", "#10b981"),
+    "Fechado":      ("#f1f5f9", "#475569", "#94a3b8"),
+    "Cancelado":    ("#fee2e2", "#7f1d1d", "#ef4444"),
 }
 
-
-def _badge(status):
-    return _BADGE.get(status, ("#f3f4f6", "#374151"))
-
-
-def _stripe(status):
-    return _STRIPE.get(status, "#6b7280")
+def _st(status):
+    return _STATUS.get(status, ("#f1f5f9", "#475569", "#94a3b8"))
 
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Helpers de widget
 # ═════════════════════════════════════════════════════════════════════════════
 def _entry(master, textvariable=None, **kw):
-    """Entry estilizado com highlight de foco."""
     e = tk.Entry(
         master,
         textvariable=textvariable,
@@ -113,53 +97,52 @@ def _entry(master, textvariable=None, **kw):
 
 
 def _dark_entry(master, textvariable=None, **kw):
-    """Entry para a sidebar escura."""
     e = tk.Entry(
         master,
         textvariable=textvariable,
-        bg=_C["sb_entry_bg"], fg="#d1d5db",
-        insertbackground="#d1d5db",
+        bg=_C["sb_entry_bg"], fg="#94a3b8",
+        insertbackground="#94a3b8",
         relief=tk.FLAT, bd=0,
         highlightthickness=1,
         highlightbackground=_C["sb_entry_bd"],
-        highlightcolor=_C["blue"],
+        highlightcolor="#2563eb",
         **kw,
     )
-    e.bind("<FocusIn>",  lambda _: e.config(highlightbackground=_C["blue"]))
-    e.bind("<FocusOut>", lambda _: e.config(highlightbackground=_C["sb_entry_bd"]))
+    e.bind("<FocusIn>",  lambda _: e.config(highlightbackground="#2563eb", fg="#e2e8f0"))
+    e.bind("<FocusOut>", lambda _: e.config(highlightbackground=_C["sb_entry_bd"], fg="#94a3b8"))
     return e
 
 
-def _btn(master, text, cmd, primary=False, **kw):
-    """Botão plano estilizado."""
-    if primary:
-        b = tk.Button(
-            master, text=text, command=cmd,
-            bg=_C["blue"], fg="#ffffff",
-            activebackground=_C["blue_hov"], activeforeground="#ffffff",
-            relief=tk.FLAT, bd=0, cursor="hand2", **kw,
-        )
-    else:
-        b = tk.Button(
-            master, text=text, command=cmd,
-            bg=_C["inp_bg"], fg=_C["muted"],
-            activebackground=_C["chat_bg"], activeforeground=_C["text"],
-            relief=tk.FLAT, bd=0,
-            highlightthickness=1, highlightbackground=_C["inp_bd"],
-            cursor="hand2", **kw,
-        )
-    return b
+def _btn_primary(master, text, cmd, **kw):
+    return tk.Button(
+        master, text=text, command=cmd,
+        bg=_C["blue"], fg="#ffffff",
+        activebackground=_C["blue_hov"], activeforeground="#ffffff",
+        relief=tk.FLAT, bd=0, cursor="hand2", **kw,
+    )
 
 
-def _sep(master, horizontal=True, color=None):
-    color = color or _C["border"]
-    if horizontal:
-        return tk.Frame(master, bg=color, height=1)
-    return tk.Frame(master, bg=color, width=1)
+def _btn_secondary(master, text, cmd, **kw):
+    return tk.Button(
+        master, text=text, command=cmd,
+        bg="#ffffff", fg=_C["muted"],
+        activebackground=_C["inp_bg"], activeforeground=_C["text"],
+        relief=tk.FLAT, bd=0,
+        highlightthickness=1, highlightbackground=_C["inp_bd"],
+        cursor="hand2", **kw,
+    )
+
+
+def _hsep(master, color=None):
+    return tk.Frame(master, bg=color or _C["border"], height=1)
+
+
+def _vsep(master):
+    return tk.Frame(master, bg="#1e293b", width=1)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# _ApiClient — wrapper HTTP reutilizável
+# _ApiClient
 # ═════════════════════════════════════════════════════════════════════════════
 class _ApiClient:
     def __init__(self, server_url: str, token_hash: str):
@@ -183,98 +166,83 @@ class _ApiClient:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# NovoTicketModal
+# _NovoTicketModal
 # ═════════════════════════════════════════════════════════════════════════════
 class _NovoTicketModal:
-    """
-    Modal de abertura de novo chamado.
-    Abre como Toplevel filho de ChamadosWindow.
-    """
 
-    def __init__(self, parent_win: tk.Tk, api: _ApiClient,
-                 email_padrao: str, on_success):
+    def __init__(self, parent_win: tk.Tk, api: _ApiClient, on_success):
         self._api        = api
         self._on_success = on_success
 
         win = tk.Toplevel(parent_win)
         self._win = win
         win.title("Novo chamado")
-        win.geometry("480x510")
+        win.geometry("440x420")
         win.resizable(False, False)
         win.configure(bg=_C["main_bg"])
         win.grab_set()
         win.focus_force()
         win.protocol("WM_DELETE_WINDOW", win.destroy)
 
-        # fontes
-        fL = tkfont.Font(family="Segoe UI", size=8,  weight="bold")
+        fT = tkfont.Font(family="Segoe UI", size=11, weight="bold")
+        fL = tkfont.Font(family="Segoe UI", size=8)
         fI = tkfont.Font(family="Segoe UI", size=10)
         fB = tkfont.Font(family="Segoe UI", size=9,  weight="bold")
-        fT = tkfont.Font(family="Segoe UI", size=11, weight="bold")
         fS = tkfont.Font(family="Segoe UI", size=9)
 
-        # ── Header ───────────────────────────────────────────────────────────
-        hdr = tk.Frame(win, bg=_C["main_bg"], padx=20, pady=15)
+        # Header
+        hdr = tk.Frame(win, bg=_C["main_bg"], padx=18, pady=14)
         hdr.pack(fill=tk.X)
-        tk.Label(hdr, text="Abrir novo chamado", font=fT,
+        tk.Label(hdr, text="Novo chamado", font=fT,
                  bg=_C["main_bg"], fg=_C["text"]).pack(side=tk.LEFT)
-        _btn(hdr, "✕", win.destroy, padx=8, pady=3).pack(side=tk.RIGHT)
-        _sep(win).pack(fill=tk.X)
+        tk.Button(hdr, text="✕", font=fS,
+                  bg=_C["main_bg"], fg=_C["hint"],
+                  relief=tk.FLAT, bd=0, cursor="hand2",
+                  command=win.destroy).pack(side=tk.RIGHT)
+        _hsep(win, _C["border_md"]).pack(fill=tk.X)
 
-        # ── Body ─────────────────────────────────────────────────────────────
-        body = tk.Frame(win, bg=_C["main_bg"], padx=20, pady=16)
+        # Body
+        body = tk.Frame(win, bg=_C["main_bg"], padx=18, pady=16)
         body.pack(fill=tk.BOTH, expand=True)
 
-        def flabel(master, text, req=False):
-            f = tk.Frame(master, bg=_C["main_bg"])
-            f.pack(fill=tk.X, pady=(0, 4))
-            tk.Label(f, text=text.upper(), font=fL,
+        def flbl(master, text, req=False):
+            frm = tk.Frame(master, bg=_C["main_bg"])
+            frm.pack(fill=tk.X, pady=(0, 4))
+            tk.Label(frm, text=text.upper(), font=fL,
                      bg=_C["main_bg"], fg=_C["muted"]).pack(side=tk.LEFT)
             if req:
-                tk.Label(f, text=" *", font=fL,
-                         bg=_C["main_bg"], fg="#ef4444").pack(side=tk.LEFT)
+                tk.Label(frm, text=" *", font=fL,
+                         bg=_C["main_bg"], fg="#f43f5e").pack(side=tk.LEFT)
 
-        # e-mail
-        flabel(body, "E-mail do solicitante", req=True)
-        self._email_var = tk.StringVar(value=email_padrao)
-        _entry(body, textvariable=self._email_var, font=fI).pack(
-            fill=tk.X, ipady=7, pady=(0, 14))
-
-        # tipo + urgência
-        row2 = tk.Frame(body, bg=_C["main_bg"])
-        row2.pack(fill=tk.X, pady=(0, 14))
-
-        col_l = tk.Frame(row2, bg=_C["main_bg"])
-        col_l.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
-        flabel(col_l, "Tipo de serviço")
-        self._tipo_var = tk.StringVar()
-        cb_tipo = ttk.Combobox(col_l, textvariable=self._tipo_var,
-                               state="readonly", font=fI,
-                               values=["Suporte técnico",
-                                       "Acesso e permissões",
-                                       "Hardware / Equipamento",
-                                       "Software / Sistema",
-                                       "Rede e conectividade",
-                                       "Outros"])
-        cb_tipo.pack(fill=tk.X, ipady=4)
-
-        col_r = tk.Frame(row2, bg=_C["main_bg"])
-        col_r.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        flabel(col_r, "Urgência")
-        self._urg_var = tk.StringVar(value="Normal")
-        cb_urg = ttk.Combobox(col_r, textvariable=self._urg_var,
-                              state="readonly", font=fI,
-                              values=["Baixa", "Normal", "Alta", "Crítica"])
-        cb_urg.pack(fill=tk.X, ipady=4)
-
-        # assunto
-        flabel(body, "Assunto", req=True)
+        flbl(body, "Assunto", req=True)
         self._assunto_var = tk.StringVar()
         _entry(body, textvariable=self._assunto_var, font=fI).pack(
             fill=tk.X, ipady=7, pady=(0, 14))
 
-        # descrição
-        flabel(body, "Descrição", req=True)
+        row = tk.Frame(body, bg=_C["main_bg"])
+        row.pack(fill=tk.X, pady=(0, 14))
+
+        col_l = tk.Frame(row, bg=_C["main_bg"])
+        col_l.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        flbl(col_l, "Tipo de serviço")
+        self._tipo_var = tk.StringVar()
+        ttk.Combobox(col_l, textvariable=self._tipo_var,
+                     state="readonly", font=fI,
+                     values=["Suporte técnico", "Acesso e permissões",
+                             "Hardware / Equipamento", "Software / Sistema",
+                             "Rede e conectividade", "Outros"]).pack(
+            fill=tk.X, ipady=4)
+
+        col_r = tk.Frame(row, bg=_C["main_bg"])
+        col_r.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        flbl(col_r, "Urgência")
+        self._urg_var = tk.StringVar(value="Normal")
+        ttk.Combobox(col_r, textvariable=self._urg_var,
+                     state="readonly", font=fI,
+                     values=["Baixa", "Normal", "Alta", "Crítica"]).pack(
+            fill=tk.X, ipady=4)
+
+        flbl(body, "Descrição", req=True)
         self._desc = tk.Text(
             body, height=5, font=fI,
             bg=_C["inp_bg"], fg=_C["text"],
@@ -291,25 +259,22 @@ class _NovoTicketModal:
         self._desc.bind("<FocusOut>",
             lambda _: self._desc.config(highlightbackground=_C["inp_bd"]))
 
-        # ── Footer ───────────────────────────────────────────────────────────
-        _sep(win).pack(fill=tk.X, side=tk.BOTTOM)
-        footer = tk.Frame(win, bg=_C["main_bg"], padx=20, pady=12)
+        # Footer
+        _hsep(win, _C["border_md"]).pack(fill=tk.X, side=tk.BOTTOM)
+        footer = tk.Frame(win, bg=_C["main_bg"], padx=18, pady=12)
         footer.pack(fill=tk.X, side=tk.BOTTOM)
-
-        _btn(footer, "Cancelar", win.destroy,
-             font=fS, padx=14, pady=7).pack(side=tk.RIGHT, padx=(8, 0))
-        _btn(footer, "Abrir chamado", self._submit, primary=True,
-             font=fB, padx=14, pady=7).pack(side=tk.RIGHT)
+        _btn_secondary(footer, "Cancelar", win.destroy,
+                       font=fS, padx=14, pady=6).pack(side=tk.RIGHT, padx=(8, 0))
+        _btn_primary(footer, "Abrir chamado", self._submit,
+                     font=fB, padx=14, pady=6).pack(side=tk.RIGHT)
 
     def _submit(self):
-        email    = self._email_var.get().strip()
-        tipo     = self._tipo_var.get().strip()
-        assunto  = self._assunto_var.get().strip()
+        assunto   = self._assunto_var.get().strip()
+        tipo      = self._tipo_var.get().strip()
         descricao = self._desc.get("1.0", tk.END).strip()
 
         missing = []
-        if not email:    missing.append("E-mail")
-        if not assunto:  missing.append("Assunto")
+        if not assunto:   missing.append("Assunto")
         if not descricao: missing.append("Descrição")
         if missing:
             messagebox.showerror("Campos obrigatórios",
@@ -320,10 +285,10 @@ class _NovoTicketModal:
         def send():
             try:
                 data = self._api.post("/tickets/api/agent/criar/", {
-                        "tipo_chamado": tipo,
-                        "assunto":      assunto,
-                        "descricao":    descricao,
-                    })
+                    "tipo_chamado": tipo,
+                    "assunto":      assunto,
+                    "descricao":    descricao,
+                })
                 if data.get("ok"):
                     self._win.after(0, self._win.destroy)
                     self._win.after(300, lambda: self._on_success(data))
@@ -340,39 +305,30 @@ class _NovoTicketModal:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# _ChamadosWindow — janela principal
+# _ChamadosWindow
 # ═════════════════════════════════════════════════════════════════════════════
 class _ChamadosWindow:
-    """
-    Janela principal de chamados.
-    Instanciada e gerenciada por ChamadosManager.
-    """
 
     def __init__(self, server_url: str, token_hash: str):
-        self._api      = _ApiClient(server_url, token_hash)
-        self._tickets  = []
-        self._selected = None
+        self._api       = _ApiClient(server_url, token_hash)
+        self._tickets   = []
+        self._selected  = None
         self._historico = []
-        self._email    = os.environ.get("AGENT_USER_EMAIL", "")
-        self.alive     = True
-
+        self.alive      = True
         threading.Thread(target=self._run, daemon=True).start()
 
-    # ── loop principal ────────────────────────────────────────────────────────
     def _run(self):
         win = tk.Tk()
         self._win = win
         win.title("Meus Chamados")
-        win.geometry("1020x660")
-        win.minsize(820, 540)
+        win.geometry("980x640")
+        win.minsize(780, 520)
         win.configure(bg=_C["main_bg"])
         win.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        # fontes
         self._fN  = tkfont.Font(family="Segoe UI", size=9)
         self._fB  = tkfont.Font(family="Segoe UI", size=9,  weight="bold")
         self._fS  = tkfont.Font(family="Segoe UI", size=8)
-        self._fH  = tkfont.Font(family="Segoe UI", size=11, weight="bold")
         self._fSB = tkfont.Font(family="Segoe UI", size=10, weight="bold")
         self._fM  = tkfont.Font(family="Segoe UI", size=10)
         self._fBT = tkfont.Font(family="Segoe UI", size=9,  weight="bold")
@@ -381,53 +337,47 @@ class _ChamadosWindow:
         outer.pack(fill=tk.BOTH, expand=True)
 
         self._build_sidebar(outer)
-        _sep(outer, horizontal=False, color=_C["sb_border"]).pack(
-            side=tk.LEFT, fill=tk.Y)
+        _vsep(outer).pack(side=tk.LEFT, fill=tk.Y)
         self._build_main(outer)
 
         win.after(300, self._load_tickets)
         win.mainloop()
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # SIDEBAR
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── SIDEBAR ───────────────────────────────────────────────────────────────
     def _build_sidebar(self, parent):
-        sb = tk.Frame(parent, bg=_C["sb_bg"], width=282)
+        sb = tk.Frame(parent, bg=_C["sb_bg"], width=256)
         sb.pack(side=tk.LEFT, fill=tk.Y)
         sb.pack_propagate(False)
 
-        # ── Header ───────────────────────────────────────────────────────────
-        hdr_wrap = tk.Frame(sb, bg=_C["sb_hdr"])
-        hdr_wrap.pack(fill=tk.X)
-        hdr = tk.Frame(hdr_wrap, bg=_C["sb_hdr"], padx=14, pady=13)
+        hdr_frame = tk.Frame(sb, bg=_C["sb_hdr"])
+        hdr_frame.pack(fill=tk.X)
+        hdr = tk.Frame(hdr_frame, bg=_C["sb_hdr"], padx=14, pady=13)
         hdr.pack(fill=tk.X)
         tk.Label(hdr, text="Meus chamados", font=self._fB,
                  bg=_C["sb_hdr"], fg=_C["sb_text"]).pack(side=tk.LEFT)
-        _btn(hdr, "+ Novo", self._novo_ticket, primary=True,
-             font=self._fBT, padx=10, pady=4).pack(side=tk.RIGHT)
-        _sep(hdr_wrap, color=_C["sb_border"]).pack(fill=tk.X)
+        _btn_primary(hdr, "+ Novo", self._novo_ticket,
+                     font=self._fBT, padx=9, pady=3).pack(side=tk.RIGHT)
+        tk.Frame(hdr_frame, bg="#1e293b", height=1).pack(fill=tk.X)
 
-        # ── Busca ─────────────────────────────────────────────────────────────
-        srch_wrap = tk.Frame(sb, bg=_C["sb_bg"], padx=12, pady=10)
-        srch_wrap.pack(fill=tk.X)
+        srch_frm = tk.Frame(sb, bg=_C["sb_bg"], padx=12, pady=10)
+        srch_frm.pack(fill=tk.X)
         self._search_var = tk.StringVar()
         self._search_var.trace_add("write", lambda *_: self._filter())
-        self._search_e = _dark_entry(srch_wrap, textvariable=self._search_var,
+        self._search_e = _dark_entry(srch_frm, textvariable=self._search_var,
                                      font=self._fN)
         self._search_e.pack(fill=tk.X, ipady=6)
         self._search_e.insert(0, "Buscar chamado...")
         self._search_e.config(fg=_C["sb_muted"])
         self._search_e.bind("<FocusIn>",  self._search_in)
         self._search_e.bind("<FocusOut>", self._search_out)
-        _sep(sb, color=_C["sb_border"]).pack(fill=tk.X)
+        tk.Frame(sb, bg="#1e293b", height=1).pack(fill=tk.X)
 
-        # ── Lista scrollável ──────────────────────────────────────────────────
         lista_wrap = tk.Frame(sb, bg=_C["sb_bg"])
         lista_wrap.pack(fill=tk.BOTH, expand=True)
 
         vsb = tk.Scrollbar(lista_wrap, orient=tk.VERTICAL,
                            bg=_C["sb_bg"], troughcolor=_C["sb_bg"],
-                           relief=tk.FLAT, bd=0, width=4)
+                           relief=tk.FLAT, bd=0, width=3)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
         self._list_cv = tk.Canvas(lista_wrap, bg=_C["sb_bg"],
@@ -441,81 +391,62 @@ class _ChamadosWindow:
             (0, 0), window=self._list_inner, anchor="nw")
 
         self._list_inner.bind("<Configure>", lambda _:
-            self._list_cv.configure(
-                scrollregion=self._list_cv.bbox("all")))
+            self._list_cv.configure(scrollregion=self._list_cv.bbox("all")))
         self._list_cv.bind("<Configure>", lambda e:
             self._list_cv.itemconfig(self._list_win, width=e.width))
         self._list_cv.bind("<MouseWheel>", lambda e:
             self._list_cv.yview_scroll(-1 * (e.delta // 120), "units"))
 
-        # ── Rodapé e-mail ─────────────────────────────────────────────────────
-        _sep(sb, color=_C["sb_border"]).pack(fill=tk.X, side=tk.BOTTOM)
-        email_wrap = tk.Frame(sb, bg=_C["sb_bg"], padx=12, pady=10)
-        email_wrap.pack(fill=tk.X, side=tk.BOTTOM)
-        tk.Label(email_wrap, text="E-MAIL", font=self._fS,
-                 bg=_C["sb_bg"], fg=_C["sb_muted"]).pack(anchor="w")
-        self._email_var = tk.StringVar(value=self._email)
-        _dark_entry(email_wrap, textvariable=self._email_var,
-                    font=self._fN).pack(fill=tk.X, ipady=5, pady=(4, 6))
-        _btn(email_wrap, "↻  Carregar chamados", self._load_tickets,
-             font=self._fS, pady=5).pack(fill=tk.X)
-
     def _search_in(self, _e):
         if self._search_var.get() == "Buscar chamado...":
             self._search_e.delete(0, tk.END)
-            self._search_e.config(fg="#d1d5db")
+            self._search_e.config(fg="#e2e8f0")
 
     def _search_out(self, _e):
         if not self._search_var.get():
             self._search_e.insert(0, "Buscar chamado...")
             self._search_e.config(fg=_C["sb_muted"])
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # MAIN
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── MAIN ─────────────────────────────────────────────────────────────────
     def _build_main(self, parent):
         main = tk.Frame(parent, bg=_C["main_bg"])
         main.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Estado vazio
-        self._empty = tk.Frame(main, bg=_C["main_bg"])
+        self._empty = tk.Frame(main, bg=_C["chat_bg"])
         self._empty.pack(fill=tk.BOTH, expand=True)
         tk.Label(self._empty,
-                 text="← Selecione um chamado para visualizar",
-                 font=self._fN, bg=_C["main_bg"], fg=_C["hint"]).place(
+                 text="Selecione um chamado para visualizar",
+                 font=self._fN, bg=_C["chat_bg"], fg=_C["hint"]).place(
             relx=0.5, rely=0.5, anchor="center")
 
-        # Frame do ticket
         self._tk_frame = tk.Frame(main, bg=_C["main_bg"])
 
-        # header
-        tk_hdr_wrap = tk.Frame(self._tk_frame, bg=_C["main_bg"])
-        tk_hdr_wrap.pack(fill=tk.X)
-        tk_hdr = tk.Frame(tk_hdr_wrap, bg=_C["main_bg"], padx=20, pady=14)
-        tk_hdr.pack(fill=tk.X)
+        hdr_wrap = tk.Frame(self._tk_frame, bg=_C["main_bg"])
+        hdr_wrap.pack(fill=tk.X)
+        hdr = tk.Frame(hdr_wrap, bg=_C["main_bg"], padx=20, pady=14)
+        hdr.pack(fill=tk.X)
 
-        info_col = tk.Frame(tk_hdr, bg=_C["main_bg"])
-        info_col.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self._lbl_num = tk.Label(info_col, text="", font=self._fS,
+        left = tk.Frame(hdr, bg=_C["main_bg"])
+        left.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self._lbl_num = tk.Label(left, text="", font=self._fS,
                                   bg=_C["main_bg"], fg=_C["hint"], anchor="w")
         self._lbl_num.pack(anchor="w")
-        self._lbl_sub = tk.Label(info_col, text="", font=self._fSB,
+        self._lbl_sub = tk.Label(left, text="", font=self._fSB,
                                   bg=_C["main_bg"], fg=_C["text"], anchor="w",
                                   wraplength=460)
-        self._lbl_sub.pack(anchor="w")
+        self._lbl_sub.pack(anchor="w", pady=(2, 0))
 
-        self._lbl_badge = tk.Label(tk_hdr, text="", font=self._fS,
-                                    padx=10, pady=4)
+        self._lbl_badge = tk.Label(hdr, text="", font=self._fS,
+                                    padx=9, pady=3)
         self._lbl_badge.pack(side=tk.RIGHT, anchor="n", pady=4)
-        _sep(tk_hdr_wrap).pack(fill=tk.X)
+        _hsep(hdr_wrap).pack(fill=tk.X)
 
-        # ── chat area ─────────────────────────────────────────────────────────
         chat_wrap = tk.Frame(self._tk_frame, bg=_C["chat_bg"])
         chat_wrap.pack(fill=tk.BOTH, expand=True)
 
         chat_vsb = tk.Scrollbar(chat_wrap, orient=tk.VERTICAL,
                                 bg=_C["chat_bg"], troughcolor=_C["chat_bg"],
-                                relief=tk.FLAT, bd=0, width=4)
+                                relief=tk.FLAT, bd=0, width=3)
         chat_vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
         self._chat_cv = tk.Canvas(chat_wrap, bg=_C["chat_bg"],
@@ -529,21 +460,19 @@ class _ChamadosWindow:
             (0, 0), window=self._chat_inner, anchor="nw")
 
         self._chat_inner.bind("<Configure>", lambda _:
-            self._chat_cv.configure(
-                scrollregion=self._chat_cv.bbox("all")))
-        self._chat_cv.bind("<Configure>", self._on_chat_cv_resize)
+            self._chat_cv.configure(scrollregion=self._chat_cv.bbox("all")))
+        self._chat_cv.bind("<Configure>", self._on_chat_resize)
         self._chat_cv.bind("<MouseWheel>", lambda e:
             self._chat_cv.yview_scroll(-1 * (e.delta // 120), "units"))
 
-        # ── reply bar ─────────────────────────────────────────────────────────
         reply_wrap = tk.Frame(self._tk_frame, bg=_C["main_bg"])
         reply_wrap.pack(fill=tk.X, side=tk.BOTTOM)
-        _sep(reply_wrap).pack(fill=tk.X)
+        _hsep(reply_wrap).pack(fill=tk.X)
         reply_inner = tk.Frame(reply_wrap, bg=_C["main_bg"], padx=14, pady=10)
         reply_inner.pack(fill=tk.X)
 
         self._reply = tk.Text(
-            reply_inner, height=3, font=self._fM,
+            reply_inner, height=2, font=self._fM,
             bg=_C["inp_bg"], fg=_C["text"],
             insertbackground=_C["text"],
             relief=tk.FLAT, bd=0,
@@ -562,29 +491,23 @@ class _ChamadosWindow:
         self._reply.bind("<Shift-Return>", lambda _: None)
 
         tk.Button(
-            reply_inner, text="→",
-            font=tkfont.Font(family="Segoe UI", size=14),
+            reply_inner, text="↑",
+            font=tkfont.Font(family="Segoe UI", size=13, weight="bold"),
             bg=_C["blue"], fg="#ffffff",
             activebackground=_C["blue_hov"], activeforeground="#ffffff",
-            relief=tk.FLAT, bd=0,
-            width=2, pady=6, cursor="hand2",
+            relief=tk.FLAT, bd=0, width=2, pady=5, cursor="hand2",
             command=self._send_reply,
         ).pack(side=tk.LEFT, padx=(10, 0))
 
-    def _on_chat_cv_resize(self, e):
+    def _on_chat_resize(self, e):
         self._chat_cv.itemconfig(self._chat_win, width=e.width)
         wrap = max(e.width - 130, 200)
         for outer in self._chat_inner.winfo_children():
             for child in outer.winfo_children():
                 if isinstance(child, tk.Label):
-                    try:
-                        child.config(wraplength=wrap)
-                    except Exception:
-                        pass
+                    try: child.config(wraplength=wrap)
+                    except Exception: pass
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # reply helpers
-    # ─────────────────────────────────────────────────────────────────────────
     def _reply_in(self, _e):
         if self._reply.get("1.0", tk.END).strip() == self._reply_ph:
             self._reply.delete("1.0", tk.END)
@@ -600,9 +523,7 @@ class _ChamadosWindow:
             self._send_reply()
             return "break"
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # API calls
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── API ──────────────────────────────────────────────────────────────────
     def _load_tickets(self):
         def fetch():
             try:
@@ -611,7 +532,6 @@ class _ChamadosWindow:
                     lambda: self._render_list(data.get("tickets", [])))
             except Exception as ex:
                 logger.error(f"load_tickets: {ex}")
-
         threading.Thread(target=fetch, daemon=True).start()
 
     def _load_detail(self, ticket):
@@ -622,7 +542,6 @@ class _ChamadosWindow:
                     lambda: self._render_chat(data.get("historico", [])))
             except Exception as ex:
                 logger.error(f"load_detail: {ex}")
-
         threading.Thread(target=fetch, daemon=True).start()
 
     def _send_reply(self):
@@ -631,8 +550,6 @@ class _ChamadosWindow:
         text = self._reply.get("1.0", tk.END).strip()
         if not text or text == self._reply_ph:
             return
-
-        email = self._email_var.get().strip()
         self._reply.delete("1.0", tk.END)
         self._reply.insert("1.0", self._reply_ph)
         self._reply.config(fg=_C["hint"])
@@ -641,7 +558,7 @@ class _ChamadosWindow:
             try:
                 data = self._api.post(
                     f"/tickets/api/agent/{self._selected['id']}/reply/",
-                    {"email": email, "conteudo": text},
+                    {"conteudo": text},
                 )
                 if data.get("ok"):
                     self._win.after(0, lambda: self._prepend_msg(data["acao"]))
@@ -649,12 +566,9 @@ class _ChamadosWindow:
                     logger.error(f"reply error: {data.get('error')}")
             except Exception as ex:
                 logger.error(f"send_reply: {ex}")
-
         threading.Thread(target=send, daemon=True).start()
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # render helpers
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── RENDER ───────────────────────────────────────────────────────────────
     def _filter(self):
         q = self._search_var.get().strip().lower()
         if q in ("", "buscar chamado..."):
@@ -668,65 +582,55 @@ class _ChamadosWindow:
     def _render_list(self, tickets):
         for w in self._list_inner.winfo_children():
             w.destroy()
-
         if not tickets:
             tk.Label(self._list_inner,
                      text="Nenhum chamado encontrado.",
                      font=self._fS, bg=_C["sb_bg"], fg=_C["sb_muted"],
                      pady=28).pack()
             return
-
         for t in tickets:
             self._render_card(t)
-
-        # guarda lista completa (não filtrada) na primeira chamada
-        if not self._tickets:
-            self._tickets = tickets
-        elif len(tickets) == len(self._tickets):
+        if not self._tickets or len(tickets) == len(self._tickets):
             self._tickets = tickets
 
     def _render_card(self, t):
-        is_sel = self._selected and self._selected["id"] == t["id"]
-        bg     = _C["sb_active"] if is_sel else _C["sb_bg"]
-        stripe = _stripe(t["status"])
-        bg_b, fg_b = _badge(t["status"])
+        is_sel        = self._selected and self._selected["id"] == t["id"]
+        bg            = _C["sb_active"] if is_sel else _C["sb_bg"]
+        pill, fg_b, stripe = _st(t["status"])
 
         card = tk.Frame(self._list_inner, bg=bg, cursor="hand2")
         card.pack(fill=tk.X)
-        _sep(self._list_inner, color=_C["sb_border"]).pack(fill=tk.X)
+        tk.Frame(self._list_inner, bg="#1a2744", height=1).pack(fill=tk.X)
 
-        tk.Frame(card, bg=stripe, width=3).pack(side=tk.LEFT, fill=tk.Y)
+        tk.Frame(card, bg=stripe, width=2).pack(side=tk.LEFT, fill=tk.Y)
 
-        body = tk.Frame(card, bg=bg, padx=11, pady=10)
+        body = tk.Frame(card, bg=bg, padx=12, pady=10)
         body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         tk.Label(body, text=t["numero"], font=self._fS,
-                 bg=bg, fg=_C["sb_muted"], anchor="w").pack(fill=tk.X)
-
+                 bg=bg, fg=_C["sb_num"], anchor="w").pack(fill=tk.X)
         subj = t["assunto"][:46] + ("…" if len(t["assunto"]) > 46 else "")
         tk.Label(body, text=subj, font=self._fN,
-                 bg=bg, fg=_C["sb_text"], anchor="w",
-                 wraplength=220).pack(fill=tk.X, pady=(2, 5))
+                 bg=bg, fg=_C["sb_text"] if is_sel else "#cbd5e1",
+                 anchor="w", wraplength=216).pack(fill=tk.X, pady=(2, 6))
 
         meta = tk.Frame(body, bg=bg)
         meta.pack(fill=tk.X)
         tk.Label(meta, text=t["status"], font=self._fS,
-                 bg=bg_b, fg=fg_b, padx=7, pady=2).pack(side=tk.LEFT)
+                 bg=pill, fg=fg_b, padx=6, pady=2).pack(side=tk.LEFT)
         tk.Label(meta, text=t["criado_em"], font=self._fS,
-                 bg=bg, fg=_C["sb_muted"]).pack(side=tk.RIGHT)
+                 bg=bg, fg=_C["sb_num"]).pack(side=tk.RIGHT)
 
         all_w = ([card, body, meta]
                  + list(body.winfo_children())
                  + list(meta.winfo_children()))
 
         def click(_e, tk_=t): self._select(tk_)
-
         def enter(_e):
             if not (self._selected and self._selected["id"] == t["id"]):
                 for w in all_w:
                     try: w.config(bg=_C["sb_hover"])
                     except Exception: pass
-
         def leave(_e):
             if not (self._selected and self._selected["id"] == t["id"]):
                 for w in all_w:
@@ -740,33 +644,24 @@ class _ChamadosWindow:
 
     def _select(self, ticket):
         self._selected = ticket
-
-        # mostra área de ticket
         self._empty.pack_forget()
         self._tk_frame.pack(fill=tk.BOTH, expand=True)
-
-        # atualiza cabeçalho
         self._lbl_num.config(text=ticket["numero"])
         self._lbl_sub.config(text=ticket["assunto"])
-        bg_b, fg_b = _badge(ticket["status"])
-        self._lbl_badge.config(text=ticket["status"], bg=bg_b, fg=fg_b)
-
-        # redesenha lista (atualiza destaque)
+        pill, fg_b, _ = _st(ticket["status"])
+        self._lbl_badge.config(text=ticket["status"], bg=pill, fg=fg_b)
         q = self._search_var.get().strip().lower()
         visible = self._tickets if q in ("", "buscar chamado...") else [
             t for t in self._tickets
             if q in t["assunto"].lower() or q in t["numero"].lower()
         ]
         self._render_list(visible)
-
-        # carrega histórico
         self._load_detail(ticket)
 
     def _render_chat(self, historico):
         self._historico = historico
         for w in self._chat_inner.winfo_children():
             w.destroy()
-
         if not historico:
             tk.Label(self._chat_inner,
                      text="Nenhuma mensagem ainda.",
@@ -775,54 +670,47 @@ class _ChamadosWindow:
         else:
             for msg in historico:
                 self._render_bubble(msg)
-
         self._chat_cv.update_idletasks()
         self._chat_cv.yview_moveto(0)
 
     def _render_bubble(self, msg):
         is_staff = msg.get("is_staff", False)
-        anchor   = "e" if is_staff else "w"
-
-        cv_w  = self._chat_cv.winfo_width()
-        wrap  = max(cv_w - 140, 220)
+        cv_w     = self._chat_cv.winfo_width()
+        wrap     = max(cv_w - 140, 220)
 
         outer = tk.Frame(self._chat_inner, bg=_C["chat_bg"])
-        outer.pack(fill=tk.X, padx=16, pady=5)
+        outer.pack(fill=tk.X, padx=18, pady=5)
 
-        # meta line
         meta = tk.Frame(outer, bg=_C["chat_bg"])
         meta.pack(fill=tk.X)
         if is_staff:
             tk.Label(meta, text=msg["criado_em"], font=self._fS,
-                     bg=_C["chat_bg"], fg=_C["hint"]).pack(side=tk.LEFT, padx=3)
+                     bg=_C["chat_bg"], fg=_C["hint"]).pack(side=tk.LEFT, padx=2)
             tk.Label(meta, text=msg["autor"], font=self._fS,
                      bg=_C["chat_bg"], fg=_C["muted"]).pack(side=tk.RIGHT)
         else:
             tk.Label(meta, text=msg["autor"], font=self._fS,
                      bg=_C["chat_bg"], fg=_C["muted"]).pack(side=tk.LEFT)
             tk.Label(meta, text=msg["criado_em"], font=self._fS,
-                     bg=_C["chat_bg"], fg=_C["hint"]).pack(side=tk.RIGHT, padx=3)
+                     bg=_C["chat_bg"], fg=_C["hint"]).pack(side=tk.RIGHT, padx=2)
 
-        # balão
         if is_staff:
             bubble = tk.Label(
-                outer, text=msg["conteudo"],
-                font=self._fM,
+                outer, text=msg["conteudo"], font=self._fM,
                 bg=_C["staff_bg"], fg=_C["staff_fg"],
                 wraplength=wrap, justify=tk.LEFT, anchor="w",
-                padx=14, pady=10,
+                padx=13, pady=9,
             )
         else:
             bubble = tk.Label(
-                outer, text=msg["conteudo"],
-                font=self._fM,
+                outer, text=msg["conteudo"], font=self._fM,
                 bg=_C["user_bg"], fg=_C["user_fg"],
                 wraplength=wrap, justify=tk.LEFT, anchor="w",
-                padx=14, pady=10,
+                padx=13, pady=9,
                 highlightthickness=1,
                 highlightbackground=_C["user_bd"],
             )
-        bubble.pack(anchor=anchor, pady=(2, 0))
+        bubble.pack(anchor="e" if is_staff else "w", pady=(2, 0))
 
     def _prepend_msg(self, msg):
         self._historico.insert(0, msg)
@@ -833,19 +721,14 @@ class _ChamadosWindow:
         self._chat_cv.update_idletasks()
         self._chat_cv.yview_moveto(0)
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # novo ticket
-    # ─────────────────────────────────────────────────────────────────────────
     def _novo_ticket(self):
         _NovoTicketModal(
             parent_win=self._win,
             api=self._api,
-            email_padrao=self._email_var.get().strip(),
             on_success=self._on_ticket_criado,
         )
 
     def _on_ticket_criado(self, data):
-        # Recarrega lista e seleciona o novo ticket
         self._selected = None
         self._load_tickets()
 
@@ -863,7 +746,7 @@ class _ChamadosWindow:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# ChamadosManager — API pública (padrão notification.py)
+# ChamadosManager — API pública
 # ═════════════════════════════════════════════════════════════════════════════
 class ChamadosManager:
     """
@@ -883,7 +766,6 @@ class ChamadosManager:
 
     @classmethod
     def open(cls, server_url: str, token_hash: str) -> None:
-        """Abre a janela de chamados (ou traz para frente se já aberta)."""
         with cls._lock:
             if cls._instance and cls._instance.alive:
                 cls._instance.lift()
@@ -892,103 +774,72 @@ class ChamadosManager:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# __main__ — smoke-test visual (sem servidor real)
+# __main__ — smoke-test (sem servidor real)
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    import time as _t
-    print("chamados.py — smoke test (sem servidor real)")
-    print("Abrindo janela com dados mock...\n")
+    print("chamados.py — smoke test")
 
-    # Monkey-patch da API para dados mock
     _MOCK = {
         "tickets": [
-            {"id": 1, "numero": "#2025-000042",
-             "assunto": "Lentidão no sistema ao abrir relatórios",
-             "status": "Em andamento", "status_cor": "#f59e0b",
-             "servico": "Suporte técnico", "criado_em": "10/03/2025 09:14"},
-            {"id": 2, "numero": "#2025-000038",
-             "assunto": "Impressora do andar 3 não está reconhecida",
-             "status": "Aberto", "status_cor": "#3b82f6",
-             "servico": "Hardware / Equipamento", "criado_em": "08/03/2025 14:30"},
-            {"id": 3, "numero": "#2025-000031",
-             "assunto": "Solicitação de acesso ao sistema ERP",
-             "status": "Resolvido", "status_cor": "#10b981",
-             "servico": "Acesso e permissões", "criado_em": "01/03/2025 08:55"},
-            {"id": 4, "numero": "#2025-000027",
-             "assunto": "Monitor com linhas verticais na tela",
-             "status": "Fechado", "status_cor": "#6b7280",
-             "servico": "Hardware / Equipamento", "criado_em": "22/02/2025 11:20"},
+            {"id":1,"numero":"#2025-000042","assunto":"Lentidão ao abrir relatórios",
+             "status":"Em andamento","status_cor":"#f59e0b","servico":"Suporte técnico","criado_em":"10/03 09:14"},
+            {"id":2,"numero":"#2025-000038","assunto":"Impressora do andar 3 não aparece",
+             "status":"Aberto","status_cor":"#3b82f6","servico":"Hardware","criado_em":"08/03 14:30"},
+            {"id":3,"numero":"#2025-000031","assunto":"Acesso ao módulo de estoque ERP",
+             "status":"Resolvido","status_cor":"#10b981","servico":"Acesso","criado_em":"01/03 08:55"},
+            {"id":4,"numero":"#2025-000027","assunto":"Monitor com linhas verticais",
+             "status":"Fechado","status_cor":"#6b7280","servico":"Hardware","criado_em":"22/02 11:20"},
         ],
-        "historico": {
-            1: [
-                {"id": 3, "autor": "Suporte Técnico", "is_staff": True,
-                 "conteudo": "Nossa equipe já iniciou o processo de reindexação. Estimamos solução em 2h.",
-                 "criado_em": "10/03 10:05"},
-                {"id": 2, "autor": "Suporte Técnico", "is_staff": True,
-                 "conteudo": "Conseguimos reproduzir o problema. Há um índice desatualizado no banco.",
-                 "criado_em": "10/03 10:02"},
-                {"id": 1, "autor": "Você", "is_staff": False,
-                 "conteudo": "Desde ontem à tarde o sistema está muito lento ao abrir relatórios. Demora +3 min.",
-                 "criado_em": "10/03 09:14"},
+        "historico":{
+            1:[
+                {"id":3,"autor":"Suporte Técnico","is_staff":True,
+                 "conteudo":"Reindexação em andamento. Estimamos solução em 2h.","criado_em":"10/03 10:05"},
+                {"id":2,"autor":"Suporte Técnico","is_staff":True,
+                 "conteudo":"Reproduzimos o problema — índice desatualizado no banco.","criado_em":"10/03 10:02"},
+                {"id":1,"autor":"Você","is_staff":False,
+                 "conteudo":"Sistema lento ao abrir relatórios desde ontem. Demora +3 min.","criado_em":"10/03 09:14"},
             ],
-            2: [
-                {"id": 4, "autor": "Você", "is_staff": False,
-                 "conteudo": "A impressora HP LaserJet do 3º andar parou de aparecer após atualização do Windows.",
-                 "criado_em": "08/03 14:30"},
+            2:[{"id":4,"autor":"Você","is_staff":False,
+                "conteudo":"Impressora sumiu da lista após atualização do Windows.","criado_em":"08/03 14:30"}],
+            3:[
+                {"id":6,"autor":"Você","is_staff":False,"conteudo":"Perfeito, obrigado!","criado_em":"01/03 09:55"},
+                {"id":5,"autor":"Suporte Técnico","is_staff":True,
+                 "conteudo":"Acesso criado. Perfil de visualização liberado.","criado_em":"01/03 09:40"},
+                {"id":4,"autor":"Você","is_staff":False,
+                 "conteudo":"Preciso de acesso ao módulo de estoque para João Silva, matrícula 4872.","criado_em":"01/03 08:55"},
             ],
-            3: [
-                {"id": 6, "autor": "Você", "is_staff": False,
-                 "conteudo": "Perfeito, muito obrigado!",
-                 "criado_em": "01/03 09:55"},
-                {"id": 5, "autor": "Suporte Técnico", "is_staff": True,
-                 "conteudo": "Acesso criado! O usuário joao.silva@empresa.com já pode acessar o módulo de estoque.",
-                 "criado_em": "01/03 09:40"},
-                {"id": 4, "autor": "Você", "is_staff": False,
-                 "conteudo": "Preciso de acesso ao módulo de estoque do ERP para João Silva, matrícula 4872.",
-                 "criado_em": "01/03 08:55"},
-            ],
-            4: [
-                {"id": 8, "autor": "Suporte Técnico", "is_staff": True,
-                 "conteudo": "Realizamos a troca do cabo DisplayPort e o problema foi resolvido.",
-                 "criado_em": "22/02 13:00"},
-                {"id": 7, "autor": "Você", "is_staff": False,
-                 "conteudo": "O monitor está com linhas verticais coloridas desde esta manhã.",
-                 "criado_em": "22/02 11:20"},
+            4:[
+                {"id":8,"autor":"Suporte Técnico","is_staff":True,
+                 "conteudo":"Troca do cabo DisplayPort resolveu. Chamado encerrado.","criado_em":"22/02 13:00"},
+                {"id":7,"autor":"Você","is_staff":False,
+                 "conteudo":"Monitor com linhas verticais desde esta manhã.","criado_em":"22/02 11:20"},
             ],
         },
     }
 
-    original_get  = _ApiClient.get
-    original_post = _ApiClient.post
-
     def _mock_get(self, path, **params):
         if "list" in path:
-            return {"ok": True, "tickets": _MOCK["tickets"]}
-        for tid, hist in _MOCK["historico"].items():
+            return {"ok":True,"tickets":_MOCK["tickets"]}
+        for tid,hist in _MOCK["historico"].items():
             if f"/{tid}/" in path:
-                t = next(x for x in _MOCK["tickets"] if x["id"] == tid)
-                return {"ok": True, "ticket": t, "historico": hist}
-        return {"ok": True, "tickets": []}
+                t=next(x for x in _MOCK["tickets"] if x["id"]==tid)
+                return {"ok":True,"ticket":t,"historico":hist}
+        return {"ok":True,"tickets":[]}
 
     def _mock_post(self, path, body):
         if "criar" in path:
-            new_id = max(x["id"] for x in _MOCK["tickets"]) + 1
-            ticket = {"id": new_id, "numero": f"#2025-{1000+new_id:06d}",
-                      "assunto": body["assunto"], "status": "Aberto",
-                      "status_cor": "#3b82f6", "servico": body.get("tipo_chamado",""),
-                      "criado_em": "agora"}
-            _MOCK["tickets"].insert(0, ticket)
-            _MOCK["historico"][new_id] = [
-                {"id": 99, "autor": "Você", "is_staff": False,
-                 "conteudo": body["descricao"], "criado_em": "agora"}]
-            return {"ok": True, "numero": ticket["numero"], "id": new_id}
+            nid=max(x["id"] for x in _MOCK["tickets"])+1
+            t={"id":nid,"numero":f"#2025-{1000+nid:06d}","assunto":body["assunto"],
+               "status":"Aberto","status_cor":"#3b82f6","servico":body.get("tipo_chamado",""),"criado_em":"agora"}
+            _MOCK["tickets"].insert(0,t)
+            _MOCK["historico"][nid]=[{"id":99,"autor":"Você","is_staff":False,"conteudo":body["descricao"],"criado_em":"agora"}]
+            return {"ok":True,"numero":t["numero"],"id":nid}
         if "reply" in path:
-            tid = int(path.split("/")[-3])
-            msg = {"id": 100, "autor": "Você", "is_staff": False,
-                   "conteudo": body["conteudo"], "criado_em": "agora"}
-            _MOCK["historico"].setdefault(tid, []).insert(0, msg)
-            return {"ok": True, "acao": msg}
-        return {"ok": True}
+            tid=int(path.split("/")[-3])
+            msg={"id":100,"autor":"Você","is_staff":False,"conteudo":body["conteudo"],"criado_em":"agora"}
+            _MOCK["historico"].setdefault(tid,[]).insert(0,msg)
+            return {"ok":True,"acao":msg}
+        return {"ok":True}
 
     _ApiClient.get  = _mock_get
     _ApiClient.post = _mock_post
