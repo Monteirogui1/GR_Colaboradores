@@ -352,22 +352,42 @@ class AgentToken(models.Model):
 
         return now > expires_at
 
-    def mark_as_used(self, machine_name):
-        """Marca token como usado"""
-        self.used_at = timezone.now()
-        self.machine_name = machine_name
-        self.save()
+    def mark_as_used(self, machine_name: str) -> None:
+        """
+        Registra (ou atualiza) o uso deste token em uma máquina.
+        Substituiu o campo único machine_name/used_at por AgentTokenUsage,
+        permitindo que um token seja usado em várias máquinas.
+        """
+        AgentTokenUsage.objects.update_or_create(
+            agent_token=self,
+            machine_name=machine_name,
+        )
 
-    def get_status_display(self):
-        """Retorna o status do token para exibição"""
+    def get_status_display(self) -> dict:
+        """
+        Retorna o status do token para exibição no template.
+
+        Ordem de avaliação:
+          1. Inativo   — is_active=False
+          2. Expirado  — passou da expires_at
+          3. Em uso    — tem pelo menos um AgentTokenUsage
+          4. Disponível — nunca usado
+        """
         if not self.is_active:
             return {'text': 'Inativo', 'class': 'secondary'}
-        elif self.is_expired():
+        if self.is_expired():
             return {'text': 'Expirado', 'class': 'warning'}
-        elif self.used_at:
-            return {'text': 'Usado', 'class': 'info'}
-        else:
-            return {'text': 'Disponível', 'class': 'success'}
+        # usa prefetch quando disponível, senão faz query
+        try:
+            # se a view fez prefetch_related('usages'), usages.all() não gera query extra
+            has_usage = self.usages.exists()
+        except Exception:
+            has_usage = False
+        if has_usage:
+            count = self.usages.count()
+            label = f'Em uso ({count} máquina{"s" if count != 1 else ""})'
+            return {'text': label, 'class': 'info'}
+        return {'text': 'Disponível', 'class': 'success'}
 
 class AgentTokenUsage(models.Model):
     agent_token = models.ForeignKey(
