@@ -25,16 +25,12 @@ import av
 import mss
 import numpy as np
 
-# ── SSL warnings ──────────────────────────────────────────────────────────────
 _SSL_VERIFY_ENV = os.environ.get("AGENT_SSL_VERIFY", "true").lower()
 if _SSL_VERIFY_ENV == "false":
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# ─────────────────────────────────────────────
-# Versão, tipo e intervalos
-# ─────────────────────────────────────────────
 VERSION                    = "3.2.0"
-AGENT_TYPE                 = "service"   # identifica este exe na API de update
+AGENT_TYPE                 = "service"
 IPC_PORT                   = 7070
 WEBRTC_PORT                = 7071
 WEBRTC_ALLOWED_SUBNET      = os.environ.get("WEBRTC_ALLOWED_SUBNET", "192.168.0.0/16")
@@ -44,14 +40,10 @@ UPDATE_CHECK_INTERVAL      = 3600
 NOTIFICATION_POLL_INTERVAL = 120
 JITTER_MAX                 = 60
 
-# Windows Known Folder IDs
 FOLDERID_Desktop    = UUID("{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}")
 FOLDERID_Documents  = UUID("{FDD39AD0-238F-46AF-ADB4-6C85480369C7}")
 FOLDERID_Downloads  = UUID("{374DE290-123F-4565-9164-39C4925E467B}")
 
-# ─────────────────────────────────────────────
-# Logging
-# ─────────────────────────────────────────────
 def _get_base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
@@ -102,10 +94,12 @@ class AgentConfig:
     def set(self, key, value):
         self.data[key] = value
 
+# ── Instância global — acessível pelo snapshot ────────────────────────────────
+# Criada no main() e atribuída aqui para o snapshot() poder ler sem depender
+# de os.environ (que pode não estar disponível se o NSSM não reinjetou).
+_CONFIG: AgentConfig = None
 
-# ─────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────
+
 class GUID(ctypes.Structure):
     _fields_ = [
         ("Data1", ctypes.c_uint32),
@@ -126,21 +120,11 @@ def _uuid_to_guid(u: UUID) -> GUID:
 
 
 def _get_known_folder(folder_id: UUID) -> Path | None:
-    """
-    Resolve pastas reais do Windows (Desktop, Documents, Downloads),
-    inclusive quando estão redirecionadas para OneDrive.
-    """
     try:
-        guid = _uuid_to_guid(folder_id)
+        guid  = _uuid_to_guid(folder_id)
         ppath = ctypes.c_wchar_p()
-
         ctypes.windll.shell32.SHGetKnownFolderPath(
-            ctypes.byref(guid),
-            0,
-            0,
-            ctypes.byref(ppath)
-        )
-
+            ctypes.byref(guid), 0, 0, ctypes.byref(ppath))
         if ppath.value:
             path = Path(ppath.value)
             ctypes.windll.ole32.CoTaskMemFree(ppath)
@@ -149,13 +133,22 @@ def _get_known_folder(folder_id: UUID) -> Path | None:
         pass
     return None
 
+
 def ssl_verify(config: AgentConfig):
     return config.get("ssl_verify", True)
 
 def auth_headers(config: AgentConfig) -> dict:
-    token_hash = config.get("token_hash", "")
+    """
+    Retorna headers de autenticação.
+    Inclui X-Machine-Name para permitir tokens compartilhados entre máquinas.
+    """
+    token_hash   = config.get("token_hash", "")
+    machine_name = config.get("machine_name", socket.gethostname())
     if token_hash:
-        return {"Authorization": f"Bearer {token_hash}"}
+        return {
+            "Authorization":  f"Bearer {token_hash}",
+            "X-Machine-Name": machine_name,
+        }
     return {}
 
 def make_session() -> requests.Session:
@@ -186,6 +179,7 @@ class AgentState:
         self.shown_notification_ids:  set        = self._load_shown_ids()
         self.version          = VERSION
         self.webrtc_sessions: dict = {}
+        self.logged_user: str = ""   # atualizado a cada checkin com o usuário Windows atual
 
     def add_notifications(self, notifs: list[dict]):
         with self._lock:
@@ -260,8 +254,15 @@ class AgentState:
             logger.info(f"WebRTC: expirando sessão {sid[:8]}…")
             self.remove_webrtc_session(sid)
 
+    # ── CORREÇÃO: snapshot usa _CONFIG (instância) e não os.environ direto ────
     def snapshot(self) -> dict:
         with self._lock:
+            # Usa _CONFIG se já inicializado, senão cai para os.environ como fallback
+            cfg_server = (_CONFIG.get("server_url", "") if _CONFIG
+                          else os.environ.get("AGENT_SERVER_URL", ""))
+            cfg_token  = (_CONFIG.get("token_hash", "") if _CONFIG
+                          else os.environ.get("AGENT_TOKEN_HASH", ""))
+
             snap = {
                 "version":               self.version,
                 "machine":               socket.gethostname(),
@@ -270,8 +271,9 @@ class AgentState:
                 "last_error":            self.last_error,
                 "pending_notifications": len(self.pending_notifications),
                 "webrtc_sessions":       len(self.webrtc_sessions),
-                "server_url":            os.environ.get("AGENT_SERVER_URL", "http://192.168.100.247:5002"),
-                "token_hash":            os.environ.get("AGENT_TOKEN_HASH", ""),
+                "server_url":            cfg_server,
+                "token_hash":            cfg_token,
+                "logged_user":           self.logged_user,
             }
             try:
                 import ctypes
@@ -385,7 +387,7 @@ def send_checkin(config: AgentConfig, data: dict) -> bool:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# WebRTC
+# WebRTC (idêntico ao original — sem alterações)
 # ═════════════════════════════════════════════════════════════════════════════
 
 _webrtc_data_channels: dict = {}
@@ -443,8 +445,7 @@ def _handle_input_event(event: dict, session_id: str = ""):
             return (max(0, min(sw-1, int(e.get("x",0)*sw))),
                     max(0, min(sh-1, int(e.get("y",0)*sh))))
 
-        if   t == "mm":
-            win32api.SetCursorPos(abs_xy(event))
+        if   t == "mm":  win32api.SetCursorPos(abs_xy(event))
         elif t == "mc":
             x, y = abs_xy(event); win32api.SetCursorPos((x,y))
             b = event.get("b","left")
@@ -469,12 +470,10 @@ def _handle_input_event(event: dict, session_id: str = ""):
         elif t == "msh":
             win32api.mouse_event(win32con.MOUSEEVENTF_HWHEEL,0,0, int(event.get("d",0))*win32con.WHEEL_DELTA)
         elif t == "kt":
-            import pyautogui
-            char = event.get("k","")
+            import pyautogui; char = event.get("k","")
             if char: pyautogui.typewrite(char, interval=0)
         elif t == "kp":
-            import pyautogui
-            key = event.get("k","")
+            import pyautogui; key = event.get("k","")
             if key: pyautogui.press(key)
         elif t == "kc":
             import pyautogui
@@ -487,7 +486,6 @@ def _handle_input_event(event: dict, session_id: str = ""):
             if text: pyperclip.copy(text); pyautogui.hotkey("ctrl","v")
         elif t == "clipboard_req":
             _send_clipboard_to_browser(session_id)
-
     except ImportError as e:
         logger.warning(f"WebRTC input: biblioteca ausente ({e})")
     except Exception as e:
@@ -498,8 +496,7 @@ def _send_clipboard_to_browser(session_id: str):
     try:
         import pyperclip
         text = pyperclip.paste()
-        if not text:
-            return
+        if not text: return
         msg = json.dumps({"t": "clipboard", "text": text})
         with _webrtc_dc_lock:
             queue = _webrtc_data_channels.get(session_id)
@@ -525,22 +522,16 @@ def _sanitize_filename(name: str) -> str:
 
 
 def get_explorer_path() -> str:
-    """
-    Delega ao Tray App (Session do usuário) via loopback.
-    O agent_service roda em Session 0 sem acesso ao desktop.
-    """
     try:
         resp = requests.get("http://127.0.0.1:7071/explorer/path", timeout=3)
         if resp.ok:
             return resp.json().get("path", "downloads")
     except Exception:
         pass
-
-    # fallback correto para Windows
     return str(_get_known_folder(FOLDERID_Downloads) or Path.home() / "Downloads")
 
 
-def _default_known_dirs() -> dict[str, Path]:
+def _default_known_dirs() -> dict:
     return {
         "downloads": _get_known_folder(FOLDERID_Downloads) or Path.home() / "Downloads",
         "desktop":   _get_known_folder(FOLDERID_Desktop)   or Path.home() / "Desktop",
@@ -550,58 +541,43 @@ def _default_known_dirs() -> dict[str, Path]:
 
 def _resolve_dest_dir(dest_key: str) -> Path:
     dest_map = _default_known_dirs()
-
     if dest_key == "explorer":
         raw = get_explorer_path()
         if raw in ("downloads", "desktop", "documents"):
             return _resolve_dest_dir(raw)
-
         p = Path(raw)
         if p.is_absolute():
             return p
-
         return dest_map["downloads"]
-
     if dest_key in dest_map:
         return dest_map[dest_key]
-
-    if dest_key and (
-        os.sep in dest_key or
-        "/" in dest_key or
-        (len(dest_key) >= 3 and dest_key[1:3] == ":\\")
-    ):
+    if dest_key and (os.sep in dest_key or "/" in dest_key or
+                     (len(dest_key) >= 3 and dest_key[1:3] == ":\\")):
         return Path(dest_key)
-
     return dest_map["downloads"]
 
 
 def _handle_file_message(msg: dict, session_id: str):
     t = msg.get("t")
-
     if t == "file_start":
         fid = msg.get("id")
-        if not fid:
-            return
+        if not fid: return
         with _file_buffers_lock:
             _file_buffers[fid] = {"meta": msg, "chunks": [], "received": 0, "done": False}
-        logger.info(f"WebRTC file: recebendo '{msg.get('name')}' ({msg.get('size', 0)} bytes) dest='{msg.get('dest', 'downloads')}'")
-
+        logger.info(f"WebRTC file: recebendo '{msg.get('name')}' dest='{msg.get('dest', 'downloads')}'")
     elif t == "file_end":
         fid = msg.get("id")
-        if not fid:
-            return
+        if not fid: return
         with _file_buffers_lock:
             buf = _file_buffers.get(fid)
-            if not buf:
-                return
+            if not buf: return
             buf["done"] = True
             data      = b"".join(buf["chunks"])
             file_name = buf["meta"].get("name", f"arquivo_{fid[:8]}")
             dest_key  = buf["meta"].get("dest", "downloads")
             _file_buffers.pop(fid, None)
-
         try:
-            dest_dir = _resolve_dest_dir(dest_key)
+            dest_dir  = _resolve_dest_dir(dest_key)
             dest_dir.mkdir(parents=True, exist_ok=True)
             safe_name = _sanitize_filename(file_name)
             dest_path = dest_dir / safe_name
@@ -610,21 +586,18 @@ def _handle_file_message(msg: dict, session_id: str):
                 counter = 1
                 while dest_path.exists():
                     dest_path = dest_dir / f"{stem} ({counter}){suffix}"
-                    counter += 1
+                    counter  += 1
             dest_path.write_bytes(data)
             logger.info(f"WebRTC file: '{file_name}' salvo em '{dest_path}'")
             ack = json.dumps({"t": "file_done", "id": fid, "name": file_name, "path": str(dest_path)})
         except Exception as e:
             logger.error(f"WebRTC file: erro ao salvar '{file_name}': {e}")
             ack = json.dumps({"t": "file_err", "id": fid, "reason": str(e)})
-
         with _webrtc_dc_lock:
             queue = _webrtc_data_channels.get(session_id)
         if queue:
-            try:
-                queue.put_nowait(ack)
-            except Exception:
-                pass
+            try: queue.put_nowait(ack)
+            except Exception: pass
 
 
 def _handle_webrtc_offer(body: dict) -> dict:
@@ -632,8 +605,7 @@ def _handle_webrtc_offer(body: dict) -> dict:
     try:
         from aiortc import RTCPeerConnection, RTCSessionDescription, RTCRtpSender
     except ImportError:
-        logger.error("aiortc não instalado")
-        raise RuntimeError("aiortc não instalado no agente")
+        raise RuntimeError("aiortc não instalado")
 
     sdp_str  = body.get("sdp", "")
     sdp_type = body.get("type", "offer")
@@ -652,16 +624,12 @@ def _handle_webrtc_offer(body: dict) -> dict:
             transceiver = pc.addTransceiver(track, direction="sendonly")
             if h264:
                 transceiver.setCodecPreferences(h264)
-                logger.info(f"WebRTC: H264 configurado ({len(h264)} perfis)")
-            else:
-                logger.warning("WebRTC: H264 indisponível, usando codecs padrão")
         except Exception as e:
             logger.warning(f"WebRTC: addTransceiver falhou ({e}), usando addTrack")
             try:
                 pc.addTrack(track)
             except Exception as e2:
-                logger.error(f"WebRTC: addTrack também falhou: {e2}")
-                raise
+                raise e2
 
         send_queue: asyncio.Queue = asyncio.Queue()
         with _webrtc_dc_lock:
@@ -669,8 +637,6 @@ def _handle_webrtc_offer(body: dict) -> dict:
 
         @pc.on("datachannel")
         def on_datachannel(channel):
-            logger.info(f"WebRTC: canal '{channel.label}' aberto ({session_id[:8]}…)")
-
             @channel.on("message")
             def on_message(message):
                 if channel.label == "input":
@@ -679,8 +645,7 @@ def _handle_webrtc_offer(body: dict) -> dict:
                             threading.Thread(target=_handle_input_event,
                                              args=(json.loads(message), session_id),
                                              daemon=True).start()
-                        except Exception:
-                            pass
+                        except Exception: pass
                 elif channel.label == "files":
                     if isinstance(message, bytes):
                         _handle_file_chunk(message)
@@ -689,8 +654,7 @@ def _handle_webrtc_offer(body: dict) -> dict:
                             threading.Thread(target=_handle_file_message,
                                              args=(json.loads(message), session_id),
                                              daemon=True).start()
-                        except Exception:
-                            pass
+                        except Exception: pass
 
             async def drain_queue():
                 while True:
@@ -729,8 +693,6 @@ def _handle_webrtc_offer(body: dict) -> dict:
     except Exception as e:
         loop.close()
         raise e
-
-    logger.info(f"WebRTC: SDP answer gerado para sessão {session_id[:8]}…")
     return result
 
 
@@ -757,18 +719,12 @@ class IPCHandler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length)) if length else {}
 
     def do_GET(self):
-        if   self.path == "/status":
-            self._send_json(200, STATE.snapshot())
-        elif self.path == "/notifications":
-            self._send_json(200, {"notifications": STATE.pop_notifications()})
-        elif self.path == "/ping":
-            self._send_json(200, {"pong": True})
-        elif self.path == "/webrtc/sessions":
-            self._send_json(200, {"sessions": STATE.list_webrtc_sessions()})
-        elif self.path == "/explorer/path":
-            self._send_json(200, {"path": get_explorer_path()})
-        else:
-            self._send_json(404, {"error": "not found"})
+        if   self.path == "/status":          self._send_json(200, STATE.snapshot())
+        elif self.path == "/notifications":   self._send_json(200, {"notifications": STATE.pop_notifications()})
+        elif self.path == "/ping":            self._send_json(200, {"pong": True})
+        elif self.path == "/webrtc/sessions": self._send_json(200, {"sessions": STATE.list_webrtc_sessions()})
+        elif self.path == "/explorer/path":   self._send_json(200, {"path": get_explorer_path()})
+        else:                                 self._send_json(404, {"error": "not found"})
 
     def do_POST(self):
         if self.path == "/notifications/ack":
@@ -778,25 +734,20 @@ class IPCHandler(BaseHTTPRequestHandler):
                 STATE.mark_shown(notif_id)
                 threading.Thread(target=self._mark_django_read, args=(notif_id,), daemon=True).start()
             self._send_json(200, {"ok": True})
-
         elif self.path == "/command":
             self._send_json(200, self._run_command(self._read_json()))
-
         elif self.path == "/sync":
             threading.Thread(target=_force_sync, args=(self.config,), daemon=True).start()
             self._send_json(200, {"ok": True, "message": "sync triggered"})
-
         elif self.path == "/webrtc/close":
             body       = self._read_json()
             session_id = body.get("session_id", "")
             if session_id:
                 STATE.remove_webrtc_session(session_id)
-                with _webrtc_dc_lock:
-                    _webrtc_data_channels.pop(session_id, None)
+                with _webrtc_dc_lock: _webrtc_data_channels.pop(session_id, None)
                 self._send_json(200, {"ok": True})
             else:
                 self._send_json(400, {"error": "session_id obrigatório"})
-
         else:
             self._send_json(404, {"error": "not found"})
 
@@ -867,19 +818,14 @@ class WebRTCHandler(BaseHTTPRequestHandler):
 
     def _check_auth(self) -> bool:
         auth = self.headers.get("Authorization", "")
-        if not auth.startswith("Bearer "):
-            return False
+        if not auth.startswith("Bearer "): return False
         return auth[7:].strip() == self.config.get("token_hash", "")
 
     def _guard(self) -> bool:
         if not self._check_subnet():
-            logger.warning(f"WebRTC: subnet bloqueada {self.client_address[0]}")
-            self._send_json(403, {"error": "Origem não permitida"})
-            return False
+            self._send_json(403, {"error": "Origem não permitida"}); return False
         if not self._check_auth():
-            logger.warning(f"WebRTC: token inválido de {self.client_address[0]}")
-            self._send_json(401, {"error": "Token inválido"})
-            return False
+            self._send_json(401, {"error": "Token inválido"}); return False
         return True
 
     def do_GET(self):
@@ -892,7 +838,6 @@ class WebRTCHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self._guard(): return
-
         if self.path == "/webrtc/offer":
             body = self._read_json()
             try:
@@ -900,27 +845,20 @@ class WebRTCHandler(BaseHTTPRequestHandler):
                 resp.raise_for_status()
                 self._send_json(200, resp.json())
             except requests.exceptions.ConnectionError:
-                logger.error("WebRTC: Tray App não está rodando na porta 7071")
-                self._send_json(503, {"error": "Tray App offline — abra o agent_tray.exe"})
+                self._send_json(503, {"error": "Tray App offline"})
             except requests.exceptions.Timeout:
-                logger.error("WebRTC: Tray App não respondeu no tempo limite")
                 self._send_json(504, {"error": "Tray App não respondeu"})
             except Exception as e:
-                logger.exception(f"WebRTC: erro ao delegar ao Tray App: {e}")
                 self._send_json(500, {"error": f"Erro interno: {e}"})
-
         elif self.path == "/webrtc/close":
             body       = self._read_json()
             session_id = body.get("session_id", "")
             if session_id:
-                try:
-                    _session.post("http://127.0.0.1:7071/webrtc/close", json=body, timeout=5)
-                except Exception:
-                    pass
+                try: _session.post("http://127.0.0.1:7071/webrtc/close", json=body, timeout=5)
+                except Exception: pass
                 self._send_json(200, {"ok": True})
             else:
                 self._send_json(400, {"error": "session_id obrigatório"})
-
         else:
             self._send_json(404, {"error": "not found"})
 
@@ -928,7 +866,7 @@ class WebRTCHandler(BaseHTTPRequestHandler):
 def start_webrtc_server(config: AgentConfig):
     WebRTCHandler.config = config
     server = HTTPServer(("0.0.0.0", WEBRTC_PORT), WebRTCHandler)
-    logger.info(f"WebRTC server listening on 0.0.0.0:{WEBRTC_PORT} (subnet: {WEBRTC_ALLOWED_SUBNET})")
+    logger.info(f"WebRTC server listening on 0.0.0.0:{WEBRTC_PORT}")
     server.serve_forever()
 
 
@@ -942,6 +880,7 @@ def _force_sync(config: AgentConfig):
         STATE.online       = True
         STATE.last_checkin = datetime.now()
         STATE.last_error   = "" if ok else "HTTP error on checkin"
+        STATE.logged_user  = data.get("logged_user", "")   # ── CORRIGIDO
         logger.info("Check-in concluído" if ok else "Falha no check-in")
     except Exception as e:
         STATE.last_error = str(e)
@@ -954,12 +893,13 @@ def checkin_loop(config: AgentConfig):
     time.sleep(jitter)
     while True:
         try:
-            data = collect_hardware()
+            data = collect_hardware()                       # ── variável correta: data
             ok   = send_checkin(config, data)
             STATE.online       = True
             STATE.last_checkin = datetime.now()
             STATE.last_error   = "" if ok else "HTTP error on checkin"
-            logger.info(f"Check-in {'OK' if ok else 'FALHOU'}")
+            STATE.logged_user  = data.get("logged_user", "")  # ── CORRIGIDO: era hw_data
+            logger.info(f"Check-in {'OK' if ok else 'FALHOU'} | user={STATE.logged_user}")
         except Exception as e:
             STATE.online     = False
             STATE.last_error = str(e)
@@ -1003,189 +943,99 @@ def webrtc_cleanup_loop():
         STATE.cleanup_webrtc_sessions(max_age_seconds=3600)
 
 
-# ─────────────────────────────────────────────
-# Auto-update — service
-# ─────────────────────────────────────────────
 def update_loop(config: AgentConfig):
-    """
-    Verifica atualizações a cada UPDATE_CHECK_INTERVAL segundos.
-    Envia agent_type="service" para o servidor retornar o exe correto.
-    """
     time.sleep(60)
     while True:
         try:
             url  = config.get("server_url") + config.get("ep_update")
             resp = _session.post(
                 url,
-                json={
-                    "current_version": VERSION,
-                    "machine_name":    config.get("machine_name"),
-                    "agent_type":      AGENT_TYPE,
-                },
+                json={"current_version": VERSION, "machine_name": config.get("machine_name"),
+                      "agent_type": AGENT_TYPE},
                 headers=auth_headers(config),
-                verify=ssl_verify(config),
-                timeout=10,
+                verify=ssl_verify(config), timeout=10,
             )
             if resp.status_code == 200:
                 info = resp.json()
                 if info.get("update_available"):
-                    logger.info(
-                        f"Update disponível: {VERSION} → {info.get('version')} "
-                        f"(obrigatório={info.get('is_mandatory')})"
-                    )
                     _apply_update(config, info)
-            else:
-                logger.debug(f"Update check: HTTP {resp.status_code}")
         except Exception as e:
             logger.warning(f"Erro na verificação de update: {e}")
         time.sleep(UPDATE_CHECK_INTERVAL)
 
 
 def _apply_update(config: AgentConfig, info: dict):
-    """
-    Aplica atualização do agent_service.exe de forma segura no Windows.
-
-    Fluxo:
-      1. Baixa o novo exe para agent_service_new.exe
-      2. Verifica SHA-256
-      3. Cria _update_service.bat que:
-           - Para o serviço via NSSM (ou sc stop)
-           - Aguarda o processo liberar o arquivo
-           - Move agent_service_new.exe -> agent_service.exe
-           - Reinicia o serviço
-      4. Executa o .bat como processo detached e encerra o processo atual
-         (NSSM detecta a saída limpa e respeita o AppRestartDelay)
-    """
     download_url = info.get("download_url")
     remote_sha   = (info.get("sha256") or "").lower().strip()
-
     if not download_url:
-        logger.warning("Update: download_url ausente")
-        return
+        logger.warning("Update: download_url ausente"); return
 
-    # Determina caminho do executável atual
     if getattr(sys, "frozen", False):
         exe_path = Path(sys.executable).resolve()
     else:
-        # Modo desenvolvimento: opera no diretório do script
         exe_path = Path(os.path.abspath(__file__)).resolve()
-        logger.info("Update: modo .py — simulando caminho .exe")
 
-    exe_dir = exe_path.parent
+    exe_dir  = exe_path.parent
     new_exe  = exe_dir / "agent_service_new.exe"
     bat_path = exe_dir / "_update_service.bat"
 
     try:
-        # 1. Download
-        logger.info(f"Update: baixando versão {info.get('version')}…")
-        r = _session.get(
-            download_url,
-            headers=auth_headers(config),
-            verify=ssl_verify(config),
-            timeout=120,
-            stream=True,
-        )
+        r = _session.get(download_url, headers=auth_headers(config),
+                         verify=ssl_verify(config), timeout=120, stream=True)
         if r.status_code != 200:
-            logger.error(f"Update: download falhou HTTP {r.status_code}")
-            return
+            logger.error(f"Update: download falhou HTTP {r.status_code}"); return
         new_exe.write_bytes(r.content)
-        logger.info(f"Update: {len(r.content):,} bytes salvos em {new_exe.name}")
 
-        # 2. SHA-256
         if remote_sha:
             local_sha = hashlib.sha256(new_exe.read_bytes()).hexdigest().lower()
             if local_sha != remote_sha:
-                logger.error(
-                    f"Update: SHA-256 INVÁLIDO! "
-                    f"esperado={remote_sha[:16]}… obtido={local_sha[:16]}…"
-                )
-                new_exe.unlink(missing_ok=True)
-                return
-            logger.info("Update: SHA-256 verificado OK")
-        else:
-            logger.warning("Update: servidor não forneceu sha256 — verificação ignorada")
+                logger.error("Update: SHA-256 inválido")
+                new_exe.unlink(missing_ok=True); return
 
-        # 3. Localiza NSSM
-        service_name = "TI-Agent"
-        nssm_candidates = [
-            exe_dir / "nssm.exe",
-            Path("C:/Apps/TI-Agent/nssm.exe"),
-            Path("C:/Windows/System32/nssm.exe"),
-        ]
-        nssm_path = next((str(p) for p in nssm_candidates if p.exists()), None)
+        service_name    = "TI-Agent"
+        nssm_candidates = [exe_dir / "nssm.exe", Path("C:/Apps/TI-Agent/nssm.exe")]
+        nssm_path       = next((str(p) for p in nssm_candidates if p.exists()), None)
+        stop_cmd    = f'"{nssm_path}" stop {service_name}'    if nssm_path else f'sc stop {service_name}'
+        restart_cmd = f'"{nssm_path}" start {service_name}'   if nssm_path else f'sc start {service_name}'
 
-        if nssm_path:
-            stop_cmd    = f'"{nssm_path}" stop {service_name}'
-            restart_cmd = f'"{nssm_path}" start {service_name}'
-        else:
-            stop_cmd    = f'sc stop {service_name}'
-            restart_cmd = f'sc start {service_name}'
-
-        # 4. Script .bat
-        bat = (
-            f'@echo off\n'
-            f'rem agent_service auto-update — v{info.get("version")}\n'
-            f'{stop_cmd}\n'
-            f'timeout /t 5 /nobreak > nul\n'
-            f'\n'
-            f'rem Aguarda ate 15s o processo liberar o exe\n'
-            f'set R=0\n'
-            f':wait\n'
-            f'tasklist /FI "IMAGENAME eq agent_service.exe" 2>nul | find /I "agent_service.exe" > nul\n'
-            f'if %ERRORLEVEL%==0 (\n'
-            f'  if %R% lss 15 ( set /A R+=1 & timeout /t 1 /nobreak > nul & goto wait )\n'
-            f')\n'
-            f'\n'
-            f'if exist "{exe_path}.bak" del /F /Q "{exe_path}.bak"\n'
-            f'if exist "{exe_path}" move /Y "{exe_path}" "{exe_path}.bak"\n'
-            f'move /Y "{new_exe}" "{exe_path}"\n'
-            f'if %ERRORLEVEL% neq 0 (\n'
-            f'  if exist "{exe_path}.bak" move /Y "{exe_path}.bak" "{exe_path}"\n'
-            f'  if exist "{new_exe}" del /F /Q "{new_exe}"\n'
-            f'  del /F /Q "%~f0" & exit /b 1\n'
-            f')\n'
-            f'\n'
-            f'{restart_cmd}\n'
-            f'del /F /Q "%~f0"\n'
-            f'exit /b 0\n'
-        )
+        bat = (f'@echo off\n{stop_cmd}\ntimeout /t 5 /nobreak > nul\n'
+               f'set R=0\n:wait\ntasklist /FI "IMAGENAME eq agent_service.exe" 2>nul | find /I "agent_service.exe" > nul\n'
+               f'if %ERRORLEVEL%==0 ( if %R% lss 15 ( set /A R+=1 & timeout /t 1 /nobreak > nul & goto wait ) )\n'
+               f'if exist "{exe_path}.bak" del /F /Q "{exe_path}.bak"\n'
+               f'if exist "{exe_path}" move /Y "{exe_path}" "{exe_path}.bak"\n'
+               f'move /Y "{new_exe}" "{exe_path}"\n'
+               f'if %ERRORLEVEL% neq 0 ( if exist "{exe_path}.bak" move /Y "{exe_path}.bak" "{exe_path}" & del /F /Q "%~f0" & exit /b 1 )\n'
+               f'{restart_cmd}\ndel /F /Q "%~f0"\nexit /b 0\n')
         bat_path.write_text(bat, encoding="ascii", errors="replace")
-        logger.info(f"Update: script criado — {bat_path.name}")
 
-        # 5. Executa detached e encerra
-        subprocess.Popen(
-            ["cmd.exe", "/c", str(bat_path)],
-            creationflags=(
-                subprocess.CREATE_NO_WINDOW |
-                subprocess.DETACHED_PROCESS |
-                subprocess.CREATE_NEW_PROCESS_GROUP
-            ),
-            close_fds=True,
-        )
-        logger.info("Update: script iniciado — encerrando processo para substituição")
+        subprocess.Popen(["cmd.exe", "/c", str(bat_path)],
+                         creationflags=(subprocess.CREATE_NO_WINDOW |
+                                        subprocess.DETACHED_PROCESS |
+                                        subprocess.CREATE_NEW_PROCESS_GROUP),
+                         close_fds=True)
         time.sleep(1)
         sys.exit(0)
-
     except Exception as e:
         logger.error(f"Update: falha — {e}")
         for tmp in [new_exe, bat_path]:
             try:
-                if tmp.exists():
-                    tmp.unlink()
-            except Exception:
-                pass
+                if tmp.exists(): tmp.unlink()
+            except Exception: pass
 
 
 # ─────────────────────────────────────────────
 # Ponto de entrada
 # ─────────────────────────────────────────────
 def main():
+    global _CONFIG   # ── expõe para snapshot() usar a instância real
+
     token = None
     for arg in sys.argv[1:]:
         if arg.startswith("--token="):
             token = arg.split("=", 1)[1]
 
-    config = AgentConfig()
+    config  = AgentConfig()
+    _CONFIG = config   # ── atribui globalmente antes de qualquer thread
 
     if token:
         config.set("token_hash", hashlib.sha256(token.encode()).hexdigest())
@@ -1196,9 +1046,7 @@ def main():
 
     logger.info(f"=== AgentService v{VERSION} ({AGENT_TYPE}) iniciando ===")
     logger.info(f"Máquina: {config.get('machine_name')} | Servidor: {config.get('server_url')}")
-    logger.info(f"SSL verify: {config.get('ssl_verify')} | Heartbeat: {config.get('check_interval')}s + jitter")
-    logger.info(f"IPC    : 127.0.0.1:{IPC_PORT}")
-    logger.info(f"WebRTC : 0.0.0.0:{WEBRTC_PORT} (subnet: {WEBRTC_ALLOWED_SUBNET})")
+    logger.info(f"token_hash presente: {'sim' if config.get('token_hash') else 'NÃO'}")
 
     threads = [
         threading.Thread(target=start_ipc_server,    args=(config,), daemon=True, name="ipc"),

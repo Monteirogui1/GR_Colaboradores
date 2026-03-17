@@ -1549,11 +1549,15 @@ class ConfiguracaoEmailTesteView(LoginRequiredMixin, View):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AgentTicketListAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    GET /tickets/api/agent/list/?email=X
+    Authorization: Bearer <token_hash>
+    X-Machine-Name: DESKTOP-ABC123       ← obrigatório (enviado pelo agent_service)
+    """
     authentication_classes = []
     permission_classes = []
 
     def get(self, request):
-        from apps.inventory.models import Machine
         from django.contrib.auth import get_user_model
         from django.db.models import Q
         User = get_user_model()
@@ -1562,35 +1566,40 @@ class AgentTicketListAPIView(AgentTokenRequiredMixin, APIView):
         if err:
             return err
 
-        machine_name = agent_token.machine_name
-        email        = request.GET.get("email", "").strip()
-        logged_user  = request.GET.get("logged_user", "").strip()
+        email = request.GET.get("email", "").strip()
+        logged_user = request.GET.get("logged_user", "").strip()
 
         if not email:
             return Response({'ok': False, 'error': 'Parâmetro email obrigatório.'}, status=400)
 
-        # Resolve o solicitante pelo e-mail
         solicitante = User.objects.filter(email=email).first()
         if not solicitante:
             return Response({'ok': True, 'tickets': [],
                              'warning': f'Usuário com e-mail {email} não cadastrado.'})
 
-        # Filtro base: todos os chamados deste solicitante
-        filtro = Q(solicitante=solicitante)
-
-        # Se souber a máquina, restringe ainda mais para não vazar
-        # chamados de outras máquinas abertos via web por este mesmo usuário
-        # (opcional — remova o bloco abaixo se quiser ver todos)
+        # Resolve máquina (pode ser None se não encontrada — não bloqueia a listagem)
+        machine = None
+        machine_name = self._get_machine_name(request, agent_token)
         if machine_name:
+            from apps.inventory.models import Machine
             try:
-                from apps.inventory.models import Machine
                 machine = Machine.objects.get(hostname__iexact=machine_name)
-                # mostra: chamados desta máquina OU chamados sem máquina vinculada
-                filtro = Q(solicitante=solicitante) & (
-                    Q(machine=machine) | Q(machine__isnull=True)
+                # Registra uso do token nesta máquina
+                AgentTokenUsage.objects.update_or_create(
+                    agent_token=agent_token,
+                    machine_name=machine.hostname,
                 )
             except Machine.DoesNotExist:
-                pass  # máquina não encontrada — usa filtro só por e-mail
+                pass
+
+        # Filtro: chamados deste solicitante
+        # Se souber a máquina: mostra chamados desta máquina + chamados sem máquina
+        if machine:
+            filtro = Q(solicitante=solicitante) & (
+                    Q(machine=machine) | Q(machine__isnull=True)
+            )
+        else:
+            filtro = Q(solicitante=solicitante)
 
         tickets = (
             Ticket.objects
@@ -1601,17 +1610,18 @@ class AgentTicketListAPIView(AgentTokenRequiredMixin, APIView):
         )
 
         return Response({
-            'ok':     True,
-            'email':  email,
+            'ok': True,
+            'email': email,
+            'machine': machine_name or '',
             'tickets': [
                 {
-                    'id':         t.pk,
-                    'numero':     t.numero,
-                    'assunto':    t.assunto,
-                    'status':     t.status.nome,
+                    'id': t.pk,
+                    'numero': t.numero,
+                    'assunto': t.assunto,
+                    'status': t.status.nome,
                     'status_cor': t.status.cor,
-                    'servico':    t.servico.nome if t.servico else '',
-                    'criado_em':  t.criado_em.strftime('%d/%m/%Y %H:%M'),
+                    'servico': t.servico.nome if t.servico else '',
+                    'criado_em': t.criado_em.strftime('%d/%m/%Y %H:%M'),
                 }
                 for t in tickets
             ],
@@ -1728,11 +1738,17 @@ class AgentTicketReplyAPIView(AgentTokenRequiredMixin, APIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    POST /tickets/api/agent/criar/
+    Authorization: Bearer <token_hash>
+    X-Machine-Name: DESKTOP-ABC123
+
+    Body: { email_solicitante, logged_user, tipo_chamado, assunto, descricao }
+    """
     authentication_classes = []
     permission_classes = []
 
     def post(self, request):
-        from apps.inventory.models import Machine
         from django.contrib.auth import get_user_model
         User = get_user_model()
 
@@ -1741,10 +1757,10 @@ class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
             return err
 
         email_solicitante = request.data.get('email_solicitante', '').strip()
-        logged_user       = request.data.get('logged_user', '').strip()
+        logged_user = request.data.get('logged_user', '').strip()
         tipo_chamado_nome = request.data.get('tipo_chamado', '').strip()
-        assunto           = request.data.get('assunto', '').strip()
-        descricao         = request.data.get('descricao', '').strip()
+        assunto = request.data.get('assunto', '').strip()
+        descricao = request.data.get('descricao', '').strip()
 
         if not all([email_solicitante, assunto, descricao]):
             return Response(
@@ -1768,19 +1784,23 @@ class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
             servico = Servico.objects.filter(
                 nome__icontains=tipo_chamado_nome, ativo=True).first()
 
-        # Tenta vincular a máquina pelo token
+        # Resolve máquina via header X-Machine-Name (multi-máquina)
         machine = None
-        machine_name = agent_token.machine_name
+        machine_name = self._get_machine_name(request, agent_token)
         if machine_name:
+            from apps.inventory.models import Machine
             try:
-                from apps.inventory.models import Machine
                 machine = Machine.objects.get(hostname__iexact=machine_name)
+                AgentTokenUsage.objects.update_or_create(
+                    agent_token=agent_token,
+                    machine_name=machine.hostname,
+                )
             except Machine.DoesNotExist:
                 pass
 
         ticket = Ticket.objects.create(
             solicitante=solicitante,
-            machine=machine,                   # FK direto na máquina
+            machine=machine,
             status=status_inicial,
             servico=servico,
             assunto=assunto,

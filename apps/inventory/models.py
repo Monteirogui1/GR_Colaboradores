@@ -290,12 +290,6 @@ class AgentToken(models.Model):
 
     token = models.CharField(max_length=8, unique=True, verbose_name="Token")
     token_hash = models.CharField(max_length=64, unique=True, verbose_name="Hash do Token")
-    machine_name = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True,
-        verbose_name="Nome da Máquina"
-    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -303,11 +297,6 @@ class AgentToken(models.Model):
         verbose_name="Criado por"
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
-    used_at = models.DateTimeField(
-        blank=True,
-        null=True,
-        verbose_name="Usado em"
-    )
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
     expires_at = models.DateTimeField(verbose_name="Expira em")
 
@@ -379,6 +368,25 @@ class AgentToken(models.Model):
             return {'text': 'Usado', 'class': 'info'}
         else:
             return {'text': 'Disponível', 'class': 'success'}
+
+class AgentTokenUsage(models.Model):
+    agent_token = models.ForeignKey(
+        AgentToken,
+        on_delete=models.CASCADE,
+        related_name='usages',
+        verbose_name='Token'
+    )
+    machine_name = models.CharField(max_length=255, verbose_name='Nome da Máquina')
+    first_used_at = models.DateTimeField(auto_now_add=True, verbose_name='Primeiro uso')
+    last_used_at = models.DateTimeField(auto_now=True, verbose_name='Último uso')
+
+    class Meta:
+        verbose_name = 'Uso do Token'
+        verbose_name_plural = 'Usos do Token'
+        unique_together = ('agent_token', 'machine_name')
+
+    def __str__(self):
+        return f'{self.agent_token.token} - {self.machine_name}'
 
 
 class AgentVersion(models.Model):

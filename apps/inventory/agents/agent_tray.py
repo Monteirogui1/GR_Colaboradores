@@ -1,3 +1,7 @@
+# agent_tray.py — v3.3.0
+# Tray App: roda na sessão do usuário, recebe WebRTC do agent_service,
+# exibe notificações nativas e gerencia chamados de suporte.
+
 import os
 import sys
 import re
@@ -385,15 +389,6 @@ class IPCClient:
     def run_command(cls, cmd_type, script, timeout=30):
         return cls._post("/command", {"type": cmd_type, "script": script, "timeout": timeout})
 
-    @classmethod
-    def get_agent_config(cls) -> dict:
-        """Busca server_url e token_hash do agent_service via IPC."""
-        status = cls.get_status()
-        return {
-            "server_url": (status or {}).get("server_url", ""),
-            "token_hash": (status or {}).get("token_hash", ""),
-        }
-
 
 # ─────────────────────────────────────────────
 # Janela de Status
@@ -512,6 +507,586 @@ class StatusWindow:
 
 
 # ─────────────────────────────────────────────
+# Janela de Chamados
+# ─────────────────────────────────────────────
+class ChamadosWindow:
+    _instance = None
+
+    @classmethod
+    def open(cls, server_url, token_hash):
+        if cls._instance and cls._instance.alive:
+            cls._instance.window.lift()
+            return
+        cls._instance = cls(server_url, token_hash)
+
+    def __init__(self, server_url, token_hash):
+        self.server_url = server_url.rstrip("/")
+        self.token_hash = token_hash
+        self.alive      = True
+        self._tickets   = []
+        self._selected  = None
+        self._historico = []
+        self._email     = os.environ.get("AGENT_USER_EMAIL", "")
+        threading.Thread(target=self._build, daemon=True).start()
+
+    # ── helpers de API ──────────────────────────────────────
+    def _headers(self):
+        return {
+            "Authorization": f"Bearer {self.token_hash}",
+            "Content-Type":  "application/json",
+        }
+
+    def _api_get(self, path, params=None):
+        r = requests.get(
+            f"{self.server_url}{path}",
+            headers=self._headers(),
+            params=params,
+            timeout=10,
+            verify=False,
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def _api_post(self, path, body):
+        r = requests.post(
+            f"{self.server_url}{path}",
+            headers=self._headers(),
+            json=body,
+            timeout=10,
+            verify=False,
+        )
+        r.raise_for_status()
+        return r.json()
+
+    # ── build da UI ──────────────────────────────────────────
+    def _build(self):
+        win = tk.Tk()
+        self.window = win
+        win.title("Meus Chamados")
+        win.geometry("980x640")
+        win.minsize(800, 520)
+        win.configure(bg="#f1f5f9")
+        win.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        main = tk.Frame(win, bg="#f1f5f9")
+        main.pack(fill=tk.BOTH, expand=True)
+
+        # ── SIDEBAR ─────────────────────────────────────────
+        sidebar = tk.Frame(main, bg="#1e293b", width=290)
+        sidebar.pack(side=tk.LEFT, fill=tk.Y)
+        sidebar.pack_propagate(False)
+
+        # Cabeçalho sidebar
+        hdr = tk.Frame(sidebar, bg="#0f172a", pady=12)
+        hdr.pack(fill=tk.X)
+        tk.Label(hdr, text="🎫  Chamados", font=("Segoe UI", 12, "bold"),
+                 bg="#0f172a", fg="#f8fafc").pack(side=tk.LEFT, padx=14)
+        tk.Button(
+            hdr, text="+ Novo",
+            font=("Segoe UI", 9, "bold"),
+            bg="#1a73e8", fg="white",
+            relief=tk.FLAT, padx=10, pady=4,
+            cursor="hand2",
+            command=self._abrir_novo_ticket,
+        ).pack(side=tk.RIGHT, padx=10)
+
+        # Campo de e-mail + botão carregar
+        email_frm = tk.Frame(sidebar, bg="#1e293b", pady=6, padx=10)
+        email_frm.pack(fill=tk.X)
+        tk.Label(email_frm, text="Seu e-mail:", font=("Segoe UI", 8),
+                 bg="#1e293b", fg="#94a3b8").pack(anchor="w")
+        self.email_var = tk.StringVar(value=self._email)
+        tk.Entry(
+            email_frm,
+            textvariable=self.email_var,
+            font=("Segoe UI", 9),
+            bg="#334155", fg="white",
+            insertbackground="white",
+            relief=tk.FLAT, bd=0,
+            highlightthickness=1,
+            highlightbackground="#475569",
+        ).pack(fill=tk.X, pady=(2, 4))
+        tk.Button(
+            email_frm, text="🔄  Carregar chamados",
+            font=("Segoe UI", 8),
+            bg="#334155", fg="#94a3b8",
+            relief=tk.FLAT, pady=4,
+            cursor="hand2",
+            command=self._carregar_tickets,
+        ).pack(fill=tk.X)
+
+        # Lista scrollável de tickets
+        lista_frm = tk.Frame(sidebar, bg="#1e293b")
+        lista_frm.pack(fill=tk.BOTH, expand=True, pady=(6, 0))
+
+        sb = tk.Scrollbar(lista_frm, orient=tk.VERTICAL, bg="#334155",
+                          troughcolor="#1e293b", bd=0)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.lista_canvas = tk.Canvas(lista_frm, bg="#1e293b", bd=0,
+                                      highlightthickness=0,
+                                      yscrollcommand=sb.set)
+        self.lista_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        sb.config(command=self.lista_canvas.yview)
+
+        self.lista_inner = tk.Frame(self.lista_canvas, bg="#1e293b")
+        self.lista_canvas.create_window((0, 0), window=self.lista_inner, anchor="nw")
+        self.lista_inner.bind(
+            "<Configure>",
+            lambda e: self.lista_canvas.configure(
+                scrollregion=self.lista_canvas.bbox("all")),
+        )
+
+        # ── CONTEÚDO DIREITO ─────────────────────────────────
+        content = tk.Frame(main, bg="#f1f5f9")
+        content.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Cabeçalho do ticket selecionado
+        self.ticket_hdr = tk.Frame(
+            content, bg="#ffffff",
+            highlightthickness=1, highlightbackground="#e2e8f0",
+        )
+        self.ticket_hdr.pack(fill=tk.X)
+
+        self.lbl_assunto = tk.Label(
+            self.ticket_hdr,
+            text="← Selecione um chamado na lista",
+            font=("Segoe UI", 12, "bold"),
+            bg="#ffffff", fg="#1e293b",
+            pady=14, padx=20, anchor="w",
+        )
+        self.lbl_assunto.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        self.lbl_status_ticket = tk.Label(
+            self.ticket_hdr, text="",
+            font=("Segoe UI", 9, "bold"),
+            bg="#ffffff", fg="#64748b",
+            padx=16,
+        )
+        self.lbl_status_ticket.pack(side=tk.RIGHT)
+
+        # Área de histórico (balões)
+        hist_wrap = tk.Frame(content, bg="#f1f5f9")
+        hist_wrap.pack(fill=tk.BOTH, expand=True, padx=14, pady=(10, 0))
+
+        hist_sb = tk.Scrollbar(hist_wrap, orient=tk.VERTICAL)
+        hist_sb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.hist_canvas = tk.Canvas(
+            hist_wrap, bg="#f1f5f9", bd=0,
+            highlightthickness=0,
+            yscrollcommand=hist_sb.set,
+        )
+        self.hist_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        hist_sb.config(command=self.hist_canvas.yview)
+
+        self.hist_inner = tk.Frame(self.hist_canvas, bg="#f1f5f9")
+        self.hist_canvas.create_window((0, 0), window=self.hist_inner, anchor="nw")
+        self.hist_inner.bind(
+            "<Configure>",
+            lambda e: self.hist_canvas.configure(
+                scrollregion=self.hist_canvas.bbox("all")),
+        )
+
+        # Área de resposta
+        reply_frm = tk.Frame(
+            content, bg="#ffffff",
+            highlightthickness=1, highlightbackground="#e2e8f0",
+        )
+        reply_frm.pack(fill=tk.X, padx=14, pady=10)
+
+        tk.Label(reply_frm, text="Responder:", font=("Segoe UI", 9, "bold"),
+                 bg="#ffffff", fg="#374151").pack(anchor="w", padx=12, pady=(8, 2))
+
+        self.reply_text = tk.Text(
+            reply_frm, height=4,
+            font=("Segoe UI", 10),
+            relief=tk.FLAT, bg="#f8fafc",
+            bd=0, highlightthickness=1,
+            highlightbackground="#e2e8f0",
+            padx=10, pady=8,
+        )
+        self.reply_text.pack(fill=tk.X, padx=12, pady=(0, 6))
+        self._placeholder_text = "Digite sua resposta aqui…"
+        self.reply_text.insert("1.0", self._placeholder_text)
+        self.reply_text.config(fg="#9ca3af")
+        self.reply_text.bind("<FocusIn>",  self._reply_focus_in)
+        self.reply_text.bind("<FocusOut>", self._reply_focus_out)
+
+        tk.Button(
+            reply_frm, text="Enviar Resposta  ➤",
+            font=("Segoe UI", 9, "bold"),
+            bg="#1a73e8", fg="white",
+            relief=tk.FLAT, padx=16, pady=6,
+            cursor="hand2",
+            command=self._enviar_resposta,
+        ).pack(anchor="e", padx=12, pady=(0, 10))
+
+        # Carrega tickets ao abrir
+        win.after(200, self._carregar_tickets)
+        win.mainloop()
+
+    # ── placeholder ─────────────────────────────────────────
+    def _reply_focus_in(self, _e):
+        if self.reply_text.get("1.0", tk.END).strip() == self._placeholder_text:
+            self.reply_text.delete("1.0", tk.END)
+            self.reply_text.config(fg="#1e293b")
+
+    def _reply_focus_out(self, _e):
+        if not self.reply_text.get("1.0", tk.END).strip():
+            self.reply_text.insert("1.0", self._placeholder_text)
+            self.reply_text.config(fg="#9ca3af")
+
+    # ── carregar lista ───────────────────────────────────────
+    def _carregar_tickets(self):
+        email = self.email_var.get().strip()
+        if not email:
+            return
+        self._email = email
+
+        def fetch():
+            try:
+                data = self._api_get("/tickets/api/agent/list/", params={"email": email})
+                self.window.after(0, lambda: self._render_lista(data.get("tickets", [])))
+            except Exception as ex:
+                logger.error(f"Erro ao carregar tickets: {ex}")
+                ToastNotification.show(
+                    title="Erro", message=f"Não foi possível carregar chamados: {ex}",
+                    notif_type="error", duration=5)
+
+        threading.Thread(target=fetch, daemon=True).start()
+
+    def _render_lista(self, tickets):
+        self._tickets = tickets
+        for w in self.lista_inner.winfo_children():
+            w.destroy()
+
+        if not tickets:
+            tk.Label(
+                self.lista_inner,
+                text="Nenhum chamado encontrado.",
+                font=("Segoe UI", 9, "italic"),
+                bg="#1e293b", fg="#64748b",
+                pady=24,
+            ).pack()
+            return
+
+        for t in tickets:
+            self._render_ticket_card(t)
+
+        # Seleciona o primeiro automaticamente
+        if tickets and self._selected is None:
+            self._selecionar_ticket(tickets[0])
+
+    def _render_ticket_card(self, t):
+        is_sel  = self._selected and self._selected["id"] == t["id"]
+        bg_base = "#2d4a7a" if is_sel else "#1e293b"
+        bg_hvr  = "#253352"
+        cor     = t.get("status_cor", "#64748b")
+
+        card = tk.Frame(self.lista_inner, bg=bg_base, cursor="hand2",
+                        highlightthickness=0)
+        card.pack(fill=tk.X, padx=0, pady=1)
+
+        # Faixa lateral colorida com status
+        tk.Frame(card, bg=cor, width=4).pack(side=tk.LEFT, fill=tk.Y)
+
+        body = tk.Frame(card, bg=bg_base, padx=10, pady=10)
+        body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        tk.Label(body, text=f"#{t['numero']}", font=("Segoe UI", 8, "bold"),
+                 bg=bg_base, fg="#94a3b8", anchor="w").pack(fill=tk.X)
+
+        assunto_txt = t["assunto"][:44] + ("…" if len(t["assunto"]) > 44 else "")
+        tk.Label(body, text=assunto_txt, font=("Segoe UI", 9, "bold"),
+                 bg=bg_base, fg="#f1f5f9", anchor="w",
+                 wraplength=238).pack(fill=tk.X)
+
+        meta = tk.Frame(body, bg=bg_base)
+        meta.pack(fill=tk.X, pady=(4, 0))
+        tk.Label(meta, text=t["status"], font=("Segoe UI", 8),
+                 bg=bg_base, fg=cor, anchor="w").pack(side=tk.LEFT)
+        tk.Label(meta, text=t["criado_em"], font=("Segoe UI", 7),
+                 bg=bg_base, fg="#64748b", anchor="e").pack(side=tk.RIGHT)
+
+        # Bind click + hover em todos os filhos
+        all_widgets = [card, body, meta] + body.winfo_children() + meta.winfo_children()
+
+        def on_click(_e, ticket=t):
+            self._selecionar_ticket(ticket)
+
+        def on_enter(_e):
+            if not (self._selected and self._selected["id"] == t["id"]):
+                for w in all_widgets:
+                    try:
+                        w.config(bg=bg_hvr)
+                    except Exception:
+                        pass
+
+        def on_leave(_e):
+            if not (self._selected and self._selected["id"] == t["id"]):
+                for w in all_widgets:
+                    try:
+                        w.config(bg="#1e293b")
+                    except Exception:
+                        pass
+
+        for w in all_widgets:
+            w.bind("<Button-1>", on_click)
+            w.bind("<Enter>",    on_enter)
+            w.bind("<Leave>",    on_leave)
+
+    # ── selecionar ticket ────────────────────────────────────
+    def _selecionar_ticket(self, ticket):
+        self._selected = ticket
+        self.lbl_assunto.config(text=f"#{ticket['numero']}  —  {ticket['assunto']}")
+        self.lbl_status_ticket.config(text=ticket["status"])
+
+        # Redesenha cards para refletir seleção
+        self._render_lista(self._tickets)
+
+        def fetch():
+            try:
+                data = self._api_get(f"/tickets/api/agent/{ticket['id']}/")
+                self.window.after(0, lambda: self._render_historico(
+                    data.get("historico", [])))
+            except Exception as ex:
+                logger.error(f"Erro ao carregar histórico: {ex}")
+
+        threading.Thread(target=fetch, daemon=True).start()
+
+    # ── renderizar histórico ─────────────────────────────────
+    def _render_historico(self, historico):
+        self._historico = historico
+        for w in self.hist_inner.winfo_children():
+            w.destroy()
+
+        if not historico:
+            tk.Label(
+                self.hist_inner,
+                text="Nenhuma mensagem ainda. Seja o primeiro a responder!",
+                font=("Segoe UI", 9, "italic"),
+                bg="#f1f5f9", fg="#94a3b8",
+                pady=24,
+            ).pack()
+            return
+
+        for acao in historico:           # já vem mais recente primeiro
+            self._render_balao(acao)
+
+        self.hist_canvas.update_idletasks()
+        self.hist_canvas.yview_moveto(0) # topo = mais recente
+
+    def _render_balao(self, acao):
+        is_staff = acao.get("is_staff", False)
+        # Staff (suporte) → direita azul  |  cliente → esquerda branco
+        anchor  = "e" if is_staff else "w"
+        bg_msg  = "#1a73e8" if is_staff else "#ffffff"
+        fg_msg  = "#ffffff"  if is_staff else "#1e293b"
+
+        outer = tk.Frame(self.hist_inner, bg="#f1f5f9")
+        outer.pack(fill=tk.X, padx=12, pady=5)
+
+        # Linha de meta (nome + hora)
+        meta = tk.Frame(outer, bg="#f1f5f9")
+        meta.pack(fill=tk.X)
+        if is_staff:
+            tk.Label(meta, text=acao["criado_em"], font=("Segoe UI", 7),
+                     bg="#f1f5f9", fg="#94a3b8").pack(side=tk.LEFT, padx=4)
+            tk.Label(meta, text=acao["autor"], font=("Segoe UI", 8, "bold"),
+                     bg="#f1f5f9", fg="#475569").pack(side=tk.RIGHT)
+        else:
+            tk.Label(meta, text=acao["autor"], font=("Segoe UI", 8, "bold"),
+                     bg="#f1f5f9", fg="#475569").pack(side=tk.LEFT)
+            tk.Label(meta, text=acao["criado_em"], font=("Segoe UI", 7),
+                     bg="#f1f5f9", fg="#94a3b8").pack(side=tk.RIGHT, padx=4)
+
+        # Balão
+        bubble = tk.Label(
+            outer,
+            text=acao["conteudo"],
+            font=("Segoe UI", 10),
+            bg=bg_msg, fg=fg_msg,
+            wraplength=520,
+            justify=tk.LEFT,
+            anchor="w",
+            padx=14, pady=10,
+            relief=tk.FLAT,
+        )
+        bubble.pack(anchor=anchor, pady=(2, 0))
+
+    # ── enviar resposta ──────────────────────────────────────
+    def _enviar_resposta(self):
+        if not self._selected:
+            ToastNotification.show(title="Aviso",
+                                   message="Selecione um chamado antes de responder.",
+                                   notif_type="warning", duration=4)
+            return
+
+        conteudo = self.reply_text.get("1.0", tk.END).strip()
+        if not conteudo or conteudo == self._placeholder_text:
+            return
+
+        email = self.email_var.get().strip()
+
+        def send():
+            try:
+                data = self._api_post(
+                    f"/tickets/api/agent/{self._selected['id']}/reply/",
+                    {"email": email, "conteudo": conteudo},
+                )
+                if data.get("ok"):
+                    nova_acao = data["acao"]
+                    self.window.after(0, lambda: self._append_acao(nova_acao))
+                    self.window.after(0, self._limpar_reply)
+                    ToastNotification.show(
+                        title="Resposta enviada",
+                        message=f"Ticket #{self._selected['numero']} atualizado.",
+                        notif_type="success", duration=4)
+                else:
+                    ToastNotification.show(title="Erro",
+                                           message=data.get("error", "Erro desconhecido"),
+                                           notif_type="error", duration=5)
+            except Exception as ex:
+                logger.error(f"Erro ao responder: {ex}")
+                ToastNotification.show(title="Erro", message=str(ex),
+                                       notif_type="error", duration=5)
+
+        threading.Thread(target=send, daemon=True).start()
+
+    def _append_acao(self, acao):
+        """Insere nova ação no topo sem recarregar tudo."""
+        self._historico.insert(0, acao)
+        for w in self.hist_inner.winfo_children():
+            w.destroy()
+        for a in self._historico:
+            self._render_balao(a)
+        self.hist_canvas.update_idletasks()
+        self.hist_canvas.yview_moveto(0)
+
+    def _limpar_reply(self):
+        self.reply_text.delete("1.0", tk.END)
+        self.reply_text.insert("1.0", self._placeholder_text)
+        self.reply_text.config(fg="#9ca3af")
+
+    # ── abrir novo ticket ────────────────────────────────────
+    def _abrir_novo_ticket(self):
+        NovoTicketModal(self)
+
+    def _on_close(self):
+        self.alive = False
+        ChamadosWindow._instance = None
+        self.window.destroy()
+
+
+# ─────────────────────────────────────────────
+# Modal: Novo Ticket
+# ─────────────────────────────────────────────
+class NovoTicketModal:
+    def __init__(self, parent: ChamadosWindow):
+        self.parent = parent
+        win = tk.Toplevel(parent.window)
+        self.window = win
+        win.title("Abrir Novo Chamado")
+        win.geometry("460x420")
+        win.resizable(False, False)
+        win.configure(bg="#f8fafc")
+        win.grab_set()  # modal
+
+        pad = {"padx": 18, "pady": 3}
+
+        tk.Label(win, text="Novo Chamado", font=("Segoe UI", 13, "bold"),
+                 bg="#f8fafc", fg="#0f172a").pack(pady=(16, 8))
+
+        def lbl(text):
+            tk.Label(win, text=text, font=("Segoe UI", 9),
+                     bg="#f8fafc", fg="#374151", anchor="w").pack(fill=tk.X, **pad)
+
+        def entry_var():
+            var = tk.StringVar()
+            e = tk.Entry(
+                win, textvariable=var,
+                font=("Segoe UI", 10), relief=tk.FLAT,
+                bd=0, highlightthickness=1,
+                highlightbackground="#d1d5db",
+                bg="#ffffff",
+            )
+            e.pack(fill=tk.X, padx=18, pady=(0, 6))
+            return var
+
+        lbl("E-mail do solicitante *")
+        self.email_var = entry_var()
+        self.email_var.set(parent.email_var.get())
+
+        lbl("Tipo do chamado (Serviço)  — opcional")
+        self.tipo_var = entry_var()
+
+        lbl("Assunto *")
+        self.assunto_var = entry_var()
+
+        lbl("Descrição *")
+        self.desc_widget = tk.Text(
+            win, height=5,
+            font=("Segoe UI", 10), relief=tk.FLAT,
+            bd=0, highlightthickness=1,
+            highlightbackground="#d1d5db",
+            bg="#ffffff", padx=8, pady=6,
+        )
+        self.desc_widget.pack(fill=tk.X, padx=18, pady=(0, 10))
+
+        btns = tk.Frame(win, bg="#f8fafc")
+        btns.pack(fill=tk.X, padx=18, pady=6)
+        tk.Button(btns, text="Cancelar", command=win.destroy,
+                  font=("Segoe UI", 10), bg="#e5e7eb",
+                  relief=tk.FLAT, padx=12, pady=6).pack(side=tk.RIGHT, padx=(6, 0))
+        tk.Button(btns, text="Abrir Chamado", command=self._submit,
+                  font=("Segoe UI", 10, "bold"), bg="#1a73e8", fg="white",
+                  relief=tk.FLAT, padx=12, pady=6).pack(side=tk.RIGHT)
+
+    def _submit(self):
+        from tkinter import messagebox
+        email    = self.email_var.get().strip()
+        tipo     = self.tipo_var.get().strip()
+        assunto  = self.assunto_var.get().strip()
+        descricao = self.desc_widget.get("1.0", tk.END).strip()
+
+        if not email or not assunto or not descricao:
+            messagebox.showerror("Campos obrigatórios",
+                                 "Preencha: E-mail, Assunto e Descrição.")
+            return
+
+        def send():
+            try:
+                data = self.parent._api_post(
+                    "/tickets/api/agent/criar/",
+                    {
+                        "email_solicitante": email,
+                        "tipo_chamado":      tipo,
+                        "assunto":           assunto,
+                        "descricao":         descricao,
+                    },
+                )
+                if data.get("ok"):
+                    ToastNotification.show(
+                        title="Chamado aberto!",
+                        message=f"Ticket #{data['numero']} criado com sucesso.",
+                        notif_type="success", duration=5)
+                    self.window.after(0, self.window.destroy)
+                    # Recarrega a lista após 500ms
+                    self.parent.window.after(500, self.parent._carregar_tickets)
+                else:
+                    ToastNotification.show(title="Erro",
+                                           message=data.get("error", "Erro desconhecido"),
+                                           notif_type="error", duration=5)
+            except Exception as ex:
+                logger.error(f"NovoTicket erro: {ex}")
+                ToastNotification.show(title="Erro", message=str(ex),
+                                       notif_type="error", duration=5)
+
+        threading.Thread(target=send, daemon=True).start()
+
+
+# ─────────────────────────────────────────────
 # Ícone do System Tray
 # ─────────────────────────────────────────────
 class TrayIcon:
@@ -549,26 +1124,39 @@ class TrayIcon:
 
     def _build_menu(self):
         return pystray.Menu(
-            item("📊 Status",
-                 lambda i, it: StatusWindow.open(self)),
-            item("🎫 Chamados",
-                 lambda i, it: self._open_chamados()),
-            item("⚡ Forçar Sync",
-                 lambda i, it: self._force_sync()),
+            item("📊 Status",      lambda i, it: StatusWindow.open(self)),
+            item("🎫 Chamados",    lambda i, it: self._open_chamados()),
+            item("⚡ Forçar Sync", lambda i, it: self._force_sync()),
             pystray.Menu.SEPARATOR,
-            item("❌ Sair",
-                 lambda i, it: self._quit()),
+            item("📄 Ver Logs",    lambda i, it: self._open_logs()),
+            pystray.Menu.SEPARATOR,
+            item("❌ Sair",        lambda i, it: self._quit()),
         )
 
     def _open_chamados(self):
-        cfg = IPCClient.get_agent_config()
-        if not cfg["server_url"]:
-            ToastNotification.show(
-                title="Chamados indisponível",
-                message="Serviço não respondeu. Verifique se o agent_service está rodando.",
-                notif_type="error", duration=6)
+        """Busca server_url, token_hash e logged_user do agent_service via IPC."""
+        status = IPCClient.get_status()
+        if not status:
+            logger.warning("Chamados: agent_service não respondeu via IPC")
             return
-        ChamadosManager.open(cfg["server_url"], cfg["token_hash"])
+
+        server_url  = status.get("server_url", "").rstrip("/")
+        token_hash  = status.get("token_hash", "")
+        logged_user = status.get("logged_user", "")
+
+        if not server_url or not token_hash:
+            logger.warning(
+                f"Chamados: server_url={server_url!r} "
+                f"token_hash={'presente' if token_hash else 'AUSENTE'} "
+                "— agent_service pode não ter carregado as variáveis NSSM ainda"
+            )
+            return
+
+        ChamadosManager.open(
+            server_url=server_url,
+            token_hash=token_hash,
+            logged_user=logged_user,
+        )
 
     def _force_sync(self):
         ok = IPCClient.force_sync()

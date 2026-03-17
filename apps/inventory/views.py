@@ -24,7 +24,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from django.db.models import Q
 from .forms import MachineForm, NotificationForm, BlockedSiteForm, MachineGroupForm
-from .models import Machine, BlockedSite, Notification, MachineGroup, AgentToken, AgentVersion
+from .models import Machine, BlockedSite, Notification, MachineGroup, AgentToken, AgentVersion, AgentTokenUsage
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +36,7 @@ logger = logging.getLogger(__name__)
 def _get_agent_token(request):
     """
     Extrai e valida o token de agente a partir do header Authorization.
-
-    Header esperado:
-        Authorization: Bearer <token_hash>
-
+    Header esperado: Authorization: Bearer <token_hash>
     Retorna o objeto AgentToken se válido, ou None.
     """
     auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -61,8 +58,13 @@ def _get_agent_token(request):
 
 class AgentTokenRequiredMixin:
     """
-    Mixin para APIView/View: bloqueia requisições sem token de agente válido.
-    Responde com 401 JSON para requisições não autenticadas.
+    Mixin para APIView: bloqueia requisições sem token de agente válido.
+
+    Como um token pode ser usado por múltiplas máquinas, o hostname vem
+    no header X-Machine-Name (enviado pelo agent_service em todo checkin).
+
+    Se o header não estiver presente, tenta buscar via AgentTokenUsage
+    (última máquina conhecida para este token — fallback para tokens legados).
     """
 
     def _authenticate(self, request):
@@ -77,6 +79,59 @@ class AgentTokenRequiredMixin:
                 return None, Response(error_payload, status=status.HTTP_401_UNAUTHORIZED)
             return None, JsonResponse(error_payload, status=401)
         return agent_token, None
+
+    def _get_machine_name(self, request, agent_token) -> str:
+        """
+        Resolve o hostname da máquina que está fazendo a requisição.
+
+        Ordem de prioridade:
+        1. Header X-Machine-Name   (enviado pelo agent_service)
+        2. Param ?machine_name=    (fallback via query string)
+        3. AgentTokenUsage mais recente para este token (último registro)
+        """
+        # 1. Header preferencial
+        name = request.META.get('HTTP_X_MACHINE_NAME', '').strip()
+        if name:
+            return name
+
+        # 2. Query string
+        name = request.GET.get('machine_name', '').strip()
+        if name:
+            return name
+
+        # 3. Último uso registrado
+        usage = (AgentTokenUsage.objects
+                 .filter(agent_token=agent_token)
+                 .order_by('-last_used_at')
+                 .first())
+        return usage.machine_name if usage else ''
+
+    def _get_machine(self, request, agent_token):
+        """
+        Resolve o objeto Machine a partir do hostname.
+        Retorna (machine, None) ou (None, response_de_erro).
+        """
+        machine_name = self._get_machine_name(request, agent_token)
+        if not machine_name:
+            error = {'ok': False, 'error': 'Hostname da máquina não identificado. '
+                                           'Verifique o header X-Machine-Name.'}
+            if isinstance(self, APIView):
+                return None, Response(error, status=400)
+            return None, JsonResponse(error, status=400)
+
+        try:
+            machine = Machine.objects.get(hostname__iexact=machine_name)
+            # Atualiza/registra o uso deste token nesta máquina
+            AgentTokenUsage.objects.update_or_create(
+                agent_token=agent_token,
+                machine_name=machine.hostname,
+            )
+            return machine, None
+        except Machine.DoesNotExist:
+            error = {'ok': False, 'error': f'Máquina "{machine_name}" não registrada.'}
+            if isinstance(self, APIView):
+                return None, Response(error, status=404)
+            return None, JsonResponse(error, status=404)
 
 
 def parse_wmi_date(wmi_date_str):
@@ -104,12 +159,17 @@ def parse_wmi_date(wmi_date_str):
         return None
 
 
+def mark_as_used(self, machine_name):
+    """Marca token como usado"""
+    self.used_at = timezone.now()
+    self.machine_name = machine_name
+    self.save(update_fields=['used_at', 'machine_name'])
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class MachineCheckinView(View):
     def post(self, request):
         try:
-
-
             raw = request.body.decode('utf-8')
             data = json.loads(raw)
             hostname = data['hostname']
@@ -117,8 +177,19 @@ class MachineCheckinView(View):
             hw = data.get('hardware', {})
 
             token_hash = data.get("token")
-            if not AgentToken.objects.filter(token_hash=token_hash, is_active=True).exists():
+            try:
+                agent_token = AgentToken.objects.get(token_hash=token_hash, is_active=True)
+            except AgentToken.DoesNotExist:
                 return JsonResponse({'error': 'Token inválido'}, status=401)
+
+            if agent_token.is_expired():
+                return JsonResponse({'error': 'Token expirado'}, status=401)
+
+            # Registra/atualiza uso do token nesta máquina (multi-máquina)
+            AgentTokenUsage.objects.update_or_create(
+                agent_token=agent_token,
+                machine_name=hostname,
+            )
 
             install_date = parse_wmi_date(hw.get('install_date'))
             last_boot = parse_wmi_date(hw.get('last_boot'))
@@ -166,8 +237,8 @@ class MachineCheckinView(View):
             )
             return JsonResponse({'status': 'ok', 'machine_id': machine.id})
         except Exception as e:
-            logger.exception("Erro no check-in")
-            return JsonResponse({'error': str(e)}, status=400)
+            logger.error(f"Checkin error: {e}")
+            return JsonResponse({'error': str(e)}, status=500)
 
     def get(self, request):
         host = request.GET.get('host')
@@ -719,10 +790,6 @@ class AgentVersionToggleView(LoginRequiredMixin, View):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AgentValidateTokenAPIView(APIView):
-    """
-    API para validar token de instalação do agente.
-    PÚBLICA — é o endpoint de validação inicial, antes de o agente ter token confirmado.
-    """
     authentication_classes = []
     permission_classes = []
 
@@ -733,27 +800,22 @@ class AgentValidateTokenAPIView(APIView):
             machine_name = data.get('machine_name', '')
 
             if not token:
-                return Response(
-                    {'valid': False, 'message': 'Token não fornecido'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response({'valid': False, 'message': 'Token não fornecido'}, status=400)
 
             try:
                 agent_token = AgentToken.objects.get(token_hash=token, is_active=True)
             except AgentToken.DoesNotExist:
-                return Response(
-                    {'valid': False, 'message': 'Token inválido'},
-                    status=status.HTTP_401_UNAUTHORIZED
-                )
+                return Response({'valid': False, 'message': 'Token inválido'}, status=401)
 
             if agent_token.is_expired():
-                return Response(
-                    {'valid': False, 'message': 'Token expirado'},
-                    status=status.HTTP_401_UNAUTHORIZED
-                )
+                return Response({'valid': False, 'message': 'Token expirado'}, status=401)
 
-            if not agent_token.used_at:
-                agent_token.mark_as_used(machine_name)
+            # Registra uso (multi-máquina — não usa mark_as_used que salva em campo único)
+            if machine_name:
+                AgentTokenUsage.objects.update_or_create(
+                    agent_token=agent_token,
+                    machine_name=machine_name,
+                )
 
             return Response({
                 'valid': True,
@@ -762,10 +824,7 @@ class AgentValidateTokenAPIView(APIView):
             })
 
         except Exception as e:
-            return Response(
-                {'valid': False, 'message': f'Erro: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'valid': False, 'message': f'Erro: {str(e)}'}, status=500)
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -945,7 +1004,8 @@ class BulkNotificationCreateView(LoginRequiredMixin, View):
 class AgentMachineInfoAPIView(AgentTokenRequiredMixin, APIView):
     """
     GET /api/inventario/agent/machine/
-    Retorna info da máquina + ativos vinculados para a aba Informações do chamados.py
+    Authorization: Bearer <token_hash>
+    X-Machine-Name: DESKTOP-ABC123
     """
     authentication_classes = []
     permission_classes = []
@@ -955,33 +1015,30 @@ class AgentMachineInfoAPIView(AgentTokenRequiredMixin, APIView):
         if err:
             return err
 
-        machine_name = agent_token.machine_name
-        if not machine_name:
-            return Response({'ok': False, 'error': 'Token sem machine_name.'}, status=400)
-
-        try:
-            machine = Machine.objects.get(hostname__iexact=machine_name)
-        except Machine.DoesNotExist:
-            return Response({'ok': False, 'error': f'Máquina "{machine_name}" não encontrada.'}, status=404)
+        machine, err = self._get_machine(request, agent_token)
+        if err:
+            return err
 
         ativos = []
         try:
             from apps.ativos.models import Ativo
             for a in Ativo.objects.filter(computador=machine).select_related('categoria'):
                 ativos.append({
-                    'nome':      a.nome,
-                    'etiqueta':  a.etiqueta or '',
+                    'nome': a.nome,
+                    'etiqueta': a.etiqueta or '',
                     'categoria': a.categoria.nome if a.categoria else '',
                 })
         except Exception:
             pass
 
+        checkin = machine.last_seen.strftime('%d/%m/%Y %H:%M') if machine.last_seen else '—'
+
         return Response({
-            'ok':           True,
-            'hostname':     machine.hostname,
-            'online':       machine.is_online,
-            'ip':           machine.ip_address or '—',
-            'logged_user':  machine.loggedUser or '—',
-            'last_checkin': machine.last_seen.strftime('%d/%m/%Y %H:%M') if machine.last_seen else '—',
-            'ativos':       ativos,
+            'ok': True,
+            'hostname': machine.hostname,
+            'online': machine.is_online,
+            'ip': machine.ip_address or '—',
+            'logged_user': machine.loggedUser or '—',
+            'last_checkin': checkin,
+            'ativos': ativos,
         })

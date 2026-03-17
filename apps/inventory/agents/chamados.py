@@ -11,12 +11,12 @@ Uso:
         logged_user="joao.silva",   # Machine.loggedUser (opcional)
     )
 
-Endpoints necessários (apps/views.py):
-    GET  /api/inventario/agent/list/?email=X&logged_user=Y  → lista tickets
-    GET  /api/inventario/agent/<pk>/                        → histórico
-    POST /api/inventario/agent/<pk>/reply/                  → responder
-    POST /api/inventario/agent/criar/                       → novo ticket
-    GET  /api/inventario/agent/machine/                     → info + ativos
+Endpoints necessários (apps/tickets/views.py):
+    GET  /tickets/api/agent/list/?email=X&logged_user=Y  → lista tickets
+    GET  /tickets/api/agent/<pk>/                        → histórico
+    POST /tickets/api/agent/<pk>/reply/                  → responder
+    POST /tickets/api/agent/criar/                       → novo ticket
+    GET  /api/inventario/agent/machine/                  → info + ativos
 """
 
 import os
@@ -185,37 +185,12 @@ class _NovoTicketModal:
         win = tk.Toplevel(parent_win)
         self._win = win
         win.title("Novo Ticket")
-        # Tamanho da janela
-        largura = 420
-        altura = 470
-
-        # Tamanho da tela
-        largura_tela = win.winfo_screenwidth()
-        altura_tela = win.winfo_screenheight()
-
-        # Cálculo da posição
-        x = (largura_tela // 2) - (largura // 2)
-        y = (altura_tela // 2) - (altura // 2)
-
-        # Definir geometria (largura x altura + posição)
-        win.geometry(f"{largura}x{altura}+{x}+{y}")
+        win.geometry("420x470")
         win.resizable(False, False)
         win.configure(bg=_WH)
         win.grab_set()
         win.focus_force()
-        win.overrideredirect(True)
         win.protocol("WM_DELETE_WINDOW", win.destroy)
-
-        def start_move(event):
-            win.x = event.x
-            win.y = event.y
-
-        def do_move(event):
-            x = event.x_root - win.x
-            y = event.y_root - win.y
-            win.geometry(f"+{x}+{y}")
-
-
 
         fT = tkfont.Font(family="Segoe UI", size=12, weight="bold")
         fL = tkfont.Font(family="Segoe UI", size=8)
@@ -232,9 +207,6 @@ class _NovoTicketModal:
                   relief=tk.FLAT, bd=0, cursor="hand2",
                   command=win.destroy).pack(side=tk.RIGHT)
         _hsep(win).pack(fill=tk.X)
-
-        hdr.bind("<Button-1>", start_move)
-        hdr.bind("<B1-Motion>", do_move)
 
         # Body
         body = tk.Frame(win, bg=_WH, padx=18, pady=16)
@@ -288,7 +260,7 @@ class _NovoTicketModal:
 
         # Footer
         _hsep(win).pack(fill=tk.X, side=tk.BOTTOM)
-        footer = tk.Frame(win, bg=_WH, padx=18, pady=6)
+        footer = tk.Frame(win, bg=_WH, padx=18, pady=12)
         footer.pack(fill=tk.X, side=tk.BOTTOM)
 
         _flat_btn(footer, "Cancelar", win.destroy,
@@ -324,7 +296,7 @@ class _NovoTicketModal:
 
         def send():
             try:
-                data = self._api.post("/api/inventario/agent/criar/", {
+                data = self._api.post("/tickets/api/agent/criar/", {
                     "email_solicitante": email,
                     "logged_user":       self._logged_user,
                     "tipo_chamado":      tipo,
@@ -399,8 +371,6 @@ class _ChamadosWindow:
 
         if self._email:
             win.after(400, self._load_tickets)
-        else:
-            win.after(400, self._open_novo)
 
         # carrega info da máquina em background
         win.after(600, self._load_machine_info)
@@ -951,7 +921,7 @@ class _ChamadosWindow:
         def fetch():
             try:
                 data = self._api.get(
-                    "/api/inventario/agent/list/",
+                    "/tickets/api/agent/list/",
                     email=self._email,
                     logged_user=self._logged_user,
                 )
@@ -968,7 +938,7 @@ class _ChamadosWindow:
     def _load_detail(self, ticket):
         def fetch():
             try:
-                data = self._api.get(f"/api/inventario/agent/{ticket['id']}/")
+                data = self._api.get(f"/tickets/api/agent/{ticket['id']}/")
                 self._win.after(0,
                     lambda: self._render_chat(data.get("historico", [])))
             except Exception as ex:
@@ -999,7 +969,7 @@ class _ChamadosWindow:
         def send():
             try:
                 data = self._api.post(
-                    f"/api/inventario/agent/{self._selected['id']}/reply/",
+                    f"/tickets/api/agent/{self._selected['id']}/reply/",
                     {"conteudo": text, "email": self._email},
                 )
                 if data.get("ok"):
