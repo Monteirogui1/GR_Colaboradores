@@ -185,12 +185,38 @@ class _NovoTicketModal:
         win = tk.Toplevel(parent_win)
         self._win = win
         win.title("Novo Ticket")
-        win.geometry("420x470")
+        win.update_idletasks()
+
+        width = 420
+        height = 470
+
+        screen_width = win.winfo_screenwidth()
+        screen_height = win.winfo_screenheight()
+
+        x = (screen_width // 2) - (width // 2)
+        y = (screen_height // 2) - (height // 2)
+
+        win.geometry(f"{width}x{height}+{x}+{y}")
         win.resizable(False, False)
         win.configure(bg=_WH)
         win.grab_set()
         win.focus_force()
+        win.overrideredirect(True)
         win.protocol("WM_DELETE_WINDOW", win.destroy)
+
+        def start_move(event):
+            win.x = event.x
+            win.y = event.y
+
+        def do_move(event):
+            deltax = event.x - win.x
+            deltay = event.y - win.y
+            x = win.winfo_x() + deltax
+            y = win.winfo_y() + deltay
+            win.geometry(f"+{x}+{y}")
+
+        win.bind("<Button-1>", start_move)
+        win.bind("<B1-Motion>", do_move)
 
         fT = tkfont.Font(family="Segoe UI", size=12, weight="bold")
         fL = tkfont.Font(family="Segoe UI", size=8)
@@ -260,15 +286,15 @@ class _NovoTicketModal:
 
         # Footer
         _hsep(win).pack(fill=tk.X, side=tk.BOTTOM)
-        footer = tk.Frame(win, bg=_WH, padx=18, pady=12)
+        footer = tk.Frame(win, bg=_WH, padx=18, pady=6)
         footer.pack(fill=tk.X, side=tk.BOTTOM)
 
         _flat_btn(footer, "Cancelar", win.destroy,
                   bg=_WH, fg=_MU,
                   highlightthickness=1, highlightbackground=_BD2,
-                  font=fS, padx=14, pady=6).pack(side=tk.RIGHT, padx=(8, 0))
+                  font=fS, padx=18, pady=14).pack(side=tk.RIGHT, padx=(8, 0))
         _flat_btn(footer, "Abrir Ticket", self._submit,
-                  font=fB, padx=14, pady=6).pack(side=tk.RIGHT)
+                  font=fB, padx=18, pady=14).pack(side=tk.RIGHT)
 
         if not email_salvo:
             email_e.focus_set()
