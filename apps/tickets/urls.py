@@ -112,4 +112,10 @@ urlpatterns = [
         views.ConfiguracaoEmailTesteView.as_view(),
         name='configuracao_email_teste',
     ),
+
+    # ==================== API AGENTE ====================
+    path('api/agent/list/', views.AgentTicketListAPIView.as_view(), name='agent_ticket_list'),
+    path('api/agent/criar/', views.AgentTicketCreateAPIView.as_view(), name='agent_ticket_create'),
+    path('api/agent/<int:pk>/', views.AgentTicketDetailAPIView.as_view(), name='agent_ticket_detail'),
+    path('api/agent/<int:pk>/reply/', views.AgentTicketReplyAPIView.as_view(), name='agent_ticket_reply'),
 ]

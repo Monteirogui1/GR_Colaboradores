@@ -1,3 +1,5 @@
+import ctypes
+from uuid import UUID
 import os
 import sys
 import time
@@ -41,6 +43,11 @@ OFFLINE_CHECK_INTERVAL     = 60
 UPDATE_CHECK_INTERVAL      = 3600
 NOTIFICATION_POLL_INTERVAL = 120
 JITTER_MAX                 = 60
+
+# Windows Known Folder IDs
+FOLDERID_Desktop    = UUID("{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}")
+FOLDERID_Documents  = UUID("{FDD39AD0-238F-46AF-ADB4-6C85480369C7}")
+FOLDERID_Downloads  = UUID("{374DE290-123F-4565-9164-39C4925E467B}")
 
 # ─────────────────────────────────────────────
 # Logging
@@ -99,6 +106,49 @@ class AgentConfig:
 # ─────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────
+class GUID(ctypes.Structure):
+    _fields_ = [
+        ("Data1", ctypes.c_uint32),
+        ("Data2", ctypes.c_uint16),
+        ("Data3", ctypes.c_uint16),
+        ("Data4", ctypes.c_ubyte * 8),
+    ]
+
+
+def _uuid_to_guid(u: UUID) -> GUID:
+    data = u.bytes_le
+    return GUID(
+        int.from_bytes(data[0:4], "little"),
+        int.from_bytes(data[4:6], "little"),
+        int.from_bytes(data[6:8], "little"),
+        (ctypes.c_ubyte * 8)(*data[8:16]),
+    )
+
+
+def _get_known_folder(folder_id: UUID) -> Path | None:
+    """
+    Resolve pastas reais do Windows (Desktop, Documents, Downloads),
+    inclusive quando estão redirecionadas para OneDrive.
+    """
+    try:
+        guid = _uuid_to_guid(folder_id)
+        ppath = ctypes.c_wchar_p()
+
+        ctypes.windll.shell32.SHGetKnownFolderPath(
+            ctypes.byref(guid),
+            0,
+            0,
+            ctypes.byref(ppath)
+        )
+
+        if ppath.value:
+            path = Path(ppath.value)
+            ctypes.windll.ole32.CoTaskMemFree(ppath)
+            return path
+    except Exception:
+        pass
+    return None
+
 def ssl_verify(config: AgentConfig):
     return config.get("ssl_verify", True)
 
@@ -220,6 +270,8 @@ class AgentState:
                 "last_error":            self.last_error,
                 "pending_notifications": len(self.pending_notifications),
                 "webrtc_sessions":       len(self.webrtc_sessions),
+                "server_url":            os.environ.get("AGENT_SERVER_URL", "http://192.168.100.247:5002"),
+                "token_hash":            os.environ.get("AGENT_TOKEN_HASH", ""),
             }
             try:
                 import ctypes
@@ -483,34 +535,44 @@ def get_explorer_path() -> str:
             return resp.json().get("path", "downloads")
     except Exception:
         pass
-    return str(Path(os.path.expanduser("~")) / "Downloads")
+
+    # fallback correto para Windows
+    return str(_get_known_folder(FOLDERID_Downloads) or Path.home() / "Downloads")
+
+
+def _default_known_dirs() -> dict[str, Path]:
+    return {
+        "downloads": _get_known_folder(FOLDERID_Downloads) or Path.home() / "Downloads",
+        "desktop":   _get_known_folder(FOLDERID_Desktop)   or Path.home() / "Desktop",
+        "documents": _get_known_folder(FOLDERID_Documents) or Path.home() / "Documents",
+    }
 
 
 def _resolve_dest_dir(dest_key: str) -> Path:
-    home = Path(os.path.expanduser("~"))
+    dest_map = _default_known_dirs()
 
     if dest_key == "explorer":
         raw = get_explorer_path()
         if raw in ("downloads", "desktop", "documents"):
             return _resolve_dest_dir(raw)
+
         p = Path(raw)
         if p.is_absolute():
             return p
-        return home / "Downloads"
 
-    dest_map = {
-        "downloads": home / "Downloads",
-        "desktop":   home / "Desktop",
-        "documents": home / "Documents",
-    }
+        return dest_map["downloads"]
+
     if dest_key in dest_map:
         return dest_map[dest_key]
 
-    if dest_key and (os.sep in dest_key or "/" in dest_key or
-                     (len(dest_key) >= 3 and dest_key[1:3] == ":\\")):
+    if dest_key and (
+        os.sep in dest_key or
+        "/" in dest_key or
+        (len(dest_key) >= 3 and dest_key[1:3] == ":\\")
+    ):
         return Path(dest_key)
 
-    return home / "Downloads"
+    return dest_map["downloads"]
 
 
 def _handle_file_message(msg: dict, session_id: str):

@@ -7,6 +7,8 @@ import base64
 from cryptography.fernet import Fernet
 from django.conf import settings as django_settings
 
+from apps.inventory.models import Machine
+
 
 def _get_fernet():
     """Deriva chave Fernet de 32 bytes a partir da SECRET_KEY do Django."""
@@ -502,6 +504,15 @@ class Ticket(models.Model):
         verbose_name="Solicitante"
     )
 
+    machine = models.ForeignKey(
+        Machine,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets',
+        verbose_name='Máquina de origem'
+    )
+
     # Classificações
     status = models.ForeignKey(
         Status,
@@ -676,6 +687,7 @@ class Ticket(models.Model):
         null=True,
         default=dict
     )
+
 
     class Meta:
         verbose_name = "Ticket"

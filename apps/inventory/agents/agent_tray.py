@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import time
 import json
 import hashlib
@@ -10,13 +11,13 @@ import tkinter as tk
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import logging
-import re
 import requests
 import av
 import mss
 import numpy as np
 
 from notification import ToastNotification
+from chamados import ChamadosManager
 
 try:
     import pystray
@@ -26,12 +27,10 @@ except ImportError:
     print("ERRO: pip install pystray pillow")
     sys.exit(1)
 
-VERSION               = "3.2.0"
-AGENT_TYPE            = "tray"          # identifica este exe na API de update
-IPC_URL               = "http://127.0.0.1:7070"
-WEBRTC_PORT           = 7071
-POLL_INTERVAL         = 8
-UPDATE_CHECK_INTERVAL = 3600
+VERSION       = "3.3.0"
+IPC_URL       = "http://127.0.0.1:7070"
+WEBRTC_PORT   = 7071   # porta local — agent_service delega para cá
+POLL_INTERVAL = 8
 
 LOG_DIR = Path(os.path.dirname(__file__)) / "logs"
 LOG_DIR.mkdir(exist_ok=True)
@@ -45,7 +44,7 @@ logger = logging.getLogger("AgentTray")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# WebRTC
+# WebRTC — captura de tela (roda na sessão do usuário ✓)
 # ═════════════════════════════════════════════════════════════════════════════
 
 _webrtc_data_channels: dict = {}
@@ -55,6 +54,8 @@ _file_buffers_lock           = threading.Lock()
 
 
 class ScreenTrack:
+    """Captura a tela principal com mss — funciona na sessão do usuário."""
+
     _aiortc_base = None
 
     @classmethod
@@ -92,209 +93,98 @@ class ScreenTrack:
 
 
 def _handle_input_event(event: dict, session_id: str = ""):
+    """Processa eventos de mouse/teclado recebidos via WebRTC."""
     try:
-        import ctypes, win32api, win32con
+        import ctypes
+        import win32api
+        import win32con
         user32 = ctypes.windll.user32
         sw, sh = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
         t      = event.get("t")
 
         def abs_xy(e):
-            return (max(0, min(sw-1, int(e.get("x",0)*sw))),
-                    max(0, min(sh-1, int(e.get("y",0)*sh))))
+            return (max(0, min(sw - 1, int(e.get("x", 0) * sw))),
+                    max(0, min(sh - 1, int(e.get("y", 0) * sh))))
 
-        if   t == "mm":  win32api.SetCursorPos(abs_xy(event))
+        if t == "mm":
+            win32api.SetCursorPos(abs_xy(event))
         elif t == "mc":
-            x, y = abs_xy(event); win32api.SetCursorPos((x,y))
-            b = event.get("b","left")
-            if   b == "left":  win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x,y);  win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,  x,y)
-            elif b == "right": win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN,x,y);  win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP, x,y)
+            x, y = abs_xy(event)
+            win32api.SetCursorPos((x, y))
+            b = event.get("b", "left")
+            if b == "left":
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y)
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y)
+            elif b == "right":
+                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN, x, y)
+                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP, x, y)
         elif t == "mdc":
-            x, y = abs_xy(event); win32api.SetCursorPos((x,y))
+            x, y = abs_xy(event)
+            win32api.SetCursorPos((x, y))
             for _ in range(2):
-                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y)
-                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,  x,y)
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y)
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y)
         elif t == "md":
-            x, y = abs_xy(event); win32api.SetCursorPos((x,y))
-            if event.get("b")=="left": win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y)
+            x, y = abs_xy(event)
+            win32api.SetCursorPos((x, y))
+            if event.get("b") == "left":
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y)
         elif t == "mu":
-            x, y = abs_xy(event); win32api.SetCursorPos((x,y))
-            if event.get("b")=="left": win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,x,y)
-        elif t == "mb":
-            if event.get("d"): win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEDOWN,0,0)
-            else:              win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEUP,  0,0)
-        elif t == "ms":
-            win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, 0,0,
-                                 int(event.get("d",0))*win32con.WHEEL_DELTA)
-        elif t == "msh":
-            win32api.mouse_event(win32con.MOUSEEVENTF_HWHEEL,0,0,
-                                 int(event.get("d",0))*win32con.WHEEL_DELTA)
-        elif t == "kt":
-            import pyautogui
-            char = event.get("k","")
-            if char: pyautogui.typewrite(char, interval=0)
-        elif t == "kp":
-            import pyautogui
-            key = event.get("k","")
-            if key: pyautogui.press(key)
-        elif t == "kc":
-            import pyautogui
-            mods = ["winleft" if m=="win" else m for m in event.get("mods",[])]
-            key  = event.get("k","")
-            if key: pyautogui.hotkey(*mods, key) if mods else pyautogui.press(key)
-        elif t == "paste":
-            import pyperclip, pyautogui
-            text = event.get("text","")
-            if text: pyperclip.copy(text); pyautogui.hotkey("ctrl","v")
-        elif t == "clipboard_req":
-            _send_clipboard_to_browser(session_id)
-    except ImportError as e:
-        logger.warning(f"WebRTC input: biblioteca ausente ({e})")
+            x, y = abs_xy(event)
+            win32api.SetCursorPos((x, y))
+            if event.get("b") == "left":
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y)
+        elif t == "mw":
+            delta = int(event.get("delta", 0) * 120)
+            win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, 0, 0, delta)
+        elif t == "kd":
+            vk = event.get("vk")
+            if vk:
+                win32api.keybd_event(vk, 0, 0, 0)
+        elif t == "ku":
+            vk = event.get("vk")
+            if vk:
+                win32api.keybd_event(vk, 0, win32con.KEYEVENTF_KEYUP, 0)
     except Exception as e:
-        logger.error(f"WebRTC input error (t={event.get('t')}): {e}")
-
-
-def _send_clipboard_to_browser(session_id: str):
-    try:
-        import pyperclip
-        text = pyperclip.paste()
-        if not text: return
-        with _webrtc_dc_lock:
-            queue = _webrtc_data_channels.get(session_id)
-        if queue:
-            queue.put_nowait(json.dumps({"t": "clipboard", "text": text}))
-    except Exception as e:
-        logger.warning(f"Clipboard failed: {e}")
+        logger.error(f"Input event error: {e}")
 
 
 def _handle_file_chunk(data: bytes):
+    """Processa chunk binário de transferência de arquivo."""
     with _file_buffers_lock:
-        for fid, buf in _file_buffers.items():
-            if not buf.get("done"):
-                buf["chunks"].append(data)
-                buf["received"] = buf.get("received", 0) + len(data)
-                return
-
-
-def _sanitize_filename(name: str) -> str:
-    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)
-    name = name.strip(". ")
-    return name or "arquivo_recebido"
-
-
-def get_explorer_path() -> str:
-    """
-    Retorna o caminho da pasta aberta no Windows Explorer via COM.
-    Funciona apenas no contexto do usuário (sessão interativa).
-    """
-    try:
-        import comtypes.client
-        import urllib.request
-
-        shell   = comtypes.client.CreateObject("Shell.Application")
-        windows = shell.Windows()
-        paths   = []
-
-        for i in range(windows.Count):
-            try:
-                win = windows.Item(i)
-                if win is None:
-                    continue
-                loc = getattr(win, "LocationURL", None)
-                if loc and loc.startswith("file:///"):
-                    raw = loc[8:].replace("/", "\\")
-                    raw = urllib.request.url2pathname(raw)
-                    if raw:
-                        paths.append(raw)
-            except Exception:
-                continue
-
-        if paths:
-            return paths[-1]
-
-    except ImportError:
-        logger.warning("get_explorer_path: comtypes não instalado (pip install comtypes)")
-    except Exception as e:
-        logger.warning(f"get_explorer_path: {e}")
-
-    return str(Path(os.path.expanduser("~")) / "Downloads")
-
-
-def _resolve_dest_dir(dest_key: str) -> Path:
-    home = Path(os.path.expanduser("~"))
-
-    if dest_key == "explorer":
-        raw = get_explorer_path()
-        if raw in ("downloads", "desktop", "documents"):
-            return _resolve_dest_dir(raw)
-        p = Path(raw)
-        if p.is_absolute():
-            return p
-        return home / "Downloads"
-
-    dest_map = {
-        "downloads": home / "Downloads",
-        "desktop":   home / "Desktop",
-        "documents": home / "Documents",
-    }
-    if dest_key in dest_map:
-        return dest_map[dest_key]
-
-    if dest_key and (os.sep in dest_key or "/" in dest_key or
-                     (len(dest_key) >= 3 and dest_key[1:3] == ":\\")):
-        return Path(dest_key)
-
-    return home / "Downloads"
+        if len(data) < 4:
+            return
+        fid_len = int.from_bytes(data[:2], "big")
+        fid     = data[2:2 + fid_len].decode("utf-8", errors="replace")
+        chunk   = data[2 + fid_len:]
+        if fid not in _file_buffers:
+            _file_buffers[fid] = bytearray()
+        _file_buffers[fid].extend(chunk)
 
 
 def _handle_file_message(msg: dict, session_id: str):
-    t = msg.get("t")
-
-    if t == "file_start":
-        fid = msg.get("id")
-        if fid:
-            with _file_buffers_lock:
-                _file_buffers[fid] = {"meta": msg, "chunks": [], "received": 0, "done": False}
-            logger.info(f"WebRTC file: recebendo '{msg.get('name')}' dest='{msg.get('dest', 'downloads')}'")
-
-    elif t == "file_end":
-        fid = msg.get("id")
-        if not fid:
-            return
-        with _file_buffers_lock:
-            buf = _file_buffers.get(fid)
-            if not buf:
-                return
-            buf["done"] = True
-            data      = b"".join(buf["chunks"])
-            file_name = buf["meta"].get("name", f"arquivo_{fid[:8]}")
-            dest_key  = buf["meta"].get("dest", "downloads")
-            _file_buffers.pop(fid, None)
-
+    """Finaliza e salva arquivo recebido via WebRTC."""
+    fid       = msg.get("id", "")
+    file_name = msg.get("name", "arquivo")
+    with _file_buffers_lock:
+        data = bytes(_file_buffers.pop(fid, b""))
+    try:
+        desktop   = Path.home() / "Desktop"
+        safe_name = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", file_name).strip(". ") or "arquivo"
+        dest      = desktop / safe_name
+        dest.write_bytes(data)
+        logger.info(f"WebRTC file: '{file_name}' salvo em '{dest}'")
+        ack = json.dumps({"t": "file_done", "id": fid})
+    except Exception as e:
+        logger.error(f"WebRTC file erro: {e}")
+        ack = json.dumps({"t": "file_err", "id": fid, "reason": str(e)})
+    with _webrtc_dc_lock:
+        queue = _webrtc_data_channels.get(session_id)
+    if queue:
         try:
-            dest_dir = _resolve_dest_dir(dest_key)
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            safe_name = _sanitize_filename(file_name)
-            dest_path = dest_dir / safe_name
-            if dest_path.exists():
-                stem, suffix = dest_path.stem, dest_path.suffix
-                counter = 1
-                while dest_path.exists():
-                    dest_path = dest_dir / f"{stem} ({counter}){suffix}"
-                    counter += 1
-            dest_path.write_bytes(data)
-            logger.info(f"WebRTC file: '{file_name}' salvo em '{dest_path}'")
-            ack = json.dumps({"t": "file_done", "id": fid, "name": file_name, "path": str(dest_path)})
-        except Exception as e:
-            logger.error(f"WebRTC file erro: {e}")
-            ack = json.dumps({"t": "file_err", "id": fid, "reason": str(e)})
-
-        with _webrtc_dc_lock:
-            queue = _webrtc_data_channels.get(session_id)
-        if queue:
-            try:
-                queue.put_nowait(ack)
-            except Exception:
-                pass
+            queue.put_nowait(ack)
+        except Exception:
+            pass
 
 
 def _handle_webrtc_offer(body: dict) -> dict:
@@ -339,19 +229,25 @@ def _handle_webrtc_offer(body: dict) -> dict:
                 if channel.label == "input":
                     if isinstance(message, str):
                         try:
-                            threading.Thread(target=_handle_input_event,
-                                             args=(json.loads(message), session_id),
-                                             daemon=True).start()
-                        except Exception: pass
+                            threading.Thread(
+                                target=_handle_input_event,
+                                args=(json.loads(message), session_id),
+                                daemon=True,
+                            ).start()
+                        except Exception:
+                            pass
                 elif channel.label == "files":
                     if isinstance(message, bytes):
                         _handle_file_chunk(message)
                     elif isinstance(message, str):
                         try:
-                            threading.Thread(target=_handle_file_message,
-                                             args=(json.loads(message), session_id),
-                                             daemon=True).start()
-                        except Exception: pass
+                            threading.Thread(
+                                target=_handle_file_message,
+                                args=(json.loads(message), session_id),
+                                daemon=True,
+                            ).start()
+                        except Exception:
+                            pass
 
             async def drain_queue():
                 while True:
@@ -393,14 +289,15 @@ def _handle_webrtc_offer(body: dict) -> dict:
 # Servidor WebRTC local — 127.0.0.1:7071
 # ─────────────────────────────────────────────
 class WebRTCLocalHandler(BaseHTTPRequestHandler):
+    """Recebe SDP offer do agent_service via loopback."""
 
     def log_message(self, fmt, *args):
-        logger.debug(f"WebRTC-Local {fmt % args}")
+        logger.debug(f"WebRTC-local {fmt % args}")
 
-    def _send_json(self, status: int, body: dict):
+    def _send_json(self, code: int, body: dict):
         data = json.dumps(body).encode()
-        self.send_response(status)
-        self.send_header("Content-Type",   "application/json")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -409,52 +306,28 @@ class WebRTCLocalHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         return json.loads(self.rfile.read(length)) if length else {}
 
-    def _is_loopback(self) -> bool:
-        return self.client_address[0] in ("127.0.0.1", "::1")
-
     def do_GET(self):
-        if not self._is_loopback():
-            self._send_json(403, {"error": "Apenas loopback"}); return
-
         if self.path == "/health":
             self._send_json(200, {"ok": True, "version": VERSION})
-
-        elif self.path == "/screen":
-            try:
-                import ctypes
-                user32 = ctypes.windll.user32
-                self._send_json(200, {
-                    "width":  user32.GetSystemMetrics(0),
-                    "height": user32.GetSystemMetrics(1),
-                })
-            except Exception:
-                self._send_json(200, {"width": 1920, "height": 1080})
-
-        elif self.path == "/explorer/path":
-            path = get_explorer_path()
-            logger.info(f"Explorer path consultado: {path}")
-            self._send_json(200, {"path": path})
-
         else:
             self._send_json(404, {"error": "not found"})
 
     def do_POST(self):
-        if not self._is_loopback():
-            self._send_json(403, {"error": "Apenas loopback"}); return
-
         if self.path == "/webrtc/offer":
             body = self._read_json()
             try:
-                answer = _handle_webrtc_offer(body)
-                self._send_json(200, answer)
-            except RuntimeError as e:
-                logger.error(f"WebRTC offer error: {e}")
-                self._send_json(503, {"error": str(e)})
-            except ValueError as e:
-                self._send_json(400, {"error": str(e)})
+                result = _handle_webrtc_offer(body)
+                self._send_json(200, result)
             except Exception as e:
-                logger.exception(f"WebRTC offer exception: {e}")
-                self._send_json(500, {"error": "Erro interno"})
+                logger.exception(f"WebRTC offer error: {e}")
+                self._send_json(500, {"error": str(e)})
+        elif self.path == "/webrtc/close":
+            body       = self._read_json()
+            session_id = body.get("session_id", "")
+            if session_id:
+                with _webrtc_dc_lock:
+                    _webrtc_data_channels.pop(session_id, None)
+            self._send_json(200, {"ok": True})
         else:
             self._send_json(404, {"error": "not found"})
 
@@ -489,21 +362,37 @@ class IPCClient:
 
     @classmethod
     def get_status(cls):        return cls._get("/status")
+
     @classmethod
     def get_notifications(cls):
         data = cls._get("/notifications")
         return data.get("notifications", []) if data else []
+
     @classmethod
-    def ack_notification(cls, notif_id): cls._post("/notifications/ack", {"id": notif_id})
+    def ack_notification(cls, notif_id):
+        cls._post("/notifications/ack", {"id": notif_id})
+
     @classmethod
     def force_sync(cls):
         result = cls._post("/sync")
         return bool(result and result.get("ok"))
+
     @classmethod
-    def is_service_running(cls): return cls._get("/ping", timeout=2) is not None
+    def is_service_running(cls):
+        return cls._get("/ping", timeout=2) is not None
+
     @classmethod
     def run_command(cls, cmd_type, script, timeout=30):
         return cls._post("/command", {"type": cmd_type, "script": script, "timeout": timeout})
+
+    @classmethod
+    def get_agent_config(cls) -> dict:
+        """Busca server_url e token_hash do agent_service via IPC."""
+        status = cls.get_status()
+        return {
+            "server_url": (status or {}).get("server_url", ""),
+            "token_hash": (status or {}).get("token_hash", ""),
+        }
 
 
 # ─────────────────────────────────────────────
@@ -543,7 +432,8 @@ class StatusWindow:
         body.pack(fill=tk.BOTH, expand=True)
 
         def row(label, default="—"):
-            f = tk.Frame(body, bg="#0f172a"); f.pack(fill=tk.X, pady=4)
+            f = tk.Frame(body, bg="#0f172a")
+            f.pack(fill=tk.X, pady=4)
             tk.Label(f, text=label, fg="#64748b", bg="#0f172a",
                      font=("Segoe UI", 9), width=18, anchor="w").pack(side=tk.LEFT)
             val = tk.Label(f, text=default, fg="#e2e8f0", bg="#0f172a",
@@ -551,13 +441,13 @@ class StatusWindow:
             val.pack(side=tk.LEFT)
             return val
 
-        self.lbl_status   = row("Status serviço")
-        self.lbl_machine  = row("Máquina")
-        self.lbl_checkin  = row("Último check-in")
-        self.lbl_notif    = row("Notif. pendentes")
-        self.lbl_webrtc   = row("Sessões WebRTC")
-        self.lbl_version  = row("Versão")
-        self.lbl_error    = row("Último erro")
+        self.lbl_status  = row("Status serviço")
+        self.lbl_machine = row("Máquina")
+        self.lbl_checkin = row("Último check-in")
+        self.lbl_notif   = row("Notif. pendentes")
+        self.lbl_webrtc  = row("Sessões WebRTC")
+        self.lbl_version = row("Versão")
+        self.lbl_error   = row("Último erro")
 
         btn_frame = tk.Frame(self.window, bg="#1e293b", pady=12, padx=20)
         btn_frame.pack(fill=tk.X, side=tk.BOTTOM)
@@ -576,7 +466,8 @@ class StatusWindow:
         self.window.mainloop()
 
     def _refresh(self):
-        if not self.alive: return
+        if not self.alive:
+            return
         status = IPCClient.get_status()
         if status:
             online = status.get("online", False)
@@ -586,12 +477,12 @@ class StatusWindow:
             self.lbl_machine.config(text=status.get("machine", "—"))
             checkin = status.get("last_checkin")
             self.lbl_checkin.config(
-                text=checkin[:19].replace("T"," ") if checkin else "—")
+                text=checkin[:19].replace("T", " ") if checkin else "—")
             self.lbl_notif.config(text=str(status.get("pending_notifications", 0)))
             self.lbl_version.config(text=status.get("version", VERSION))
             err = status.get("last_error", "")
             self.lbl_error.config(
-                text=(err[:40]+"…") if len(err)>40 else (err or "Nenhum"),
+                text=(err[:40] + "…") if len(err) > 40 else (err or "Nenhum"),
                 fg="#f87171" if err else "#4ade80")
             self.lbl_webrtc.config(
                 text=str(len(_webrtc_data_channels)),
@@ -609,150 +500,15 @@ class StatusWindow:
 
     def _open_logs(self):
         try:
-            if platform.system() == "Windows": os.startfile(str(LOG_DIR))
-        except Exception as e: logger.error(e)
+            if platform.system() == "Windows":
+                os.startfile(str(LOG_DIR))
+        except Exception as e:
+            logger.error(e)
 
     def _on_close(self):
         self.alive = False
+        StatusWindow._instance = None
         self.window.destroy()
-
-
-# ─────────────────────────────────────────────
-# Auto-update — tray
-# ─────────────────────────────────────────────
-def _apply_tray_update(server_url: str, token_hash: str, ssl_v, info: dict):
-    """
-    Aplica atualização do agent_tray.exe.
-
-    O tray NÃO é um serviço Windows — o .bat reinicia o processo
-    diretamente com 'start "" agent_tray.exe' após a substituição.
-    O ícone desaparece e reaparece brevemente.
-    """
-    download_url = info.get("download_url")
-    remote_sha   = (info.get("sha256") or "").lower().strip()
-
-    if not download_url:
-        logger.warning("Update tray: download_url ausente")
-        return
-
-    if getattr(sys, "frozen", False):
-        exe_path = Path(sys.executable).resolve()
-    else:
-        exe_path = Path(os.path.abspath(__file__)).resolve()
-        logger.info("Update tray: modo .py — simulando caminho .exe")
-
-    exe_dir  = exe_path.parent
-    new_exe  = exe_dir / "agent_tray_new.exe"
-    bat_path = exe_dir / "_update_tray.bat"
-
-    try:
-        # 1. Download
-        logger.info(f"Update tray: baixando versão {info.get('version')}…")
-        headers = {"Authorization": f"Bearer {token_hash}"} if token_hash else {}
-        r = requests.get(download_url, headers=headers, verify=ssl_v, timeout=120, stream=True)
-        if r.status_code != 200:
-            logger.error(f"Update tray: download falhou HTTP {r.status_code}")
-            return
-        new_exe.write_bytes(r.content)
-        logger.info(f"Update tray: {len(r.content):,} bytes salvos")
-
-        # 2. SHA-256
-        if remote_sha:
-            local_sha = hashlib.sha256(new_exe.read_bytes()).hexdigest().lower()
-            if local_sha != remote_sha:
-                logger.error("Update tray: SHA-256 INVÁLIDO — abortando")
-                new_exe.unlink(missing_ok=True)
-                return
-            logger.info("Update tray: SHA-256 OK")
-        else:
-            logger.warning("Update tray: sem sha256 do servidor — verificação ignorada")
-
-        # 3. Script de substituição
-        bat = (
-            f'@echo off\n'
-            f'rem agent_tray auto-update — v{info.get("version")}\n'
-            f'timeout /t 3 /nobreak > nul\n'
-            f'\n'
-            f'if exist "{exe_path}.bak" del /F /Q "{exe_path}.bak"\n'
-            f'if exist "{exe_path}" move /Y "{exe_path}" "{exe_path}.bak"\n'
-            f'move /Y "{new_exe}" "{exe_path}"\n'
-            f'if %ERRORLEVEL% neq 0 (\n'
-            f'  if exist "{exe_path}.bak" move /Y "{exe_path}.bak" "{exe_path}"\n'
-            f'  if exist "{new_exe}" del /F /Q "{new_exe}"\n'
-            f'  del /F /Q "%~f0" & exit /b 1\n'
-            f')\n'
-            f'\n'
-            f'start "" "{exe_path}"\n'
-            f'del /F /Q "%~f0"\n'
-            f'exit /b 0\n'
-        )
-        bat_path.write_text(bat, encoding="ascii", errors="replace")
-        logger.info(f"Update tray: script criado — {bat_path.name}")
-
-        # 4. Executa detached e encerra o tray
-        import subprocess
-        subprocess.Popen(
-            ["cmd.exe", "/c", str(bat_path)],
-            creationflags=(
-                subprocess.DETACHED_PROCESS |
-                subprocess.CREATE_NO_WINDOW |
-                subprocess.CREATE_NEW_PROCESS_GROUP
-            ),
-            close_fds=True,
-        )
-        logger.info("Update tray: script iniciado — encerrando tray para substituição")
-        time.sleep(1)
-        sys.exit(0)
-
-    except Exception as e:
-        logger.error(f"Update tray: falha — {e}")
-        for tmp in [new_exe, bat_path]:
-            try:
-                if tmp.exists():
-                    tmp.unlink()
-            except Exception:
-                pass
-
-
-def _start_update_loop(server_url: str, token_hash: str, ssl_v):
-    """
-    Inicia thread de auto-update do tray.
-    Consulta o servidor a cada UPDATE_CHECK_INTERVAL enviando agent_type='tray'.
-    """
-    def _loop():
-        time.sleep(90)   # aguarda estabilização
-        ep = "/api/inventario/agent/update/"
-        while True:
-            try:
-                headers = {"Authorization": f"Bearer {token_hash}"} if token_hash else {}
-                resp = requests.post(
-                    server_url + ep,
-                    json={
-                        "current_version": VERSION,
-                        "machine_name":    os.environ.get("COMPUTERNAME", socket.gethostname()),
-                        "agent_type":      AGENT_TYPE,
-                    },
-                    headers=headers,
-                    verify=ssl_v,
-                    timeout=10,
-                )
-                if resp.status_code == 200:
-                    info = resp.json()
-                    if info.get("update_available"):
-                        logger.info(
-                            f"Update tray disponível: {VERSION} → {info.get('version')} "
-                            f"(obrigatório={info.get('is_mandatory')})"
-                        )
-                        _apply_tray_update(server_url, token_hash, ssl_v, info)
-                else:
-                    logger.debug(f"Update tray check: HTTP {resp.status_code}")
-            except Exception as e:
-                logger.warning(f"Update tray check: {e}")
-            time.sleep(UPDATE_CHECK_INTERVAL)
-
-    t = threading.Thread(target=_loop, daemon=True, name="update-tray")
-    t.start()
-    logger.info("Update loop do tray iniciado")
 
 
 # ─────────────────────────────────────────────
@@ -771,15 +527,15 @@ class TrayIcon:
         self._notif_count = 0
 
     def _make_image(self, status):
-        size = 64
-        img  = Image.new("RGBA", (size, size), (0,0,0,0))
-        draw = ImageDraw.Draw(img)
+        size  = 64
+        img   = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        draw  = ImageDraw.Draw(img)
         color = self.STATUS_COLORS.get(status, self.STATUS_COLORS["unknown"])
-        draw.ellipse([6,6,58,58], fill=color+(255,))
-        draw.ellipse([6,6,58,58], outline=(255,255,255,180), width=3)
+        draw.ellipse([6, 6, 58, 58], fill=color + (255,))
+        draw.ellipse([6, 6, 58, 58], outline=(255, 255, 255, 180), width=3)
         if self._notif_count > 0:
-            draw.ellipse([40,2,62,24], fill=(239,68,68,255))
-            draw.text((47,4), str(min(self._notif_count,9)), fill="white")
+            draw.ellipse([40, 2, 62, 24], fill=(239, 68, 68, 255))
+            draw.text((47, 4), str(min(self._notif_count, 9)), fill="white")
         return img
 
     def update_status(self, status, notif_count=0):
@@ -787,19 +543,32 @@ class TrayIcon:
         self._notif_count = notif_count
         if self.icon:
             self.icon.icon  = self._make_image(status)
-            label           = {"online":"Online","offline":"Offline"}.get(status,"...")
+            label           = {"online": "Online", "offline": "Offline"}.get(status, "...")
             notif_str       = f" ({notif_count} notif)" if notif_count else ""
             self.icon.title = f"Inventory Agent — {label}{notif_str}"
 
     def _build_menu(self):
         return pystray.Menu(
-            item("📊 Status",      lambda i,it: StatusWindow.open(self)),
-            item("⚡ Forçar Sync", lambda i,it: self._force_sync()),
+            item("📊 Status",
+                 lambda i, it: StatusWindow.open(self)),
+            item("🎫 Chamados",
+                 lambda i, it: self._open_chamados()),
+            item("⚡ Forçar Sync",
+                 lambda i, it: self._force_sync()),
             pystray.Menu.SEPARATOR,
-            item("📄 Ver Logs",    lambda i,it: self._open_logs()),
-            pystray.Menu.SEPARATOR,
-            item("❌ Sair",        lambda i,it: self._quit()),
+            item("❌ Sair",
+                 lambda i, it: self._quit()),
         )
+
+    def _open_chamados(self):
+        cfg = IPCClient.get_agent_config()
+        if not cfg["server_url"]:
+            ToastNotification.show(
+                title="Chamados indisponível",
+                message="Serviço não respondeu. Verifique se o agent_service está rodando.",
+                notif_type="error", duration=6)
+            return
+        ChamadosManager.open(cfg["server_url"], cfg["token_hash"])
 
     def _force_sync(self):
         ok = IPCClient.force_sync()
@@ -810,19 +579,17 @@ class TrayIcon:
 
     def _open_logs(self):
         try:
-            if platform.system() == "Windows": os.startfile(str(LOG_DIR))
-        except Exception as e: logger.error(e)
+            if platform.system() == "Windows":
+                os.startfile(str(LOG_DIR))
+        except Exception as e:
+            logger.error(e)
 
     def _quit(self):
         logger.info("Tray encerrado pelo usuário")
-        if self.icon: self.icon.stop()
+        if self.icon:
+            self.icon.stop()
 
     def run(self):
-        # Lê configurações do ambiente (mesmas variáveis do agent_service)
-        server_url = os.environ.get("AGENT_SERVER_URL", "http://192.168.100.247:5002")
-        token_hash = os.environ.get("AGENT_TOKEN_HASH", "")
-        ssl_v      = os.environ.get("AGENT_SSL_VERIFY", "true").lower() != "false"
-
         self.icon = pystray.Icon(
             "inventory_agent",
             self._make_image("unknown"),
@@ -831,7 +598,6 @@ class TrayIcon:
         )
         threading.Thread(target=self._poll_loop,           daemon=True, name="poll").start()
         threading.Thread(target=start_webrtc_local_server, daemon=True, name="webrtc-local").start()
-        _start_update_loop(server_url, token_hash, ssl_v)   # auto-update do tray
         logger.info(f"Tray iniciado | WebRTC local em 127.0.0.1:{WEBRTC_PORT}")
         self.icon.run()
 
@@ -854,7 +620,7 @@ class TrayIcon:
 
     def _show_notification(self, notif):
         notif_type = notif.get("type", "info")
-        if notif_type not in ("info","success","warning","error","alert"):
+        if notif_type not in ("info", "success", "warning", "error", "alert"):
             notif_type = "info"
         ToastNotification.show(
             title=notif.get("title", "Notificação"),
@@ -871,7 +637,7 @@ class TrayIcon:
 # Ponto de entrada
 # ─────────────────────────────────────────────
 def main():
-    logger.info(f"=== AgentTray v{VERSION} ({AGENT_TYPE}) iniciando ===")
+    logger.info(f"=== AgentTray v{VERSION} iniciando ===")
     logger.info(f"WebRTC local: 127.0.0.1:{WEBRTC_PORT}")
 
     if not IPCClient.is_service_running():

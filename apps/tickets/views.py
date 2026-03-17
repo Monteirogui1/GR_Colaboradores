@@ -9,6 +9,12 @@ from django.db.models import Q, Count, Avg, F
 from django.utils import timezone
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status as drf_status
+from apps.inventory.views import AgentTokenRequiredMixin
 from datetime import datetime, timedelta
 import json
 import zipfile
@@ -72,6 +78,8 @@ class ClienteCreateMixin:
         cliente = user if user.is_staff else user
         form.instance.cliente = cliente
         return super().form_valid(form)
+
+
 
 
 # ==================== DASHBOARD ====================
@@ -1536,3 +1544,279 @@ class ConfiguracaoEmailTesteView(LoginRequiredMixin, View):
             return JsonResponse({'success': False, 'error': f'Erro de autenticação IMAP: {e}'})
         except Exception as e:
             return JsonResponse({'success': False, 'error': f'Erro de conexão: {e}'})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AgentTicketListAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    GET /tickets/api/agent/list/
+    Retorna tickets vinculados à máquina que fez a requisição.
+
+    Estratégia (OR):
+      1. ticket.machine = esta máquina              ← direto, campo novo
+      2. ticket.solicitante.username = loggedUser   ← retrocompatibilidade
+    """
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        from apps.inventory.models import Machine
+        from django.db.models import Q
+
+        agent_token, err = self._authenticate(request)
+        if err:
+            return err
+
+        machine_name = agent_token.machine_name
+        if not machine_name:
+            return Response(
+                {'ok': False, 'error': 'Token sem machine_name. Reinstale o agente.'},
+                status=400,
+            )
+
+        try:
+            machine = Machine.objects.get(hostname__iexact=machine_name)
+        except Machine.DoesNotExist:
+            return Response(
+                {'ok': False, 'error': f'Máquina "{machine_name}" não encontrada.'},
+                status=404,
+            )
+
+        filtro = Q(machine=machine)
+        if machine.loggedUser:
+            filtro |= Q(solicitante__username=machine.loggedUser)
+
+        tickets = (
+            Ticket.objects
+            .filter(filtro)
+            .select_related('status', 'servico')
+            .order_by('-criado_em')
+            .distinct()[:50]
+        )
+
+        return Response({
+            'ok': True,
+            'machine': machine_name,
+            'tickets': [
+                {
+                    'id':         t.pk,
+                    'numero':     t.numero,
+                    'assunto':    t.assunto,
+                    'status':     t.status.nome,
+                    'status_cor': t.status.cor,
+                    'servico':    t.servico.nome if t.servico else '',
+                    'criado_em':  t.criado_em.strftime('%d/%m/%Y %H:%M'),
+                }
+                for t in tickets
+            ],
+        })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AgentTicketDetailAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    GET /tickets/api/agent/<pk>/
+    Retorna detalhes do ticket e histórico de ações públicas (mais recente primeiro).
+    """
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request, pk):
+        agent_token, err = self._authenticate(request)
+        if err:
+            return err
+
+        try:
+            ticket = Ticket.objects.select_related(
+                'status', 'servico', 'solicitante'
+            ).get(pk=pk)
+        except Ticket.DoesNotExist:
+            return Response({'ok': False, 'error': 'Ticket não encontrado.'}, status=404)
+
+        acoes = (
+            AcaoTicket.objects
+            .filter(ticket=ticket, tipo='publica')
+            .select_related('autor')
+            .order_by('-criado_em')
+        )
+
+        historico = [
+            {
+                'id': a.pk,
+                'autor': a.autor.get_full_name() or a.autor.username,
+                'is_staff': a.autor.is_staff,
+                'conteudo': a.conteudo,
+                'criado_em': a.criado_em.strftime('%d/%m/%Y %H:%M'),
+            }
+            for a in acoes
+        ]
+
+        return Response({
+            'ok': True,
+            'ticket': {
+                'id': ticket.pk,
+                'numero': ticket.numero,
+                'assunto': ticket.assunto,
+                'descricao': ticket.descricao,
+                'status': ticket.status.nome,
+                'status_cor': ticket.status.cor,
+                'servico': ticket.servico.nome if ticket.servico else '',
+                'criado_em': ticket.criado_em.strftime('%d/%m/%Y %H:%M'),
+            },
+            'historico': historico,
+        })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AgentTicketReplyAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    POST /tickets/api/agent/<pk>/reply/
+    Adiciona uma resposta pública ao ticket.
+    Body JSON: { "email": "...", "conteudo": "..." }
+    """
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request, pk):
+        agent_token, err = self._authenticate(request)
+        if err:
+            return err
+
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        email = request.data.get('email', '').strip()
+        conteudo = request.data.get('conteudo', '').strip()
+
+        if not conteudo:
+            return Response({'ok': False, 'error': 'Campo conteudo é obrigatório.'}, status=400)
+
+        try:
+            ticket = Ticket.objects.get(pk=pk)
+        except Ticket.DoesNotExist:
+            return Response({'ok': False, 'error': 'Ticket não encontrado.'}, status=404)
+
+        try:
+            autor = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'ok': False, 'error': f'Usuário com e-mail {email} não encontrado.'}, status=404)
+
+        acao = AcaoTicket.objects.create(
+            ticket=ticket,
+            tipo='publica',
+            autor=autor,
+            conteudo=conteudo,
+        )
+
+        return Response({
+            'ok': True,
+            'acao': {
+                'id': acao.pk,
+                'autor': autor.get_full_name() or autor.username,
+                'is_staff': autor.is_staff,
+                'conteudo': acao.conteudo,
+                'criado_em': acao.criado_em.strftime('%d/%m/%Y %H:%M'),
+            },
+        })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    POST /tickets/api/agent/criar/
+    Cria ticket vinculando a máquina de origem via Ticket.machine.
+
+    Body JSON:
+        { "assunto": "...", "descricao": "...", "tipo_chamado": "..." }
+
+    Solicitante resolvido por Machine.loggedUser → User.username ou User.email.
+    """
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        from apps.inventory.models import Machine
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        agent_token, err = self._authenticate(request)
+        if err:
+            return err
+
+        machine_name = agent_token.machine_name
+        if not machine_name:
+            return Response(
+                {'ok': False, 'error': 'Token sem machine_name. Reinstale o agente.'},
+                status=400,
+            )
+
+        try:
+            machine = Machine.objects.get(hostname__iexact=machine_name)
+        except Machine.DoesNotExist:
+            return Response(
+                {'ok': False, 'error': f'Máquina "{machine_name}" não encontrada.'},
+                status=404,
+            )
+
+        assunto           = request.data.get('assunto', '').strip()
+        descricao         = request.data.get('descricao', '').strip()
+        tipo_chamado_nome = request.data.get('tipo_chamado', '').strip()
+
+        if not assunto or not descricao:
+            return Response(
+                {'ok': False, 'error': 'Campos obrigatórios: assunto e descricao.'},
+                status=400,
+            )
+
+        # Resolve solicitante pelo usuário logado na máquina
+        solicitante = None
+        if machine.loggedUser:
+            solicitante = (
+                User.objects.filter(username=machine.loggedUser).first()
+                or User.objects.filter(email=machine.loggedUser).first()
+            )
+
+        if not solicitante:
+            return Response(
+                {
+                    'ok': False,
+                    'error': (
+                        f'Usuário "{machine.loggedUser or "desconhecido"}" '
+                        f'não encontrado. Verifique se o usuário Windows '
+                        f'está cadastrado no sistema.'
+                    ),
+                },
+                status=404,
+            )
+
+        status_inicial = Status.objects.filter(
+            status_base=StatusBase.ABERTO, ativo=True
+        ).first()
+        if not status_inicial:
+            return Response(
+                {'ok': False, 'error': 'Nenhum status "Aberto" configurado.'},
+                status=500,
+            )
+
+        servico = None
+        if tipo_chamado_nome:
+            servico = Servico.objects.filter(
+                nome__icontains=tipo_chamado_nome, ativo=True
+            ).first()
+
+        ticket = Ticket.objects.create(
+            solicitante=solicitante,
+            machine=machine,                    # ← vincula a máquina diretamente
+            status=status_inicial,
+            servico=servico,
+            assunto=assunto,
+            descricao=descricao,
+            canal_abertura='api',
+            cliente=solicitante if solicitante.is_staff else solicitante,
+        )
+
+        return Response({
+            'ok':     True,
+            'numero': ticket.numero,
+            'id':     ticket.pk,
+        })
