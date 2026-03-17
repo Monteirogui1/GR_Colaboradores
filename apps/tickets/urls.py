@@ -118,5 +118,5 @@ urlpatterns = [
     path('api/agent/criar/', views.AgentTicketCreateAPIView.as_view(), name='agent_ticket_create'),
     path('api/agent/<int:pk>/', views.AgentTicketDetailAPIView.as_view(), name='agent_ticket_detail'),
     path('api/agent/<int:pk>/reply/', views.AgentTicketReplyAPIView.as_view(), name='agent_ticket_reply'),
-    path('api/agent/machine/', views.AgentMachineInfoAPIView.as_view(), name='agent_machine_info'),
+    path('tikcets/api/agent/machine/', views.AgentMachineInfoAPIView.as_view(), name='agent_machine_info'),
 ]

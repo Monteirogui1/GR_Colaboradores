@@ -11,12 +11,12 @@ Uso:
         logged_user="joao.silva",   # Machine.loggedUser (opcional)
     )
 
-Endpoints necessários (apps/tickets/views.py):
-    GET  /tickets/api/agent/list/?email=X&logged_user=Y  → lista tickets
-    GET  /tickets/api/agent/<pk>/                        → histórico
-    POST /tickets/api/agent/<pk>/reply/                  → responder
-    POST /tickets/api/agent/criar/                       → novo ticket
-    GET  /tickets/api/agent/machine/                     → info + ativos
+Endpoints necessários (apps/views.py):
+    GET  /api/agent/list/?email=X&logged_user=Y  → lista tickets
+    GET  /api/agent/<pk>/                        → histórico
+    POST /api/agent/<pk>/reply/                  → responder
+    POST /api/agent/criar/                       → novo ticket
+    GET  /api/agent/machine/                     → info + ativos
 """
 
 import os
@@ -324,7 +324,7 @@ class _NovoTicketModal:
 
         def send():
             try:
-                data = self._api.post("/tickets/api/agent/criar/", {
+                data = self._api.post("/api/agent/criar/", {
                     "email_solicitante": email,
                     "logged_user":       self._logged_user,
                     "tipo_chamado":      tipo,
@@ -951,7 +951,7 @@ class _ChamadosWindow:
         def fetch():
             try:
                 data = self._api.get(
-                    "/tickets/api/agent/list/",
+                    "/api/agent/list/",
                     email=self._email,
                     logged_user=self._logged_user,
                 )
@@ -968,7 +968,7 @@ class _ChamadosWindow:
     def _load_detail(self, ticket):
         def fetch():
             try:
-                data = self._api.get(f"/tickets/api/agent/{ticket['id']}/")
+                data = self._api.get(f"/api/agent/{ticket['id']}/")
                 self._win.after(0,
                     lambda: self._render_chat(data.get("historico", [])))
             except Exception as ex:
@@ -978,7 +978,7 @@ class _ChamadosWindow:
     def _load_machine_info(self):
         def fetch():
             try:
-                data = self._api.get("/tickets/api/agent/machine/")
+                data = self._api.get("/api/agent/machine/")
                 if data.get("ok"):
                     self._machine_info = data
                     self._win.after(0, self._render_info)
@@ -999,7 +999,7 @@ class _ChamadosWindow:
         def send():
             try:
                 data = self._api.post(
-                    f"/tickets/api/agent/{self._selected['id']}/reply/",
+                    f"/api/agent/{self._selected['id']}/reply/",
                     {"conteudo": text, "email": self._email},
                 )
                 if data.get("ok"):
