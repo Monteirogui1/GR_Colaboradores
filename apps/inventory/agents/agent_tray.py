@@ -1,4 +1,4 @@
-# agent_tray.py — v3.3.0
+# agent_tray.py — v3.3.1
 # Tray App: roda na sessão do usuário, recebe WebRTC do agent_service,
 # exibe notificações nativas e gerencia chamados de suporte.
 
@@ -31,7 +31,7 @@ except ImportError:
     print("ERRO: pip install pystray pillow")
     sys.exit(1)
 
-VERSION       = "3.3.0"
+VERSION       = "3.3.1"
 IPC_URL       = "http://127.0.0.1:7070"
 WEBRTC_PORT   = 7071   # porta local — agent_service delega para cá
 POLL_INTERVAL = 8
@@ -1128,8 +1128,6 @@ class TrayIcon:
             item("🎫 Chamados",    lambda i, it: self._open_chamados()),
             item("⚡ Forçar Sync", lambda i, it: self._force_sync()),
             pystray.Menu.SEPARATOR,
-            item("📄 Ver Logs",    lambda i, it: self._open_logs()),
-            pystray.Menu.SEPARATOR,
             item("❌ Sair",        lambda i, it: self._quit()),
         )
 
@@ -1177,12 +1175,32 @@ class TrayIcon:
         if self.icon:
             self.icon.stop()
 
+    def _on_click(self, icon, event):
+        """
+        Duplo clique no ícone abre os Chamados.
+
+        pystray no Windows entrega um objeto MouseButton/HookEvent — não a
+        string "double".  Verificamos via atributo .double (pystray >= 0.19)
+        e, como fallback, pela string para outros backends (Linux/macOS).
+        Sempre executado em thread separada para não bloquear o loop do tray.
+        """
+        try:
+            is_double = getattr(event, "double", False)
+        except Exception:
+            is_double = False
+
+        if not is_double and event != "double":
+            return  # clique simples — ignora
+
+        threading.Thread(target=self._open_chamados, daemon=True).start()
+
     def run(self):
         self.icon = pystray.Icon(
             "inventory_agent",
             self._make_image("unknown"),
             "Inventory Agent",
             self._build_menu(),
+            on_clicked=self._on_click,
         )
         threading.Thread(target=self._poll_loop,           daemon=True, name="poll").start()
         threading.Thread(target=start_webrtc_local_server, daemon=True, name="webrtc-local").start()
