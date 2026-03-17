@@ -842,7 +842,7 @@ class _ChamadosWindow:
         self._chat_subj.pack(anchor="w")
 
         self._chat_badge = tk.Label(hdr, text="", font=self._fS,
-                                     padx=10, pady=4)
+                                     padx=30, pady=16)
         self._chat_badge.pack(side=tk.RIGHT, anchor="n", pady=4)
         _hsep(self._view_chat).pack(fill=tk.X)
 
@@ -879,7 +879,7 @@ class _ChamadosWindow:
         reply_inner.pack(fill=tk.X)
 
         self._reply = tk.Text(
-            reply_inner, height=2, font=self._fM,
+            reply_inner, height=5, font=self._fM,
             bg="#f8fafc", fg=_TX,
             insertbackground=_TX,
             relief=tk.FLAT, bd=0,
@@ -900,7 +900,7 @@ class _ChamadosWindow:
         _flat_btn(reply_inner, "↑",
                   self._send_reply,
                   font=tkfont.Font(family="Segoe UI", size=13, weight="bold"),
-                  width=2, pady=5).pack(side=tk.LEFT, padx=(10, 0))
+                  width=10, pady=15).pack(side=tk.LEFT, padx=(10, 0))
 
     def _on_chat_resize(self, e):
         self._chat_cv.itemconfig(self._chat_win, width=e.width)
@@ -1225,10 +1225,14 @@ if __name__ == "__main__":
     _ApiClient.get  = _mock_get
     _ApiClient.post = _mock_post
 
+    # ── força e-mail mock para que _load_tickets dispare ──────────────────
+    _MOCK_EMAIL = "joao.silva@empresa.com"
+    _EmailStore.save("joao.silva", _MOCK_EMAIL)
+
     inst = _ChamadosWindow.__new__(_ChamadosWindow)
     inst._api          = _ApiClient("http://mock", "mock")
     inst._logged_user  = "joao.silva"
-    inst._email        = _EmailStore.get("joao.silva")
+    inst._email        = _MOCK_EMAIL          # ← era "" antes, tickets nunca carregavam
     inst._tickets      = []
     inst._selected     = None
     inst._historico    = []
