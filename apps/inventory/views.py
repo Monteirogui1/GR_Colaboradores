@@ -600,29 +600,35 @@ class NotificationDeleteView(LoginRequiredMixin, DeleteView):
 # ============================================================================
 
 class AgentTokenListView(LoginRequiredMixin, ListView):
-    """Lista todos os tokens gerados"""
     model = AgentToken
     template_name = 'inventario/agent_token_list.html'
     context_object_name = 'tokens'
     paginate_by = 50
 
     def get_queryset(self):
-        """Retorna tokens do cliente logado"""
-        queryset = super().get_queryset()
-        # Se tiver filtro por cliente, adicione aqui
-        return queryset
+        # prefetch usages para evitar N+1 queries na tabela
+        return (AgentToken.objects
+                .prefetch_related('usages')
+                .order_by('-created_at'))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # Estatísticas
         all_tokens = AgentToken.objects.all()
+        now = timezone.now()
+
         context['total_tokens'] = all_tokens.count()
         context['active_tokens'] = all_tokens.filter(is_active=True).count()
-        context['used_tokens'] = all_tokens.filter(used_at__isnull=False).count()
-        context['expired_tokens'] = all_tokens.filter(
-            expires_at__lt=timezone.now()
-        ).count()
+        context['expired_tokens'] = all_tokens.filter(expires_at__lt=now).count()
+
+        # "Em uso" = tokens que têm pelo menos uma máquina registrada
+        context['used_tokens'] = (AgentTokenUsage.objects
+                                  .values('agent_token')
+                                  .distinct()
+                                  .count())
+
+        # Total de máquinas distintas registradas via token
+        context['total_machines'] = AgentTokenUsage.objects.count()
 
         return context
 

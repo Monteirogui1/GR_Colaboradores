@@ -1,231 +1,127 @@
 {% extends 'layouts/base.html' %}
-
-{% block title %}Gerar Token - Agente{% endblock %}
+{% block title %}Gerar Token — Agente{% endblock %}
 
 {% block conteudo %}
 <div class="content">
-    <div class="page-header">
-        <h1>Gerar Token de Instalação</h1>
-        <a href="{% url 'inventario:token_list' %}" class="btn btn-secondary">Voltar</a>
+
+  <div class="page-header">
+    <h1>Gerar Token de Instalação</h1>
+    <a href="{% url 'inventario:token_list' %}" class="btn btn-secondary">Voltar</a>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="detail-card">
+      <h2>Configuração</h2>
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label for="quantity">Quantidade de Tokens *</label>
+          <input type="number" class="form-control" id="quantity" name="quantity"
+                 min="1" max="{{ max_quantity }}" value="1" required>
+          <small class="form-text">De 1 até {{ max_quantity }} tokens por vez</small>
+        </div>
+
+        <div class="form-group">
+          <label for="days">Validade *</label>
+          <select class="form-control" id="days" name="days" required>
+            <option value="infinite">Sem expiração</option>
+            <option value="1">1 dia</option>
+            <option value="3">3 dias</option>
+            <option value="7" selected>7 dias (recomendado)</option>
+            <option value="14">14 dias</option>
+            <option value="30">30 dias</option>
+            <option value="60">60 dias</option>
+            <option value="90">90 dias</option>
+            <option value="180">180 dias</option>
+            <option value="365">365 dias</option>
+          </select>
+          <small class="form-text">Tempo até o token expirar</small>
+        </div>
+
+      </div>
     </div>
 
-    <form method="post">
-        {% csrf_token %}
+    <!-- Como funciona -->
+    <div class="detail-card">
+      <h2>Como funciona</h2>
+      <div class="detail-content">
 
-        <!-- Configuração do Token -->
-        <div class="detail-card">
-            <h2>Configuração do Token</h2>
-            <div class="form-grid">
-                <div class="form-group">
-                    <label for="quantity">Quantidade de Tokens *</label>
-                    <input type="number"
-                           class="form-control"
-                           id="quantity"
-                           name="quantity"
-                           min="1"
-                           max="{{ max_quantity }}"
-                           value="1"
-                           required>
-                    <small class="form-text">Gere de 1 até {{ max_quantity }} tokens de uma só vez</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="days">Validade *</label>
-                    <select class="form-control" id="days" name="days" required>
-                        <option value="infinite">Tempo Indefinido</option>
-                        <option value="1">1 dia</option>
-                        <option value="3">3 dias</option>
-                        <option value="7" selected>7 dias (recomendado)</option>
-                        <option value="14">14 dias (2 semanas)</option>
-                        <option value="30">30 dias (1 mês)</option>
-                        <option value="60">60 dias (2 meses)</option>
-                        <option value="90">90 dias (3 meses)</option>
-                        <option value="180">180 dias (6 meses)</option>
-                        <option value="365">365 dias (1 ano)</option>
-                    </select>
-                    <small class="form-text">Tempo até o token expirar</small>
-                </div>
+        <div class="atc-features">
+          <div class="atc-feature">
+            <div class="atc-feature-icon">🔑</div>
+            <div>
+              <strong>Um token, várias máquinas</strong>
+              <p>O mesmo token pode ser instalado em múltiplas máquinas. Cada máquina é registrada individualmente no sistema.</p>
             </div>
-        </div>
-
-        <!-- Características do Token -->
-        <div class="detail-card">
-            <h2>Características do Token</h2>
-            <div class="detail-content">
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-icon">✓</div>
-                        <div class="info-text">
-                            <strong>8 caracteres únicos</strong>
-                            <p>Formato curto e fácil de digitar</p>
-                        </div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-icon">✓</div>
-                        <div class="info-text">
-                            <strong>Letras maiúsculas e minúsculas</strong>
-                            <p>Ex: A, b, C, d</p>
-                        </div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-icon">✓</div>
-                        <div class="info-text">
-                            <strong>Números</strong>
-                            <p>Ex: 0-9</p>
-                        </div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-icon">✓</div>
-                        <div class="info-text">
-                            <strong>Caracteres especiais</strong>
-                            <p>Ex: !@#$%&*</p>
-                        </div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-icon">✓</div>
-                        <div class="info-text">
-                            <strong>Uso único</strong>
-                            <p>Cada token funciona em apenas uma máquina</p>
-                        </div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-icon">✓</div>
-                        <div class="info-text">
-                            <strong>Seguro</strong>
-                            <p>Hash SHA-256 para armazenamento</p>
-                        </div>
-                    </div>
-                </div>
+          </div>
+          <div class="atc-feature">
+            <div class="atc-feature-icon">🔒</div>
+            <div>
+              <strong>Seguro e rastreável</strong>
+              <p>O token não é salvo em disco — só o hash SHA-256. Cada uso é registrado com hostname e data.</p>
             </div>
-        </div>
-
-        <!-- Como Usar -->
-        <div class="detail-card">
-            <h2>Como Usar o Token</h2>
-            <div class="detail-content">
-                <div class="steps">
-                    <div class="step">
-                        <div class="step-number">1</div>
-                        <div class="step-content">
-                            <strong>Gere o token</strong>
-                            <p>Defina a quantidade e validade desejada</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">2</div>
-                        <div class="step-content">
-                            <strong>Copie o token</strong>
-                            <p>Após gerar, copie o token exibido na tela</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">3</div>
-                        <div class="step-content">
-                            <strong>Execute o instalador</strong>
-                            <p>Abra o AgentInstaller.exe na máquina destino</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">4</div>
-                        <div class="step-content">
-                            <strong>Cole o token</strong>
-                            <p>Quando solicitado, cole o token de 8 caracteres</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">5</div>
-                        <div class="step-content">
-                            <strong>Pronto!</strong>
-                            <p>O agente será instalado e começará a enviar dados</p>
-                        </div>
-                    </div>
-                </div>
+          </div>
+          <div class="atc-feature">
+            <div class="atc-feature-icon">⏱</div>
+            <div>
+              <strong>Validade configurável</strong>
+              <p>Tokens expirados não podem registrar novas máquinas. Máquinas já registradas continuam funcionando normalmente.</p>
             </div>
-        </div>
-
-        <!-- Aviso Importante -->
-        <div class="detail-card" style="border-left: 4px solid #ff9800;">
-            <h2 style="color: #ff9800;">⚠ Importante</h2>
-            <div class="detail-content">
-                <ul style="margin: 0; padding-left: 20px;">
-                    <li style="margin-bottom: 10px;"><strong>Guarde os tokens em local seguro</strong> - Eles são necessários para instalação</li>
-                    <li style="margin-bottom: 10px;"><strong>Não é possível recuperar tokens</strong> - Uma vez gerados, não podem ser visualizados novamente</li>
-                    <li style="margin-bottom: 10px;"><strong>Tokens expirados não funcionam</strong> - Gere novos tokens se necessário</li>
-                    <li><strong>Um token por máquina</strong> - Cada máquina precisa de seu próprio token</li>
-                </ul>
+          </div>
+          <div class="atc-feature">
+            <div class="atc-feature-icon">👁</div>
+            <div>
+              <strong>Visível apenas uma vez</strong>
+              <p>O token em texto puro é exibido só na geração. Guarde-o ou distribua imediatamente para as máquinas.</p>
             </div>
+          </div>
         </div>
 
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Gerar Token(s)</button>
-            <a href="{% url 'inventario:token_list' %}" class="btn btn-secondary">Cancelar</a>
+        <div class="atc-steps">
+          <div class="atc-step-title">Passos de instalação</div>
+          <div class="atc-step">
+            <span class="atc-step-num">1</span>
+            <div><strong>Gere o token</strong> — copie o código exibido após a geração.</div>
+          </div>
+          <div class="atc-step">
+            <span class="atc-step-num">2</span>
+            <div><strong>Execute o instalador</strong> — cole o token quando solicitado.</div>
+          </div>
+          <div class="atc-step">
+            <span class="atc-step-num">3</span>
+            <div><strong>Repita</strong> em quantas máquinas precisar com o mesmo token.</div>
+          </div>
+          <div class="atc-step">
+            <span class="atc-step-num">4</span>
+            <div><strong>Desative o token</strong> após distribuir para bloquear novos registros.</div>
+          </div>
         </div>
-    </form>
+
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Gerar Token(s)</button>
+      <a href="{% url 'inventario:token_list' %}" class="btn btn-secondary">Cancelar</a>
+    </div>
+  </form>
+
 </div>
 
 <style>
-.info-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px;
-}
+.atc-features{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
+.atc-feature{display:flex;gap:12px;align-items:flex-start;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px}
+.atc-feature-icon{font-size:20px;flex-shrink:0;margin-top:1px}
+.atc-feature strong{display:block;font-size:13px;color:#1e293b;margin-bottom:4px}
+.atc-feature p{margin:0;font-size:12px;color:#64748b;line-height:1.5}
 
-.info-item {
-    background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; text-align: center;
-}
-
-.info-icon {
-    font-size: 24px;
-    color: #28a745;
-    font-weight: bold;
-}
-
-.info-text strong {
-    display: block;
-    margin-bottom: 5px;
-    color: #333;
-}
-
-.info-text p {
-    margin: 0;
-    font-size: 13px;
-    color: #666;
-}
-
-.steps {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    margin-top: 15px;
-}
-
-.step {
-    display: flex;
-    gap: 15px;
-    align-items: flex-start;
-}
-
-.step-number {
-    width: 36px;
-    height: 36px;
-    background: #0066cc;
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-
-.step-content strong {
-    display: block;
-    margin-bottom: 5px;
-    color: #333;
-}
-
-.step-content p {
-    margin: 0;
-    color: #666;
-    font-size: 14px;
-}
+.atc-steps{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px 16px}
+.atc-step-title{font-size:11px;font-weight:600;color:#0369a1;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+.atc-step{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:13px;color:#374151}
+.atc-step:last-child{margin-bottom:0}
+.atc-step-num{width:22px;height:22px;background:#0369a1;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px}
+.atc-step strong{color:#1e293b}
 </style>
 {% endblock %}
