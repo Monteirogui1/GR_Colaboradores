@@ -4,28 +4,41 @@
 
 {% block conteudo %}
 <div class="content">
-    <!-- Cabeçalho -->
+
+    <!-- ═══════════════════════════════════════════════════════════
+         CABEÇALHO
+    ════════════════════════════════════════════════════════════════ -->
     <div class="page-header">
-        <h1>Máquina: {{ machine.hostname }}</h1>
+        <h1><i class="bi bi-pc-display"></i> {{ machine.hostname }}</h1>
         <div class="filter-buttons">
-            <a href="{% url 'inventario:machine_update' machine.pk %}" class="btn btn-edit">Editar</a>
-            <button class="btn btn-delete" data-id="{{ machine.id }}">Excluir</button>
-            <a href="{% url 'inventario:machine_list' %}" class="btn btn-secondary">Voltar</a>
+            {% if user.is_staff %}
+            <a href="{% url 'inventario:machine_update' machine.pk %}" class="btn btn-edit">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            {% endif %}
+            <button class="btn btn-delete" data-id="{{ machine.id }}">
+                <i class="bi bi-trash"></i> Excluir
+            </button>
+            <a href="{% url 'inventario:machine_list' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
         </div>
     </div>
 
-    <!-- Status da Máquina -->
+    <!-- ═══════════════════════════════════════════════════════════
+         STATUS
+    ════════════════════════════════════════════════════════════════ -->
     <div class="detail-card">
-        <h2>Status</h2>
+        <h2><i class="bi bi-activity"></i> Status</h2>
         <div class="detail-content">
             <div class="detail-info">
                 <div class="detail-row">
                     <span class="detail-label">Status:</span>
                     <span class="detail-value">
                         {% if machine.is_online %}
-                            <span style="color: green;">● Online</span>
+                            <span style="color:#22c55e;font-weight:600;">● Online</span>
                         {% else %}
-                            <span style="color: red;">● Offline</span>
+                            <span style="color:#ef4444;font-weight:600;">● Offline</span>
                         {% endif %}
                     </span>
                 </div>
@@ -45,9 +58,11 @@
         </div>
     </div>
 
-    <!-- Informações de Hardware -->
+    <!-- ═══════════════════════════════════════════════════════════
+         HARDWARE
+    ════════════════════════════════════════════════════════════════ -->
     <div class="detail-card">
-        <h2>Hardware</h2>
+        <h2><i class="bi bi-cpu"></i> Hardware</h2>
         <div class="detail-content">
             <div class="detail-info">
                 <div class="detail-row">
@@ -86,9 +101,11 @@
         </div>
     </div>
 
-    <!-- Memória RAM -->
+    <!-- ═══════════════════════════════════════════════════════════
+         MEMÓRIA RAM
+    ════════════════════════════════════════════════════════════════ -->
     <div class="detail-card">
-        <h2>Memória RAM</h2>
+        <h2><i class="bi bi-memory"></i> Memória RAM</h2>
         <div class="detail-content">
             <div class="detail-info">
                 <div class="detail-row">
@@ -102,7 +119,7 @@
             </div>
         </div>
         {% if machine.memory_modules %}
-        <table class="table">
+        <table class="table" style="margin-top:12px;">
             <thead>
                 <tr>
                     <th>Banco</th>
@@ -127,9 +144,11 @@
         {% endif %}
     </div>
 
-    <!-- Armazenamento -->
+    <!-- ═══════════════════════════════════════════════════════════
+         ARMAZENAMENTO
+    ════════════════════════════════════════════════════════════════ -->
     <div class="detail-card">
-        <h2>Armazenamento</h2>
+        <h2><i class="bi bi-hdd"></i> Armazenamento</h2>
         <div class="detail-content">
             <div class="detail-info">
                 <div class="detail-row">
@@ -140,26 +159,39 @@
                     <span class="detail-label">Espaço Livre:</span>
                     <span class="detail-value">{{ machine.disk_free_gb|floatformat:2|default:"-" }} GB</span>
                 </div>
-<!--                <div class="detail-row">-->
-<!--                    <span class="detail-label">Espaço Usado:</span>-->
-<!--                    <span class="detail-value">-->
-<!--                        {% if machine.disk_space_gb and machine.disk_free_gb %}-->
-<!--                            {% widthratio machine.disk_space_gb 1 100 as total_scaled %}-->
-<!--                            {% widthratio machine.disk_free_gb 1 100 as free_scaled %}-->
-<!--                            {% widthratio total_scaled|add:"-"|add:free_scaled 100 1 as used %}-->
-<!--                            {{ used|floatformat:2 }} GB-->
-<!--                        {% else %}-->
-<!--                            - -->
-<!--                        {% endif %}-->
-<!--                    </span>-->
-<!--                </div>-->
             </div>
         </div>
+        {% if machine.disks %}
+        <table class="table" style="margin-top:12px;">
+            <thead>
+                <tr>
+                    <th>Disco</th>
+                    <th>Modelo</th>
+                    <th>Tamanho (GB)</th>
+                    <th>Interface</th>
+                    <th>Serial</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for disk in machine.disks %}
+                <tr>
+                    <td>{{ disk.device_id|default:"-" }}</td>
+                    <td>{{ disk.model|default:"-" }}</td>
+                    <td>{{ disk.size_gb|floatformat:2|default:"-" }}</td>
+                    <td>{{ disk.interface|default:"-" }}</td>
+                    <td>{{ disk.serial|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
     </div>
 
-    <!-- Sistema Operacional -->
+    <!-- ═══════════════════════════════════════════════════════════
+         SISTEMA OPERACIONAL
+    ════════════════════════════════════════════════════════════════ -->
     <div class="detail-card">
-        <h2>Sistema Operacional</h2>
+        <h2><i class="bi bi-windows"></i> Sistema Operacional</h2>
         <div class="detail-content">
             <div class="detail-info">
                 <div class="detail-row">
@@ -190,9 +222,11 @@
         </div>
     </div>
 
-    <!-- Rede -->
+    <!-- ═══════════════════════════════════════════════════════════
+         REDE
+    ════════════════════════════════════════════════════════════════ -->
     <div class="detail-card">
-        <h2>Rede</h2>
+        <h2><i class="bi bi-ethernet"></i> Rede</h2>
         <div class="detail-content">
             <div class="detail-info">
                 <div class="detail-row">
@@ -206,8 +240,7 @@
             </div>
         </div>
         {% if machine.network_info %}
-        <h3 style="margin-top: 20px;">Adaptadores de Rede</h3>
-        <table class="table">
+        <table class="table" style="margin-top:12px;">
             <thead>
                 <tr>
                     <th>Nome</th>
@@ -234,9 +267,11 @@
         {% endif %}
     </div>
 
-    <!-- Segurança -->
+    <!-- ═══════════════════════════════════════════════════════════
+         SEGURANÇA
+    ════════════════════════════════════════════════════════════════ -->
     <div class="detail-card">
-        <h2>Segurança</h2>
+        <h2><i class="bi bi-shield-check"></i> Segurança</h2>
         <div class="detail-content">
             <div class="detail-info">
                 <div class="detail-row">
@@ -250,8 +285,8 @@
             </div>
         </div>
         {% if machine.tpm %}
-        <h3 style="margin-top: 20px;">TPM (Trusted Platform Module)</h3>
-        <div class="detail-info">
+        <h3 style="margin-top:16px;font-size:14px;color:#555;">TPM (Trusted Platform Module)</h3>
+        <div class="detail-info" style="margin-top:8px;">
             <div class="detail-row">
                 <span class="detail-label">Presente:</span>
                 <span class="detail-value">{{ machine.tpm.present|yesno:"Sim,Não" }}</span>
@@ -265,10 +300,6 @@
                 <span class="detail-value">{{ machine.tpm.enabled|yesno:"Sim,Não" }}</span>
             </div>
             <div class="detail-row">
-                <span class="detail-label">Ativado:</span>
-                <span class="detail-value">{{ machine.tpm.activated|yesno:"Sim,Não" }}</span>
-            </div>
-            <div class="detail-row">
                 <span class="detail-label">Versão Spec:</span>
                 <span class="detail-value">{{ machine.tpm.spec_version|default:"-" }}</span>
             </div>
@@ -279,5 +310,313 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         TERMINAL REMOTO — só para staff
+         Chama POST /run/<machine_id>/ → RunCommandView (Django)
+         que encaminha para http://{ip}:7071/command (agent_service)
+         Roda em Session 0, sem WinRM, sem agent_tray necessário.
+    ════════════════════════════════════════════════════════════════ -->
+    {% if user.is_staff %}
+    <div class="detail-card" id="terminal-card">
+
+        <!-- Cabeçalho do card -->
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <h2 style="margin:0;"><i class="bi bi-terminal-fill"></i> Terminal Remoto</h2>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <!-- Indicador de status da máquina -->
+                <span id="term-status-badge" style="
+                    font-size:12px; padding:3px 10px; border-radius:20px; font-weight:600;
+                    background:{% if machine.is_online %}#dcfce7{% else %}#fee2e2{% endif %};
+                    color:{% if machine.is_online %}#166534{% else %}#991b1b{% endif %};">
+                    {% if machine.is_online %}● Agente Online{% else %}● Agente Offline{% endif %}
+                </span>
+                <!-- Seletor de tipo de comando -->
+                <select id="cmd-type" style="
+                    font-family: 'Consolas', monospace;
+                    font-size: 12px;
+                    background: #2d2d2d;
+                    color: #c9d1d9;
+                    border: 1px solid #444;
+                    border-radius: 5px;
+                    padding: 4px 8px;
+                    cursor: pointer;
+                ">
+                    <option value="powershell">PowerShell</option>
+                    <option value="cmd">CMD</option>
+                </select>
+                <!-- Botão limpar -->
+                <button onclick="clearTerminal()" title="Limpar terminal" style="
+                    background: #2d2d2d; color: #8b949e; border: 1px solid #444;
+                    border-radius: 5px; padding: 4px 10px; cursor: pointer; font-size: 13px;
+                ">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Área de output -->
+        <div id="terminal-output" style="
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.55;
+            padding: 14px 16px;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+            height: 360px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-bottom: 10px;
+        "></div>
+
+        <!-- Linha de input -->
+        <div style="display:flex; gap:6px; align-items:center;">
+            <span id="term-prompt" style="
+                color: #58a6ff;
+                font-family: 'Consolas', monospace;
+                font-size: 13px;
+                white-space: nowrap;
+                padding: 0 4px;
+                line-height: 38px;
+            ">PS&gt;</span>
+
+            <input
+                type="text"
+                id="terminal-input"
+                placeholder="Get-ComputerInfo | Select-Object CsName, OsName"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
+                style="
+                    flex: 1;
+                    font-family: 'Consolas', monospace;
+                    font-size: 13px;
+                    background: #161b22;
+                    color: #e6edf3;
+                    border: 1px solid #30363d;
+                    border-radius: 6px;
+                    padding: 7px 12px;
+                    outline: none;
+                "
+            />
+
+            <button id="btn-run" onclick="runCommand()" style="
+                background: #238636;
+                color: #fff;
+                border: none;
+                border-radius: 6px;
+                padding: 7px 18px;
+                font-size: 13px;
+                cursor: pointer;
+                white-space: nowrap;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+            ">
+                <i class="bi bi-play-fill"></i> Executar
+            </button>
+        </div>
+
+        <!-- Dica de atalhos -->
+        <div style="margin-top:8px; font-size:11px; color:#8b949e;">
+            <i class="bi bi-info-circle"></i>
+            <kbd style="background:#21262d;border:1px solid #30363d;border-radius:3px;padding:1px 5px;">Enter</kbd> executar &nbsp;·&nbsp;
+            <kbd style="background:#21262d;border:1px solid #30363d;border-radius:3px;padding:1px 5px;">↑</kbd>
+            <kbd style="background:#21262d;border:1px solid #30363d;border-radius:3px;padding:1px 5px;">↓</kbd> histórico &nbsp;·&nbsp;
+            Timeout máximo: 60s &nbsp;·&nbsp; Roda em Session 0 (sem UI)
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        // ── Configuração ───────────────────────────────────────────────────────
+        const RUN_URL    = "{% url 'inventario:run_command' machine.id %}";
+        const CSRF_TOKEN = "{{ csrf_token }}";
+        const HOSTNAME   = "{{ machine.hostname }}";
+        const IS_ONLINE  = {% if machine.is_online %}true{% else %}false{% endif %};
+
+        // ── Referências DOM ────────────────────────────────────────────────────
+        const output   = document.getElementById('terminal-output');
+        const input    = document.getElementById('terminal-input');
+        const btnRun   = document.getElementById('btn-run');
+        const prompt   = document.getElementById('term-prompt');
+        const cmdType  = document.getElementById('cmd-type');
+
+        // ── Histórico de comandos ──────────────────────────────────────────────
+        const history  = [];
+        let histIdx    = -1;
+
+        // ── Boot do terminal ──────────────────────────────────────────────────
+        function boot() {
+            appendLine(`TI Manager — Terminal Remoto`, 'header');
+            appendLine(`Máquina : ${HOSTNAME}`, 'muted');
+            appendLine(`Status  : ${IS_ONLINE ? 'Agente Online' : 'Agente Offline'}`, IS_ONLINE ? 'ok' : 'err');
+            appendLine(`Via     : agent_service:7071/command (Session 0, sem WinRM)`, 'muted');
+            appendLine('─'.repeat(60), 'dim');
+        }
+        boot();
+
+        // ── Troca de tipo de comando ──────────────────────────────────────────
+        cmdType.addEventListener('change', function () {
+            prompt.textContent = this.value === 'cmd' ? 'CMD>' : 'PS>';
+            prompt.style.color = this.value === 'cmd' ? '#ffa657' : '#58a6ff';
+        });
+
+        // ── Navegação por histórico e Enter ───────────────────────────────────
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                runCommand();
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (histIdx < history.length - 1) histIdx++;
+                input.value = history[histIdx] ?? '';
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (histIdx > 0) histIdx--;
+                else { histIdx = -1; input.value = ''; return; }
+                input.value = history[histIdx] ?? '';
+            }
+        });
+
+        // ── Append de linha colorida ──────────────────────────────────────────
+        const COLORS = {
+            header:  '#58a6ff',
+            ok:      '#3fb950',
+            err:     '#f85149',
+            warn:    '#d29922',
+            muted:   '#8b949e',
+            dim:     '#30363d',
+            stdout:  '#e6edf3',
+            prompt:  '#58a6ff',
+            exit_ok: '#3fb950',
+            exit_err:'#f85149',
+        };
+
+        function appendLine(text, type) {
+            const span = document.createElement('span');
+            span.style.color   = COLORS[type] || '#e6edf3';
+            span.style.display = 'block';
+            span.textContent   = text;
+            output.appendChild(span);
+            output.scrollTop   = output.scrollHeight;
+        }
+
+        function appendRaw(text, type) {
+            // Divide por linhas para renderizar cada uma separada
+            const lines = text.split('\n');
+            lines.forEach((line, i) => {
+                if (i === lines.length - 1 && line === '') return; // trailing newline
+                appendLine(line, type);
+            });
+        }
+
+        // ── Limpar terminal ───────────────────────────────────────────────────
+        window.clearTerminal = function () {
+            output.innerHTML = '';
+            boot();
+        };
+
+        // ── Executar comando ──────────────────────────────────────────────────
+        window.runCommand = async function () {
+            const cmd = input.value.trim();
+            if (!cmd) return;
+
+            // Salva histórico
+            history.unshift(cmd);
+            histIdx = -1;
+
+            // Limpa input e desabilita controles
+            input.value      = '';
+            input.disabled   = true;
+            btnRun.disabled  = true;
+            btnRun.innerHTML = '<i class="bi bi-hourglass-split"></i> Executando…';
+
+            // Exibe o comando no terminal
+            const typeLabel = cmdType.value === 'cmd' ? 'CMD' : 'PS';
+            appendLine(`${typeLabel}> ${cmd}`, 'prompt');
+
+            const startTs = Date.now();
+
+            try {
+                const resp = await fetch(RUN_URL, {
+                    method:  'POST',
+                    headers: {
+                        'X-CSRFToken':   CSRF_TOKEN,
+                        'Content-Type':  'application/x-www-form-urlencoded',
+                    },
+                    body: `command=${encodeURIComponent(cmd)}&type=${encodeURIComponent(cmdType.value)}`,
+                });
+
+                const elapsed = ((Date.now() - startTs) / 1000).toFixed(2);
+                const data    = await resp.json();
+
+                if (data.error && !data.stdout && !data.stderr) {
+                    // Erro de conexão / agente offline
+                    appendLine(`✗ ERRO: ${data.error}`, 'err');
+                } else {
+                    // Stdout
+                    if (data.stdout && data.stdout.trim()) {
+                        appendRaw(data.stdout.trimEnd(), 'stdout');
+                    }
+                    // Stderr
+                    if (data.stderr && data.stderr.trim()) {
+                        appendRaw(data.stderr.trimEnd(), 'warn');
+                    }
+                    // Nada retornado
+                    if (!data.stdout?.trim() && !data.stderr?.trim() && !data.error) {
+                        appendLine('(sem saída)', 'muted');
+                    }
+                    // Linha de status
+                    const exitCode = data.exit_code ?? data.status_code ?? -1;
+                    const exitType = exitCode === 0 ? 'exit_ok' : 'exit_err';
+                    appendLine(`[exit: ${exitCode} | ${elapsed}s]`, exitType);
+                }
+
+            } catch (err) {
+                appendLine(`✗ Falha na requisição: ${err.message}`, 'err');
+            }
+
+            appendLine('─'.repeat(60), 'dim');
+
+            // Reabilita controles
+            input.disabled   = false;
+            btnRun.disabled  = false;
+            btnRun.innerHTML = '<i class="bi bi-play-fill"></i> Executar';
+            input.focus();
+        };
+
+        // Focus inicial no input
+        input.focus();
+    })();
+    </script>
+    {% endif %}{# user.is_staff #}
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SCRIPT: confirmar exclusão
+    ════════════════════════════════════════════════════════════════ -->
+    <script>
+    document.querySelectorAll('.btn-delete[data-id]').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const id = this.dataset.id;
+            if (confirm('Tem certeza que deseja excluir esta máquina?')) {
+                fetch(`/machines/${id}/delete/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+                }).then(r => {
+                    if (r.ok || r.redirected) {
+                        window.location.href = "{% url 'inventario:machine_list' %}";
+                    }
+                });
+            }
+        });
+    });
+    </script>
+
 </div>
 {% endblock %}

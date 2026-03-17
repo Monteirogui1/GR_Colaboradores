@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import requests
 from datetime import timedelta
 import datetime
 import logging
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # HELPER DE AUTENTICAÇÃO POR TOKEN DE AGENTE
 # ============================================================================
+AGENT_IPC_PORT = 7070
 
 def _get_agent_token(request):
     """
@@ -258,32 +260,53 @@ class MachineCheckinView(View):
 
 class RunCommandView(LoginRequiredMixin, View):
     def post(self, request, machine_id):
+        if not request.user.is_staff:
+            return JsonResponse({'error': 'Acesso negado'}, status=403)
+
         try:
             machine = Machine.objects.get(id=machine_id)
         except Machine.DoesNotExist:
-            return JsonResponse({'error': 'Machine not found'}, status=404)
+            return JsonResponse({'error': 'Máquina não encontrada'}, status=404)
+
+        if not machine.ip_address:
+            return JsonResponse({'error': 'Máquina sem IP cadastrado'}, status=400)
 
         cmd = request.POST.get('command', '').strip()
+        cmd_type = request.POST.get('type', 'powershell')  # 'powershell' ou 'cmd'
         if not cmd:
-            return JsonResponse({'error': 'command required'}, status=400)
+            return JsonResponse({'error': 'Comando obrigatório'}, status=400)
 
-        # executa via WinRM
-        import winrm  # se ainda precisar desse recurso
+        # Busca o token do agente para autenticar na chamada
+        token_obj = AgentToken.objects.filter(
+            machine=machine, is_active=True
+        ).first()
+
+        headers = {}
+        if token_obj:
+            headers['Authorization'] = f'Bearer {token_obj.token_hash}'
 
         try:
-            session = winrm.Session(
-                f"http://{machine.ip_address}:5985/wsman",
-                auth=('admin', 'senha'),
-                server_cert_validation='ignore',
+            resp = requests.post(
+                f"http://{machine.ip_address}:{AGENT_IPC_PORT}/command",
+                json={
+                    "type": cmd_type,
+                    "script": cmd,
+                    "timeout": 60,
+                },
+                headers=headers,
+                timeout=65,
             )
-            result = session.run_ps(cmd)
-            return JsonResponse(
-                {
-                    'stdout': result.std_out.decode('utf-8', 'ignore'),
-                    'stderr': result.std_err.decode('utf-8', 'ignore'),
-                    'status_code': result.status_code,
-                }
-            )
+            data = resp.json()
+            return JsonResponse({
+                'stdout':    data.get('stdout', ''),
+                'stderr':    data.get('stderr', ''),
+                'exit_code': data.get('exit_code', -1),
+                'error':     data.get('error', ''),
+            })
+        except requests.exceptions.ConnectionError:
+            return JsonResponse({'error': f'Agente offline ou inacessível em {machine.ip_address}:{AGENT_IPC_PORT}'}, status=503)
+        except requests.exceptions.Timeout:
+            return JsonResponse({'error': 'Timeout — comando demorou mais de 60s'}, status=504)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
