@@ -1,7 +1,8 @@
 """
-install_agent.py — Instalador v3.1 | Layout Moderno
+install_agent.py — Instalador v3.2 | Layout Moderno
   • Instala agent_service.exe como Serviço Windows (NSSM, Session 0)
   • Instala agent_tray.exe como autorun do usuário (HKCU Run, Session 1+)
+  • Cria atalho "Chamados.lnk" na área de trabalho do usuário
 """
 
 import os
@@ -283,13 +284,14 @@ class AgentInstaller:
         self.root.configure(bg=C["bg"])
 
         # Variáveis
-        self.install_dir  = tk.StringVar(value=INSTALL_DIR)
-        self.token        = tk.StringVar()
-        self.show_token   = tk.BooleanVar(value=False)
-        self.auto_update  = tk.BooleanVar(value=DEFAULT_AUTO_UPDATE)
-        self.notifs       = tk.BooleanVar(value=DEFAULT_NOTIFS)
-        self.install_tray = tk.BooleanVar(value=True)
-        self._cur_step    = 0
+        self.install_dir      = tk.StringVar(value=INSTALL_DIR)
+        self.token            = tk.StringVar()
+        self.show_token       = tk.BooleanVar(value=False)
+        self.auto_update      = tk.BooleanVar(value=DEFAULT_AUTO_UPDATE)
+        self.notifs           = tk.BooleanVar(value=DEFAULT_NOTIFS)
+        self.install_tray     = tk.BooleanVar(value=True)
+        self.desktop_shortcut = tk.BooleanVar(value=True)   # ← novo
+        self._cur_step        = 0
 
         self._build()
         self._require_admin()
@@ -497,6 +499,7 @@ class AgentInstaller:
         _check(body3, "Atualizações automáticas do agente", self.auto_update).pack(anchor="w", pady=2)
         _check(body3, "Notificações nativas (requer Tray App)", self.notifs).pack(anchor="w", pady=2)
         _check(body3, "Instalar Tray App (autorun do usuário)", self.install_tray).pack(anchor="w", pady=2)
+        _check(body3, "Criar atalho 'Chamados' na área de trabalho", self.desktop_shortcut).pack(anchor="w", pady=2)
 
         # Resumo servidor
         srv_f = tk.Frame(wrap, bg=C["surface"],
@@ -725,14 +728,15 @@ class AgentInstaller:
                                  else __file__).parent
 
             steps = [
-                (5,  "Preparando",           "Criando estrutura de diretórios…"),
-                (20, "Localizando NSSM",     "Verificando dependências…"),
-                (35, "Copiando arquivos",    "Copiando executáveis…"),
-                (50, "Configurando serviço", "Registrando no Windows…"),
-                (65, "Variáveis de ambiente","Aplicando configurações…"),
-                (80, "Autorun do Tray",      "Registrando inicialização automática…"),
-                (92, "Iniciando serviços",   "Iniciando agent_service e agent_tray…"),
-                (100,"Concluído",            "Instalação finalizada com sucesso!"),
+                (5,  "Preparando",            "Criando estrutura de diretórios…"),
+                (20, "Localizando NSSM",      "Verificando dependências…"),
+                (35, "Copiando arquivos",     "Copiando executáveis…"),
+                (50, "Configurando serviço",  "Registrando no Windows…"),
+                (65, "Variáveis de ambiente", "Aplicando configurações…"),
+                (78, "Autorun do Tray",       "Registrando inicialização automática…"),
+                (88, "Atalho na área de trabalho", "Criando atalho Chamados…"),
+                (94, "Iniciando serviços",    "Iniciando agent_service e agent_tray…"),
+                (100,"Concluído",             "Instalação finalizada com sucesso!"),
             ]
 
             def step(i):
@@ -787,8 +791,15 @@ class AgentInstaller:
             else:
                 self._log("—  Tray App não selecionado, pulado", "INFO")
 
-            # 7. Iniciar
+            # 7. Atalho na área de trabalho
             step(6)
+            if tray_dst and self.desktop_shortcut.get():
+                self._create_desktop_shortcut(tray_dst)
+            else:
+                self._log("—  Atalho não solicitado, pulado", "INFO")
+
+            # 8. Iniciar
+            step(7)
             r = subprocess.run(
                 [nssm, "start", SERVICE_NAME],
                 capture_output=True, text=True, timeout=30,
@@ -803,8 +814,8 @@ class AgentInstaller:
                                  creationflags=subprocess.CREATE_NO_WINDOW)
                 self._log("✓  agent_tray iniciado", "OK")
 
-            # 8. Fim
-            step(7)
+            # 9. Fim
+            step(8)
             self._set_status_icon("✓", C["success"])
             self._log("", "INFO")
             self._log("━" * 44, "OK")
@@ -836,6 +847,9 @@ class AgentInstaller:
             ("📁", "Diretório", str(install_dir)),
             ("🔒", "Token", "Em memória — não salvo em disco"),
         ]
+        if self.desktop_shortcut.get():
+            infos.append(("🖥", "Atalho", "Chamados.lnk criado na área de trabalho"))
+
         for icon, label, value in infos:
             row = tk.Frame(self._done_cards, bg=C["surface"],
                            highlightthickness=1, highlightbackground=C["border"])
@@ -897,6 +911,73 @@ class AgentInstaller:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, TRAY_REG_KEY,
                             0, winreg.KEY_SET_VALUE) as key:
             winreg.SetValueEx(key, TRAY_REG_VAL, 0, winreg.REG_SZ, str(tray_exe))
+
+    def _create_desktop_shortcut(self, tray_exe: Path):
+        """
+        Cria atalho 'Chamados.lnk' na área de trabalho do usuário.
+        Ao clicar, executa: agent_tray.exe --chamados
+        Usa win32com (pywin32) como método principal, com fallback via
+        PowerShell caso o pywin32 não esteja disponível no ambiente.
+        """
+        try:
+            import ctypes
+            import ctypes.wintypes
+
+            # Descobre o Desktop do usuário atual via SHGetFolderPath
+            CSIDL_DESKTOPDIRECTORY = 0x0010
+            buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
+            ctypes.windll.shell32.SHGetFolderPathW(
+                None, CSIDL_DESKTOPDIRECTORY, None, 0, buf)
+            desktop = Path(buf.value)
+            shortcut_path = desktop / "Chamados.lnk"
+
+            try:
+                # ── Método 1: pywin32 (win32com) ──────────────────────────
+                import pythoncom
+                from win32com.shell import shell as w32shell
+
+                pythoncom.CoInitialize()
+                lnk = pythoncom.CoCreateInstance(
+                    w32shell.CLSID_ShellLink,
+                    None,
+                    pythoncom.CLSCTX_INPROC_SERVER,
+                    w32shell.IID_IShellLink,
+                )
+                lnk.SetPath(str(tray_exe))
+                lnk.SetArguments("--chamados")
+                lnk.SetDescription("Abrir painel de Chamados")
+                lnk.SetWorkingDirectory(str(tray_exe.parent))
+                lnk.SetIconLocation(str(tray_exe), 0)
+                lnk.QueryInterface(pythoncom.IID_IPersistFile).Save(
+                    str(shortcut_path), 0)
+                pythoncom.CoUninitialize()
+                self._log(f"✓  Atalho criado (win32com): {shortcut_path}", "OK")
+
+            except ImportError:
+                # ── Método 2: PowerShell (fallback sem pywin32) ───────────
+                ps_script = (
+                    f"$ws = New-Object -ComObject WScript.Shell; "
+                    f"$s = $ws.CreateShortcut('{shortcut_path}'); "
+                    f"$s.TargetPath = '{tray_exe}'; "
+                    f"$s.Arguments = '--chamados'; "
+                    f"$s.Description = 'Abrir painel de Chamados'; "
+                    f"$s.WorkingDirectory = '{tray_exe.parent}'; "
+                    f"$s.IconLocation = '{tray_exe},0'; "
+                    f"$s.Save()"
+                )
+                r = subprocess.run(
+                    ["powershell", "-NoProfile", "-NonInteractive",
+                     "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+                    capture_output=True, text=True, timeout=15,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                if r.returncode == 0:
+                    self._log(f"✓  Atalho criado (PowerShell): {shortcut_path}", "OK")
+                else:
+                    raise RuntimeError(r.stderr.strip() or "PowerShell retornou erro")
+
+        except Exception as e:
+            self._log(f"⚠  Atalho não criado: {e}", "WARN")
 
     def _browse(self):
         d = filedialog.askdirectory(initialdir=self.install_dir.get())

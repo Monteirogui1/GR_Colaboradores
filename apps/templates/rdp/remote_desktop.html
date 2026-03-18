@@ -28,6 +28,9 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 .tb.on{background:var(--ad);border-color:rgba(0,200,160,.28);color:var(--acc);}
 .tb.red{color:var(--err);}
 .tb.red:hover{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.28);}
+.tb.amber{color:var(--wrn);}
+.tb.amber:hover{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.28);}
+.tb.amber.on{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.38);color:var(--wrn);}
 .tdiv{width:1px;height:18px;background:var(--b1);margin:0 4px;}
 .tspc{flex:1;}
 #tbst{font-size:9px;letter-spacing:.1em;color:var(--t3);padding:0 8px;}
@@ -100,6 +103,19 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 .mdot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 5px var(--ok);}
 #vobadge{position:absolute;top:10px;right:10px;display:none;align-items:center;gap:6px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.28);border-radius:20px;padding:4px 12px;z-index:15;font-size:9px;color:var(--wrn);letter-spacing:.1em;text-transform:uppercase;}
 #vobadge.show{display:flex;}
+
+/* ── SCREEN LOCK OVERLAY (na máquina remota, mostra no stream) ── */
+/* Banner de aviso local para o operador */
+#lockbadge{
+  position:absolute;top:10px;left:50%;transform:translateX(-50%);
+  display:none;align-items:center;gap:8px;
+  background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);
+  border-radius:20px;padding:5px 14px;z-index:16;backdrop-filter:blur(4px);
+  font-size:9px;color:var(--wrn);letter-spacing:.1em;text-transform:uppercase;
+  animation:bw 2s ease-in-out infinite;
+}
+#lockbadge.show{display:flex;}
+
 #reconn{display:none;position:absolute;inset:0;background:rgba(7,9,12,.75);backdrop-filter:blur(3px);z-index:20;align-items:center;justify-content:center;flex-direction:column;gap:14px;}
 #reconn.show{display:flex;}
 .rspin{width:30px;height:30px;border:2px solid rgba(0,200,160,.2);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite;}
@@ -137,7 +153,6 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 .pbtn:hover{background:rgba(255,255,255,.07);color:var(--txt);}
 .pbtn.acc{border-color:rgba(0,200,160,.28);color:var(--acc);background:var(--ad);}
 .pbtn.acc:hover{background:rgba(0,200,160,.2);}
-/* Destino de arquivo */
 .dpreset{padding:3px 8px;border:1px solid var(--b2);border-radius:var(--r);background:var(--bg);color:var(--t3);font-family:var(--mn);font-size:8px;letter-spacing:.06em;cursor:pointer;transition:all var(--tr);}
 .dpreset:hover{border-color:rgba(0,200,160,.3);color:var(--acc);}
 .dpreset.on{border-color:rgba(0,200,160,.4);color:var(--acc);background:var(--ad);}
@@ -170,40 +185,11 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 @keyframes bw{0%,100%{opacity:1}50%{opacity:.4}}
 
 /* ── MONITOR SELECTOR ── */
-#monitorselector{
-  display:none;
-  align-items:center;
-  gap:3px;
-  overflow:hidden;
-  transition:opacity .25s ease;
-  opacity:0;
-}
-#monitorselector.show{
-  display:flex;
-  opacity:1;
-}
-.monbtn{
-  padding:3px 8px;
-  background:transparent;
-  border:1px solid var(--b2);
-  color:var(--t3);
-  font-family:var(--mn);
-  font-size:8px;
-  font-weight:600;
-  letter-spacing:.07em;
-  border-radius:var(--r);
-  cursor:pointer;
-  transition:all var(--tr);
-  white-space:nowrap;
-  text-transform:uppercase;
-  line-height:1;
-}
+#monitorselector{display:none;align-items:center;gap:3px;opacity:0;transition:opacity .25s ease;}
+#monitorselector.show{display:flex;opacity:1;}
+.monbtn{padding:3px 8px;background:transparent;border:1px solid var(--b2);color:var(--t3);font-family:var(--mn);font-size:8px;font-weight:600;letter-spacing:.07em;border-radius:var(--r);cursor:pointer;transition:all var(--tr);white-space:nowrap;text-transform:uppercase;line-height:1;}
 .monbtn:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.18);color:var(--txt);}
-.monbtn.active{
-  background:var(--ad);
-  border-color:rgba(0,200,160,.38);
-  color:var(--acc);
-}
+.monbtn.active{background:var(--ad);border-color:rgba(0,200,160,.38);color:var(--acc);}
 
 /* ── TOASTS ── */
 #toasts{position:fixed;top:48px;right:10px;z-index:200;display:flex;flex-direction:column;gap:5px;pointer-events:none;}
@@ -252,7 +238,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
   </button>
   <div class="tdiv"></div>
 
-  <!-- ── MONITOR: botão + seletor inline ── -->
+  <!-- MONITOR -->
   <button class="tb" id="btnmon" disabled onclick="requestMonitorList()">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
       <rect x="1" y="2" width="8" height="6" rx="1"/>
@@ -261,6 +247,16 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
     </svg>MONITOR
   </button>
   <div id="monitorselector"></div>
+
+  <div class="tdiv"></div>
+
+  <!-- BLOQUEAR TELA DO USUÁRIO -->
+  <button class="tb amber" id="btnlock" disabled onclick="toggleScreenLock()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+      <rect x="4" y="7" width="8" height="7" rx="1"/>
+      <path d="M5.5 7V5a2.5 2.5 0 015 0v2"/>
+    </svg><span id="locklbl">BLOQUEAR TELA</span>
+  </button>
 
   <div class="tdiv"></div>
   <button class="tb" id="btncad" disabled onclick="sendCAD()">
@@ -353,6 +349,11 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
     <div id="vobadge">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/></svg>SOMENTE VISUALIZAÇÃO
     </div>
+    <!-- Badge de tela bloqueada (visível para o operador) -->
+    <div id="lockbadge">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><rect x="4" y="7" width="8" height="7" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>
+      TELA DO USUÁRIO BLOQUEADA
+    </div>
     <div id="reconn"><div class="rspin"></div><div id="recontxt">Reconectando…</div></div>
     <div id="dropov">
       <div class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/><path d="M8 8v4M6 10l2-2 2 2"/></svg></div>
@@ -392,7 +393,6 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
     <div class="pb">
       <div class="f">
         <label>Destino na máquina remota</label>
-        <!-- Explorer card -->
         <div id="explcard" onclick="selDest('explorer')" title="Pasta aberta no Explorer" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--b2);border-radius:var(--r);cursor:pointer;">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--acc)" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/></svg>
           <div style="flex:1;min-width:0;">
@@ -403,7 +403,6 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
             <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8a6 6 0 1110.5-4"/><path d="M12 1v4H8"/></svg>
           </button>
         </div>
-        <!-- Outros destinos -->
         <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;">
           <div class="dpreset" data-path="downloads" onclick="selDest('downloads')">Downloads</div>
           <div class="dpreset" data-path="desktop"   onclick="selDest('desktop')">Desktop</div>
@@ -442,18 +441,18 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 
 <script>
 // ═══════════════════════════════════════
-// ESTADO — declarado UMA única vez
+// ESTADO
 // ═══════════════════════════════════════
 var pc = null, dc = null, fileDC = null;
 var sessToken = '', connMachine = '';
 var screenW = 1920, screenH = 1080;
 var quality = 'AUTO', icePolicy = 'all';
-var reconnAtt = 0;
-var MAX_R = 5;
+var reconnAtt = 0, MAX_R = 5;
 var statsTimer = null;
 var paused = false, viewOnly = false, isSelf = false;
-var destMode = 'explorer';
-var explorerPath = '';
+var screenLocked = false;
+var destMode = 'explorer', explorerPath = '';
+var _monitors = [];
 
 // ═══════════════════════════════════════
 // HELPERS
@@ -465,16 +464,15 @@ function setStatus(txt, cls){
   cls = cls || '';
   $('sbstat').textContent = $('tbst').textContent = txt;
   var d = $('sdot');
-  d.className = 'sdot' + (cls==='ok' ? ' ok' : cls==='err' ? ' err' : cls==='w' ? ' w' : '');
+  d.className = 'sdot' + (cls==='ok'?' ok':cls==='err'?' err':cls==='w'?' w':'');
 }
 function toast(msg, type, ms){
-  type = type || 'info'; ms = ms || 3000;
+  type = type||'info'; ms = ms||3000;
   var el = document.createElement('div');
-  el.className = 't ' + type;
-  el.textContent = msg;
+  el.className = 't ' + type; el.textContent = msg;
   $('toasts').appendChild(el);
   requestAnimationFrame(function(){ requestAnimationFrame(function(){ el.classList.add('show'); }); });
-  setTimeout(function(){ el.classList.remove('show'); setTimeout(function(){ el.remove(); }, 250); }, ms);
+  setTimeout(function(){ el.classList.remove('show'); setTimeout(function(){ el.remove(); },250); }, ms);
 }
 function getCookie(n){
   var c = document.cookie.split(';').map(function(x){ return x.trim(); }).find(function(x){ return x.startsWith(n+'='); });
@@ -484,28 +482,24 @@ function getCookie(n){
 // ═══════════════════════════════════════
 // SELF-CONNECT
 // ═══════════════════════════════════════
-var SELF_IDS = ['localhost', '127.0.0.1', '::1', window.location.hostname];
+var SELF_IDS = ['localhost','127.0.0.1','::1',window.location.hostname];
 (function(){
-  try {
-    var p = new RTCPeerConnection({ iceServers: [] });
+  try{
+    var p = new RTCPeerConnection({iceServers:[]});
     p.createDataChannel('');
     p.createOffer().then(function(o){ return p.setLocalDescription(o); }).then(function(){
       setTimeout(function(){
-        var sdp = p.localDescription && p.localDescription.sdp || '';
-        var matches = sdp.match(/a=candidate:.+? .+? .+? .+? (\S+)/g) || [];
-        matches.forEach(function(c){
-          var ip = c.split(' ')[4];
-          if(ip && !ip.includes('0.0.0.0')) SELF_IDS.push(ip.toLowerCase());
-        });
+        var sdp = p.localDescription&&p.localDescription.sdp||'';
+        var ms = sdp.match(/a=candidate:.+? .+? .+? .+? (\S+)/g)||[];
+        ms.forEach(function(c){ var ip=c.split(' ')[4]; if(ip&&!ip.includes('0.0.0.0')) SELF_IDS.push(ip.toLowerCase()); });
         p.close();
-      }, 600);
+      },600);
     });
-  } catch(e){}
+  }catch(e){}
 })();
-
 function chkSelf(v){
-  v = v.trim().toLowerCase();
-  isSelf = v.length > 1 && SELF_IDS.some(function(s){ return s && s.toLowerCase() === v; });
+  v=v.trim().toLowerCase();
+  isSelf = v.length>1 && SELF_IDS.some(function(s){ return s&&s.toLowerCase()===v; });
   $('sdinline').classList.toggle('show', isSelf);
 }
 function closeSelfBar(){ $('selfbar').classList.remove('show'); }
@@ -515,625 +509,489 @@ function closeSelfBar(){ $('selfbar').classList.remove('show'); }
 // ═══════════════════════════════════════
 function protectSelf(){
   if(!isSelf) return;
-  doPause();
-  $('selfbar').classList.add('show');
-  toast('Input pausado — seu próprio PC detectado', 'warn', 5000);
+  doPause(); $('selfbar').classList.add('show');
+  toast('Input pausado — seu próprio PC detectado','warn',5000);
 }
 function doPause(){
-  paused = true;
-  $('btnpause').classList.add('on');
-  $('btnpause').innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><polygon points="5,3 13,8 5,13" fill="currentColor"/></svg><span>RETOMAR INPUT</span>';
-  $('pauseind').classList.add('show');
-  sbMsg('Input pausado.');
+  paused=true; $('btnpause').classList.add('on');
+  $('btnpause').innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><polygon points="5,3 13,8 5,13" fill="currentColor"/></svg><span>RETOMAR INPUT</span>';
+  $('pauseind').classList.add('show'); sbMsg('Input pausado.');
 }
 function doResume(){
-  paused = false;
-  $('btnpause').classList.remove('on');
-  $('btnpause').innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/></svg><span>PAUSAR INPUT</span>';
-  $('pauseind').classList.remove('show');
-  sbMsg('Input ativo.');
+  paused=false; $('btnpause').classList.remove('on');
+  $('btnpause').innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/></svg><span>PAUSAR INPUT</span>';
+  $('pauseind').classList.remove('show'); sbMsg('Input ativo.');
 }
 function togglePause(){
-  if(viewOnly){ toast('Desative "Somente Visualização" primeiro', 'warn'); return; }
+  if(viewOnly){ toast('Desative "Somente Visualização" primeiro','warn'); return; }
   paused ? doResume() : doPause();
 }
 function setVO(on){
-  viewOnly = on;
-  $('voov').classList.toggle('show', on);
-  $('vobadge').classList.toggle('show', on);
-  $('vw').classList.toggle('viewonly', on);
-  $('btnvo').classList.toggle('on', on);
-  $('btnpause').disabled = on;
+  viewOnly=on;
+  $('voov').classList.toggle('show',on); $('vobadge').classList.toggle('show',on);
+  $('vw').classList.toggle('viewonly',on); $('btnvo').classList.toggle('on',on);
+  $('btnpause').disabled=on;
   if(on) doPause(); else doResume();
-  toast(on ? 'Somente Visualização ativado' : 'Modo interativo retomado', on ? 'warn' : 'ok');
+  toast(on?'Somente Visualização ativado':'Modo interativo retomado',on?'warn':'ok');
 }
 function toggleVO(){ setVO(!viewOnly); }
-function resumeFromSelf(){ isSelf = false; closeSelfBar(); setVO(false); toast('Input retomado com cuidado!', 'warn', 4000); }
+function resumeFromSelf(){ isSelf=false; closeSelfBar(); setVO(false); toast('Input retomado com cuidado!','warn',4000); }
+
+// ═══════════════════════════════════════
+// BLOQUEIO DE TELA DO USUÁRIO REMOTO
+// Envia comando para o agente exibir uma
+// tela preta cobrindo o desktop do usuário.
+// O operador continua vendo e controlando.
+// ═══════════════════════════════════════
+function toggleScreenLock(){
+  screenLocked = !screenLocked;
+  send({ t: screenLocked ? 'screen_lock' : 'screen_unlock' });
+
+  var btn = $('btnlock');
+  var lbl = $('locklbl');
+  var badge = $('lockbadge');
+
+  if(screenLocked){
+    btn.classList.add('on');
+    lbl.textContent = 'DESBLOQUEAR';
+    badge.classList.add('show');
+    toast('Tela do usuário bloqueada','warn',3000);
+    sbMsg('Tela remota bloqueada — usuário não visualiza.');
+  } else {
+    btn.classList.remove('on');
+    lbl.textContent = 'BLOQUEAR TELA';
+    badge.classList.remove('show');
+    toast('Tela desbloqueada','ok',2000);
+    sbMsg('Tela remota desbloqueada.');
+  }
+}
+
+// ═══════════════════════════════════════
+// MONITOR SWITCHER
+// ═══════════════════════════════════════
+function requestMonitorList(){
+  if(!dc||dc.readyState!=='open') return;
+  dc.send(JSON.stringify({t:'list_monitors'}));
+  sbMsg('Consultando monitores…');
+}
+function renderMonitorButtons(monitors, current){
+  _monitors = monitors;
+  var sel = $('monitorselector');
+  sel.innerHTML='';
+  if(!monitors||monitors.length===0){ sel.classList.remove('show'); return; }
+  monitors.forEach(function(m){
+    var btn = document.createElement('button');
+    btn.className = 'monbtn'+(m.id===current?' active':'');
+    btn.textContent = 'MON\u00a0'+m.id+(m.w&&m.h ? '\u00a0'+m.w+'\u00d7'+m.h : '');
+    btn.title = 'Monitor '+m.id+(m.w?' — '+m.w+'×'+m.h:'')+(m.x!==undefined?' @ '+m.x+','+m.y:'');
+    btn.onclick = function(){ switchMonitor(m.id); };
+    sel.appendChild(btn);
+  });
+  sel.classList.add('show');
+}
+function switchMonitor(idx){
+  if(!dc||dc.readyState!=='open') return;
+  dc.send(JSON.stringify({t:'switch_monitor',index:idx}));
+  $('monitorselector').querySelectorAll('.monbtn').forEach(function(b,i){
+    b.classList.toggle('active', _monitors[i]&&_monitors[i].id===idx);
+  });
+  sbMsg('Trocando para Monitor '+idx+'…');
+}
 
 // ═══════════════════════════════════════
 // DESTINO DE ARQUIVO
 // ═══════════════════════════════════════
 function selDest(mode){
-  destMode = mode;
+  destMode=mode;
   document.querySelectorAll('.dpreset').forEach(function(e){ e.classList.remove('on'); });
-  $('explcard').classList.remove('on');
-  $('custdestrow').style.display = 'none';
-  if(mode === 'explorer'){
-    $('explcard').classList.add('on');
-  } else if(mode === 'custom'){
-    var el = document.querySelector('.dpreset[data-path="custom"]');
-    if(el) el.classList.add('on');
-    $('custdestrow').style.display = '';
+  $('explcard').classList.remove('on'); $('custdestrow').style.display='none';
+  if(mode==='explorer') $('explcard').classList.add('on');
+  else if(mode==='custom'){
+    var el=document.querySelector('.dpreset[data-path="custom"]'); if(el) el.classList.add('on');
+    $('custdestrow').style.display='';
   } else {
-    var el = document.querySelector('.dpreset[data-path="' + mode + '"]');
-    if(el) el.classList.add('on');
+    var el=document.querySelector('.dpreset[data-path="'+mode+'"]'); if(el) el.classList.add('on');
   }
-  var labels = { explorer:'Explorer', downloads:'Downloads', desktop:'Desktop', documents:'Documentos', custom:'Personalizado' };
-  $('destlbl').textContent = labels[mode] || mode;
-  var dropLbl = mode === 'explorer' ? ('DESTINO: ' + (explorerPath ? explorerPath.split('\\').pop() || 'Explorer' : 'Explorer'))
-              : 'DESTINO: ' + (labels[mode] || mode);
-  $('drop-dest-lbl').textContent = dropLbl;
+  var labels={explorer:'Explorer',downloads:'Downloads',desktop:'Desktop',documents:'Documentos',custom:'Personalizado'};
+  $('destlbl').textContent=labels[mode]||mode;
+  $('drop-dest-lbl').textContent='DESTINO: '+(mode==='explorer'?(explorerPath?explorerPath.split('\\').pop()||'Explorer':'Explorer'):(labels[mode]||mode));
 }
-
 function getDestPath(){
-  if(destMode === 'explorer') return 'explorer';
-  if(destMode === 'custom'){
-    var v = $('custdest').value.trim();
-    return v || 'downloads';
-  }
+  if(destMode==='explorer') return 'explorer';
+  if(destMode==='custom'){ var v=$('custdest').value.trim(); return v||'downloads'; }
   return destMode;
 }
-
 function refreshExplorer(){
-  var el = $('explpath');
-  el.textContent = 'Consultando…';
-  el.style.color = 'var(--t3)';
-  fetch('/api/rdp/info/?machine=' + encodeURIComponent(connMachine) + '&action=explorer_path', {
-    credentials: 'same-origin',
-    headers: { 'X-RDP-Token': sessToken, 'X-CSRFToken': getCookie('csrftoken') }
+  var el=$('explpath'); el.textContent='Consultando…'; el.style.color='var(--t3)';
+  fetch('/api/rdp/info/?machine='+encodeURIComponent(connMachine)+'&action=explorer_path',{
+    credentials:'same-origin',headers:{'X-RDP-Token':sessToken,'X-CSRFToken':getCookie('csrftoken')}
   })
-  .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+  .then(function(r){ return r.ok?r.json():Promise.reject(r.status); })
   .then(function(d){
-    explorerPath = d.path || '';
-    el.textContent = explorerPath || 'Não disponível';
-    el.style.color = explorerPath ? 'var(--txt)' : 'var(--wrn)';
-    if(destMode === 'explorer') selDest('explorer');
+    explorerPath=d.path||''; el.textContent=explorerPath||'Não disponível';
+    el.style.color=explorerPath?'var(--txt)':'var(--wrn)';
+    if(destMode==='explorer') selDest('explorer');
   })
-  .catch(function(){
-    el.textContent = 'Não disponível — usando Downloads';
-    el.style.color = 'var(--wrn)';
-    explorerPath = '';
-  });
+  .catch(function(){ el.textContent='Não disponível — usando Downloads'; el.style.color='var(--wrn)'; explorerPath=''; });
 }
 
 // ═══════════════════════════════════════
 // UI
 // ═══════════════════════════════════════
 function toggleEye(){
-  var i = $('inptoken'), s = i.type === 'password';
-  i.type = s ? 'text' : 'password';
-  $('eyeo').style.display = s ? 'none' : '';
-  $('eyec').style.display = s ? '' : 'none';
+  var i=$('inptoken'),s=i.type==='password'; i.type=s?'text':'password';
+  $('eyeo').style.display=s?'none':''; $('eyec').style.display=s?'':'none';
 }
 function toggleAdv(){ $('advtog').classList.toggle('open'); $('advb').classList.toggle('open'); }
-function selQ(el){ document.querySelectorAll('.qopt').forEach(function(e){ e.classList.remove('on'); }); el.classList.add('on'); quality = el.dataset.q; }
-function selIce(el){ document.querySelectorAll('.iceopt').forEach(function(e){ e.classList.remove('on'); }); el.classList.add('on'); icePolicy = el.dataset.v; }
+function selQ(el){ document.querySelectorAll('.qopt').forEach(function(e){ e.classList.remove('on'); }); el.classList.add('on'); quality=el.dataset.q; }
+function selIce(el){ document.querySelectorAll('.iceopt').forEach(function(e){ e.classList.remove('on'); }); el.classList.add('on'); icePolicy=el.dataset.v; }
 function cycleQual(){
-  var o = ['AUTO','HIGH','MEDIUM','LOW'];
-  quality = o[(o.indexOf(quality)+1)%o.length];
-  $('quallbl').textContent = quality;
-  send({ t:'quality', q:quality });
+  var o=['AUTO','HIGH','MEDIUM','LOW']; quality=o[(o.indexOf(quality)+1)%o.length];
+  $('quallbl').textContent=quality; send({t:'quality',q:quality});
 }
 function setConnUI(on){
-  ['btnpause','btnvo','btnqual','btnclip','btnfile','btnstats','btnfs','btncad','btnmon'].forEach(function(id){
-    if($(id)) $(id).disabled = !on;
+  ['btnpause','btnvo','btnqual','btnclip','btnfile','btnstats','btnfs','btncad','btnmon','btnlock'].forEach(function(id){
+    if($(id)) $(id).disabled=!on;
   });
-  $('btndisc').style.display = on ? '' : 'none';
-  $('btnback').style.display = on ? '' : 'none';
-  if(on) $('btnpause').disabled = viewOnly;
+  $('btndisc').style.display=on?'':'none'; $('btnback').style.display=on?'':'none';
+  if(on) $('btnpause').disabled=viewOnly;
   if(!on){
-    // Limpa seletor de monitores ao desconectar
-    var sel = $('monitorselector');
-    sel.classList.remove('show');
-    sel.innerHTML = '';
-    _monitors = [];
+    var sel=$('monitorselector'); sel.classList.remove('show'); sel.innerHTML=''; _monitors=[];
+    // Garante desbloqueio ao desconectar
+    if(screenLocked){ screenLocked=false; $('btnlock').classList.remove('on'); $('locklbl').textContent='BLOQUEAR TELA'; $('lockbadge').classList.remove('show'); }
   }
 }
 function goBack(){ disconnect(); }
 function togglePanel(id){
   ['ppclip','ppfile'].forEach(function(p){
-    if(p !== id) $(p).classList.remove('open');
-    else $(p).classList.toggle('open');
+    if(p!==id) $(p).classList.remove('open'); else $(p).classList.toggle('open');
   });
-  var m = { ppclip:'btnclip', ppfile:'btnfile' };
-  Object.keys(m).forEach(function(p){
-    var b = $(m[p]);
-    if(b) b.classList.toggle('on', $(p).classList.contains('open'));
-  });
-  if(id === 'ppfile' && $('ppfile').classList.contains('open') && pc){
-    selDest('explorer');
-    refreshExplorer();
-  }
+  var m={ppclip:'btnclip',ppfile:'btnfile'};
+  Object.keys(m).forEach(function(p){ var b=$(m[p]); if(b) b.classList.toggle('on',$(p).classList.contains('open')); });
+  if(id==='ppfile'&&$('ppfile').classList.contains('open')&&pc){ selDest('explorer'); refreshExplorer(); }
 }
 function closePanel(id){
   $(id).classList.remove('open');
-  var m = { ppclip:'btnclip', ppfile:'btnfile' };
-  if(m[id] && $(m[id])) $(m[id]).classList.remove('on');
+  var m={ppclip:'btnclip',ppfile:'btnfile'}; if(m[id]&&$(m[id])) $(m[id]).classList.remove('on');
 }
-function toggleStats(){ $('stats').classList.toggle('show'); $('btnstats').classList.toggle('on', $('stats').classList.contains('show')); }
+function toggleStats(){ $('stats').classList.toggle('show'); $('btnstats').classList.toggle('on',$('stats').classList.contains('show')); }
 function toggleFS(){
   if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function(){});
   else document.exitFullscreen().catch(function(){});
 }
 
 // ═══════════════════════════════════════
-// MONITOR SWITCHER
-// ═══════════════════════════════════════
-var _monitors = [];
-
-function requestMonitorList(){
-  if(!dc || dc.readyState !== 'open') return;
-  dc.send(JSON.stringify({ t:'list_monitors' }));
-  sbMsg('Consultando monitores…');
-}
-
-function renderMonitorButtons(monitors, current){
-  _monitors = monitors;
-  var sel = $('monitorselector');
-  sel.innerHTML = '';
-
-  if(!monitors || monitors.length === 0){
-    sel.classList.remove('show');
-    sbMsg('Nenhum monitor encontrado.');
-    return;
-  }
-
-  monitors.forEach(function(m){
-    var btn = document.createElement('button');
-    btn.className = 'monbtn' + (m.id === current ? ' active' : '');
-    var label = 'MON\u00a0' + m.id;
-    if(m.w && m.h) label += '\u00a0' + m.w + '\u00d7' + m.h;
-    btn.textContent = label;
-    btn.title = 'Monitor ' + m.id + (m.w ? ' — ' + m.w + '×' + m.h : '') + (m.x !== undefined ? ' @ ' + m.x + ',' + m.y : '');
-    btn.onclick = function(){ switchMonitor(m.id); };
-    sel.appendChild(btn);
-  });
-
-  sel.classList.add('show');
-}
-
-function switchMonitor(idx){
-  if(!dc || dc.readyState !== 'open') return;
-  dc.send(JSON.stringify({ t:'switch_monitor', index:idx }));
-  // Feedback visual imediato
-  $('monitorselector').querySelectorAll('.monbtn').forEach(function(btn, i){
-    btn.classList.toggle('active', _monitors[i] && _monitors[i].id === idx);
-  });
-  sbMsg('Trocando para Monitor ' + idx + '…');
-}
-
-// ═══════════════════════════════════════
 // COORDENADAS 0-1 corrigindo letterbox
 // ═══════════════════════════════════════
 function videoRect(){
-  var v = $('rv');
-  var vw = v.clientWidth, vh = v.clientHeight;
-  var streamAR = screenW / screenH;
-  var elemAR   = vw / vh;
-  var renderW, renderH, offsetX, offsetY;
-  if(streamAR > elemAR){
-    renderW = vw; renderH = vw / streamAR;
-    offsetX = 0;  offsetY = (vh - renderH) / 2;
-  } else {
-    renderH = vh; renderW = vh * streamAR;
-    offsetX = (vw - renderW) / 2; offsetY = 0;
-  }
-  return { renderW:renderW, renderH:renderH, offsetX:offsetX, offsetY:offsetY };
+  var v=$('rv'),vw=v.clientWidth,vh=v.clientHeight;
+  var sAR=screenW/screenH,eAR=vw/vh,renderW,renderH,offsetX,offsetY;
+  if(sAR>eAR){ renderW=vw;renderH=vw/sAR;offsetX=0;offsetY=(vh-renderH)/2; }
+  else{ renderH=vh;renderW=vh*sAR;offsetX=(vw-renderW)/2;offsetY=0; }
+  return {renderW:renderW,renderH:renderH,offsetX:offsetX,offsetY:offsetY};
 }
 function relPos(e){
-  var v = $('rv');
-  var rect = v.getBoundingClientRect();
-  var cx = e.clientX - rect.left;
-  var cy = e.clientY - rect.top;
-  var r = videoRect();
-  var rx = Math.max(0, Math.min(r.renderW, cx - r.offsetX));
-  var ry = Math.max(0, Math.min(r.renderH, cy - r.offsetY));
-  return { x: rx / r.renderW, y: ry / r.renderH };
+  var v=$('rv'),rect=v.getBoundingClientRect();
+  var cx=e.clientX-rect.left,cy=e.clientY-rect.top,r=videoRect();
+  return {x:Math.max(0,Math.min(r.renderW,cx-r.offsetX))/r.renderW,y:Math.max(0,Math.min(r.renderH,cy-r.offsetY))/r.renderH};
 }
 
 // ═══════════════════════════════════════
 // CONNECT
 // ═══════════════════════════════════════
 function doConnect(){
-  var machine = $('inpmachine').value.trim();
-  var token   = $('inptoken').value.trim();
-  if(!machine){ setErr('Informe a máquina destino'); return; }
-  if(!token){ setErr('Token obrigatório'); return; }
-  if(token.length < 8){ setErr('Token deve ter >= 8 caracteres'); return; }
-  setErr('');
-  sessToken = token; connMachine = machine;
-  $('connbtn').disabled = true;
-  $('spin').classList.add('show');
-  $('connlbl').textContent = 'CONECTANDO…';
-  setStatus('CONNECTING…', 'w');
-  sbMsg('Obtendo configuração ICE…');
-  fetch('/api/rdp/config/', { credentials:'same-origin', headers:{ 'X-CSRFToken':getCookie('csrftoken') } })
+  var machine=$('inpmachine').value.trim(), token=$('inptoken').value.trim();
+  if(!machine){setErr('Informe a máquina destino');return;}
+  if(!token){setErr('Token obrigatório');return;}
+  if(token.length<8){setErr('Token deve ter >= 8 caracteres');return;}
+  setErr(''); sessToken=token; connMachine=machine;
+  $('connbtn').disabled=true; $('spin').classList.add('show'); $('connlbl').textContent='CONECTANDO…';
+  setStatus('CONNECTING…','w'); sbMsg('Obtendo configuração ICE…');
+  fetch('/api/rdp/config/',{credentials:'same-origin',headers:{'X-CSRFToken':getCookie('csrftoken')}})
     .then(function(r){ if(!r.ok) throw new Error('Falha ao obter ICE'); return r.json(); })
-    .then(function(d){ return openConn(machine, token, d.ice_servers); })
+    .then(function(d){ return openConn(machine,token,d.ice_servers); })
     .catch(function(e){
-      setErr('Erro: ' + e.message);
-      setStatus('ERRO', 'err');
-      sbMsg('Falha: ' + e.message);
-      $('connbtn').disabled = false;
-      $('spin').classList.remove('show');
-      $('connlbl').textContent = 'CONECTAR';
+      setErr('Erro: '+e.message); setStatus('ERRO','err'); sbMsg('Falha: '+e.message);
+      $('connbtn').disabled=false; $('spin').classList.remove('show'); $('connlbl').textContent='CONECTAR';
     });
 }
 
-function openConn(machine, token, iceServers){
-  if(pc){ pc.close(); pc = null; }
-  var tu = $('inpturn') && $('inpturn').value.trim();
-  var tuu = $('inpturnuser') && $('inpturnuser').value.trim();
-  if(tu) iceServers.push({ urls:tu, username:tuu||'rdp', credential:sessToken });
+function openConn(machine,token,iceServers){
+  if(pc){ pc.close(); pc=null; }
+  var tu=$('inpturn')&&$('inpturn').value.trim(), tuu=$('inpturnuser')&&$('inpturnuser').value.trim();
+  if(tu) iceServers.push({urls:tu,username:tuu||'rdp',credential:sessToken});
 
-  pc = new RTCPeerConnection({
-    iceServers: iceServers,
-    iceTransportPolicy: icePolicy,
-    bundlePolicy: 'max-bundle',
-    rtcpMuxPolicy: 'require'
-  });
+  pc=new RTCPeerConnection({iceServers:iceServers,iceTransportPolicy:icePolicy,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'});
+  dc=pc.createDataChannel('input',{ordered:false,maxRetransmits:0});
+  setupFileDC(pc.createDataChannel('files',{ordered:true}));
 
-  dc = pc.createDataChannel('input', { ordered:false, maxRetransmits:0 });
-  setupFileDC(pc.createDataChannel('files', { ordered:true }));
-
-  dc.onopen = function(){
-    toast('Sessão estabelecida', 'ok');
-    setConnUI(true);
-    send({ t:'quality', q:quality });
-    sbMsg('Sessão ativa — ' + new Date().toLocaleTimeString());
+  dc.onopen=function(){
+    toast('Sessão estabelecida','ok'); setConnUI(true);
+    send({t:'quality',q:quality}); sbMsg('Sessão ativa — '+new Date().toLocaleTimeString());
     protectSelf();
-    // Solicita lista de monitores automaticamente ao conectar
-    setTimeout(function(){ requestMonitorList(); }, 600);
+    setTimeout(function(){ requestMonitorList(); },600);
   };
-  dc.onmessage = handleDC;
+  dc.onmessage=handleDC;
 
-  pc.ontrack = function(e){
-    var v = $('rv');
-    v.srcObject = e.streams[0];
-    v.onloadedmetadata = function(){
-      screenW = v.videoWidth  || 1920;
-      screenH = v.videoHeight || 1080;
-      $('cs').classList.add('out');
-      setTimeout(function(){ $('cs').style.display = 'none'; }, 320);
-      $('vw').classList.add('show');
-      $('mtag').style.display = 'flex';
-      $('mtagname').textContent = connMachine;
-      $('sbmac').textContent = connMachine;
-      setStatus('CONNECTED', 'ok');
-      reconnAtt = 0;
-      setupInput();
-      startStats();
-      setTimeout(function(){
-        try { $('sbcodec').textContent = (pc.getTransceivers()[0].receiver.track.kind || 'video').toUpperCase(); } catch(e){}
-      }, 2000);
+  pc.ontrack=function(e){
+    var v=$('rv'); v.srcObject=e.streams[0];
+    v.onloadedmetadata=function(){
+      screenW=v.videoWidth||1920; screenH=v.videoHeight||1080;
+      $('cs').classList.add('out'); setTimeout(function(){$('cs').style.display='none';},320);
+      $('vw').classList.add('show'); $('mtag').style.display='flex';
+      $('mtagname').textContent=connMachine; $('sbmac').textContent=connMachine;
+      setStatus('CONNECTED','ok'); reconnAtt=0; setupInput(); startStats();
+      setTimeout(function(){ try{$('sbcodec').textContent=(pc.getTransceivers()[0].receiver.track.kind||'video').toUpperCase();}catch(e){} },2000);
     };
-    v.addEventListener('resize', function(){
-      if(v.videoWidth)  screenW = v.videoWidth;
-      if(v.videoHeight) screenH = v.videoHeight;
-    });
+    v.addEventListener('resize',function(){ if(v.videoWidth) screenW=v.videoWidth; if(v.videoHeight) screenH=v.videoHeight; });
   };
 
-  pc.oniceconnectionstatechange = function(){
-    var s = pc.iceConnectionState;
-    $('sice').textContent = s.toUpperCase();
-    if(s === 'failed' || s === 'disconnected'){
-      setStatus('ICE ' + s.toUpperCase(), 'err');
-      $('reconn').classList.add('show');
-      schedReconn(machine, token);
-    }
-    if(s === 'connected' || s === 'completed') $('reconn').classList.remove('show');
+  pc.oniceconnectionstatechange=function(){
+    var s=pc.iceConnectionState; $('sice').textContent=s.toUpperCase();
+    if(s==='failed'||s==='disconnected'){ setStatus('ICE '+s.toUpperCase(),'err'); $('reconn').classList.add('show'); schedReconn(machine,token); }
+    if(s==='connected'||s==='completed') $('reconn').classList.remove('show');
   };
-  pc.onconnectionstatechange = function(){
-    if(pc.connectionState === 'failed'){ setStatus('FALHA', 'err'); schedReconn(machine, token); }
-  };
+  pc.onconnectionstatechange=function(){ if(pc.connectionState==='failed'){setStatus('FALHA','err');schedReconn(machine,token);} };
 
   sbMsg('Criando SDP offer…');
-  return pc.createOffer({ offerToReceiveVideo:true, offerToReceiveAudio:false })
+  return pc.createOffer({offerToReceiveVideo:true,offerToReceiveAudio:false})
     .then(function(offer){ return pc.setLocalDescription(offer); })
     .then(function(){
-      return new Promise(function(res, rej){
-        var t = setTimeout(function(){ rej(new Error('ICE gathering timeout (25s)')); }, 25000);
-        if(pc.iceGatheringState === 'complete'){ clearTimeout(t); res(); return; }
-        pc.onicegatheringstatechange = function(){
-          if(pc.iceGatheringState === 'complete'){ clearTimeout(t); res(); }
-        };
+      return new Promise(function(res,rej){
+        var t=setTimeout(function(){rej(new Error('ICE gathering timeout (25s)'));},25000);
+        if(pc.iceGatheringState==='complete'){clearTimeout(t);res();return;}
+        pc.onicegatheringstatechange=function(){ if(pc.iceGatheringState==='complete'){clearTimeout(t);res();} };
       });
     })
     .then(function(){
       sbMsg('Enviando offer ao agente…');
-      return fetch('/api/rdp/offer/', {
-        method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'X-RDP-Token':   token,
-          'X-Machine-ID':  machine,
-          'X-CSRFToken':   getCookie('csrftoken')
-        },
-        body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }),
-        credentials: 'same-origin'
-      });
+      return fetch('/api/rdp/offer/',{method:'POST',headers:{'Content-Type':'application/json','X-RDP-Token':token,'X-Machine-ID':machine,'X-CSRFToken':getCookie('csrftoken')},body:JSON.stringify({sdp:pc.localDescription.sdp,type:pc.localDescription.type}),credentials:'same-origin'});
     })
-    .then(function(resp){
-      if(!resp.ok) return resp.json().then(function(d){ throw new Error(d.error || 'HTTP ' + resp.status); });
-      return resp.json();
-    })
-    .then(function(answer){
-      sbMsg('Estabelecendo WebRTC…');
-      return pc.setRemoteDescription(new RTCSessionDescription(answer));
-    });
+    .then(function(resp){ if(!resp.ok) return resp.json().then(function(d){throw new Error(d.error||'HTTP '+resp.status);}); return resp.json(); })
+    .then(function(answer){ sbMsg('Estabelecendo WebRTC…'); return pc.setRemoteDescription(new RTCSessionDescription(answer)); });
 }
 
 // ═══════════════════════════════════════
 // RECONEXÃO / DESCONEXÃO
 // ═══════════════════════════════════════
-function schedReconn(machine, token){
-  if(reconnAtt >= MAX_R){ setStatus('FALHOU','err'); toast('Máximo de reconexões','err'); $('reconn').classList.remove('show'); return; }
-  reconnAtt++;
-  var delay = Math.min(1000 * Math.pow(2, reconnAtt), 30000);
-  $('recontxt').textContent = 'Reconectando em ' + Math.round(delay/1000) + 's… (' + reconnAtt + '/' + MAX_R + ')';
-  fetch('/api/rdp/config/', { credentials:'same-origin' })
-    .then(function(r){ return r.json(); })
-    .then(function(d){ setTimeout(function(){ openConn(machine, token, d.ice_servers); }, delay); })
-    .catch(function(){ setTimeout(function(){ openConn(machine, token, []); }, delay); });
+function schedReconn(machine,token){
+  if(reconnAtt>=MAX_R){setStatus('FALHOU','err');toast('Máximo de reconexões','err');$('reconn').classList.remove('show');return;}
+  reconnAtt++; var delay=Math.min(1000*Math.pow(2,reconnAtt),30000);
+  $('recontxt').textContent='Reconectando em '+Math.round(delay/1000)+'s… ('+reconnAtt+'/'+MAX_R+')';
+  fetch('/api/rdp/config/',{credentials:'same-origin'}).then(function(r){return r.json();})
+    .then(function(d){setTimeout(function(){openConn(machine,token,d.ice_servers);},delay);})
+    .catch(function(){setTimeout(function(){openConn(machine,token,[]);},delay);});
 }
-
 function disconnect(){
-  reconnAtt = MAX_R; stopStats();
-  if(dc){ try{ dc.close(); }catch(e){} dc = null; }
-  if(fileDC){ try{ fileDC.close(); }catch(e){} fileDC = null; }
-  if(pc){ pc.close(); pc = null; }
-  $('vw').classList.remove('show','viewonly');
-  $('cs').style.display = ''; $('cs').classList.remove('out');
-  $('connbtn').disabled = false; $('spin').classList.remove('show'); $('connlbl').textContent = 'CONECTAR';
-  $('reconn').classList.remove('show'); $('mtag').style.display = 'none';
+  reconnAtt=MAX_R; stopStats();
+  if(dc){try{dc.close();}catch(e){} dc=null;}
+  if(fileDC){try{fileDC.close();}catch(e){} fileDC=null;}
+  if(pc){pc.close();pc=null;}
+  $('vw').classList.remove('show','viewonly'); $('cs').style.display=''; $('cs').classList.remove('out');
+  $('connbtn').disabled=false; $('spin').classList.remove('show'); $('connlbl').textContent='CONECTAR';
+  $('reconn').classList.remove('show'); $('mtag').style.display='none';
   $('selfbar').classList.remove('show'); $('vobadge').classList.remove('show'); $('voov').classList.remove('show');
   $('pauseind').classList.remove('show'); $('stats').classList.remove('show');
-  ['ppclip','ppfile'].forEach(function(p){ $(p).classList.remove('open'); });
-  setConnUI(false); setStatus('OFFLINE'); sbMsg('Sessão encerrada — ' + new Date().toLocaleTimeString());
-  toast('Sessão encerrada', 'info');
-  paused = false; viewOnly = false; isSelf = false;
-  $('sbmac').textContent = $('sbcodec').textContent = '—';
+  ['ppclip','ppfile'].forEach(function(p){$(p).classList.remove('open');});
+  setConnUI(false); setStatus('OFFLINE'); sbMsg('Sessão encerrada — '+new Date().toLocaleTimeString());
+  toast('Sessão encerrada','info');
+  paused=false; viewOnly=false; isSelf=false; screenLocked=false;
+  $('sbmac').textContent=$('sbcodec').textContent='—';
 }
-
 function send(obj){
-  if(dc && dc.readyState === 'open') try{ dc.send(JSON.stringify(obj)); }catch(e){}
+  if(dc&&dc.readyState==='open') try{dc.send(JSON.stringify(obj));}catch(e){}
 }
 
 // ═══════════════════════════════════════
 // INPUT
 // ═══════════════════════════════════════
 function setupInput(){
-  var v = $('rv');
-
-  v.addEventListener('mousemove', function(e){
-    if(paused || viewOnly) return;
-    var p = relPos(e);
-    send({ t:'mm', x:p.x, y:p.y });
+  var v=$('rv');
+  v.addEventListener('mousemove',function(e){ if(paused||viewOnly)return; var p=relPos(e); send({t:'mm',x:p.x,y:p.y}); });
+  v.addEventListener('mousedown',function(e){
+    if(paused||viewOnly)return; e.preventDefault(); var p=relPos(e);
+    if(e.button===0) send({t:'md',b:'left',x:p.x,y:p.y});
+    if(e.button===2) send({t:'md',b:'right',x:p.x,y:p.y});
+    if(e.button===1){e.preventDefault();send({t:'mb',d:true});}
   });
-
-  v.addEventListener('mousedown', function(e){
-    if(paused || viewOnly) return;
+  v.addEventListener('mouseup',function(e){
+    if(e.button===1){send({t:'mb',d:false});return;}
+    if(paused||viewOnly)return; e.preventDefault(); var p=relPos(e);
+    if(e.button===0){send({t:'mu',b:'left',x:p.x,y:p.y});send({t:'mc',b:'left',x:p.x,y:p.y});}
+    if(e.button===2) send({t:'mc',b:'right',x:p.x,y:p.y});
+  });
+  v.addEventListener('dblclick',function(e){ if(paused||viewOnly)return; e.preventDefault(); var p=relPos(e); send({t:'mdc',x:p.x,y:p.y}); });
+  v.addEventListener('contextmenu',function(e){e.preventDefault();});
+  v.addEventListener('wheel',function(e){
+    if(paused||viewOnly)return; e.preventDefault();
+    if(e.deltaY) send({t:'ms',d:e.deltaY>0?-3:3});
+    if(e.deltaX) send({t:'msh',d:e.deltaX>0?-3:3});
+  },{passive:false});
+  var KEY_MAP={Enter:'enter',Backspace:'backspace',Tab:'tab',Escape:'escape',Delete:'delete',Insert:'insert',Home:'home',End:'end',PageUp:'pageup',PageDown:'pagedown',CapsLock:'capslock',ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',' ':'space',F1:'f1',F2:'f2',F3:'f3',F4:'f4',F5:'f5',F6:'f6',F7:'f7',F8:'f8',F9:'f9',F10:'f10',F11:'f11',F12:'f12',PrintScreen:'printscreen',ScrollLock:'scrolllock',Pause:'pause',NumLock:'numlock'};
+  document.addEventListener('keydown',function(e){
+    if(!$('vw').classList.contains('show'))return;
+    if(paused||viewOnly)return;
+    if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
     e.preventDefault();
-    var p = relPos(e);
-    if(e.button === 0) send({ t:'md', b:'left',  x:p.x, y:p.y });
-    if(e.button === 2) send({ t:'md', b:'right', x:p.x, y:p.y });
-    if(e.button === 1){ e.preventDefault(); send({ t:'mb', d:true }); }
+    var mods=[];
+    if(e.ctrlKey) mods.push('ctrl'); if(e.altKey) mods.push('alt');
+    if(e.shiftKey) mods.push('shift'); if(e.metaKey) mods.push('win');
+    var mapped=KEY_MAP[e.key];
+    if(mods.length>0){ var k=mapped||(e.key.length===1?e.key.toLowerCase():e.key.toLowerCase()); send({t:'kc',k:k,mods:mods}); }
+    else if(mapped){ send({t:'kp',k:mapped}); }
+    else if(e.key.length===1){ send({t:'kt',k:e.key}); }
   });
-
-  v.addEventListener('mouseup', function(e){
-    if(e.button === 1){ send({ t:'mb', d:false }); return; }
-    if(paused || viewOnly) return;
-    e.preventDefault();
-    var p = relPos(e);
-    if(e.button === 0){
-      send({ t:'mu', b:'left', x:p.x, y:p.y });
-      send({ t:'mc', b:'left', x:p.x, y:p.y });
-    }
-    if(e.button === 2) send({ t:'mc', b:'right', x:p.x, y:p.y });
-  });
-
-  v.addEventListener('dblclick', function(e){
-    if(paused || viewOnly) return;
-    e.preventDefault();
-    var p = relPos(e);
-    send({ t:'mdc', x:p.x, y:p.y });
-  });
-
-  v.addEventListener('contextmenu', function(e){ e.preventDefault(); });
-
-  v.addEventListener('wheel', function(e){
-    if(paused || viewOnly) return;
-    e.preventDefault();
-    if(e.deltaY) send({ t:'ms',  d: e.deltaY > 0 ? -3 : 3 });
-    if(e.deltaX) send({ t:'msh', d: e.deltaX > 0 ? -3 : 3 });
-  }, { passive:false });
-
-  var KEY_MAP = {
-    Enter:'enter', Backspace:'backspace', Tab:'tab', Escape:'escape', Delete:'delete',
-    Insert:'insert', Home:'home', End:'end', PageUp:'pageup', PageDown:'pagedown',
-    CapsLock:'capslock', ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right',
-    ' ':'space', F1:'f1', F2:'f2', F3:'f3', F4:'f4', F5:'f5', F6:'f6',
-    F7:'f7', F8:'f8', F9:'f9', F10:'f10', F11:'f11', F12:'f12',
-    PrintScreen:'printscreen', ScrollLock:'scrolllock', Pause:'pause', NumLock:'numlock'
-  };
-
-  document.addEventListener('keydown', function(e){
-    if(!$('vw').classList.contains('show')) return;
-    if(paused || viewOnly) return;
-    if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
-    e.preventDefault();
-    var mods = [];
-    if(e.ctrlKey)  mods.push('ctrl');
-    if(e.altKey)   mods.push('alt');
-    if(e.shiftKey) mods.push('shift');
-    if(e.metaKey)  mods.push('win');
-    var mapped = KEY_MAP[e.key];
-    if(mods.length > 0){
-      var k = mapped || (e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase());
-      send({ t:'kc', k:k, mods:mods });
-    } else if(mapped){
-      send({ t:'kp', k:mapped });
-    } else if(e.key.length === 1){
-      send({ t:'kt', k:e.key });
-    }
-  });
-
-  v.addEventListener('dragover',  function(e){ e.preventDefault(); $('dropov').classList.add('show'); });
-  v.addEventListener('dragleave', function(){ $('dropov').classList.remove('show'); });
-  v.addEventListener('drop', function(e){
-    e.preventDefault(); $('dropov').classList.remove('show');
-    uploadFiles(e.dataTransfer.files);
-  });
+  v.addEventListener('dragover',function(e){e.preventDefault();$('dropov').classList.add('show');});
+  v.addEventListener('dragleave',function(){$('dropov').classList.remove('show');});
+  v.addEventListener('drop',function(e){e.preventDefault();$('dropov').classList.remove('show');uploadFiles(e.dataTransfer.files);});
 }
-
 function sendCAD(){
-  if(paused || viewOnly){ toast('Ative o input primeiro', 'warn'); return; }
-  send({ t:'cad' }); toast('Ctrl+Alt+Del enviado', 'info');
+  if(paused||viewOnly){toast('Ative o input primeiro','warn');return;}
+  send({t:'cad'}); toast('Ctrl+Alt+Del enviado','info');
 }
 
 // ═══════════════════════════════════════
-// DATA CHANNEL — handler principal
+// DATA CHANNEL
 // ═══════════════════════════════════════
 function handleDC(e){
-  try {
-    var m = JSON.parse(e.data);
-
-    // ── Monitor switcher ────────────────────────────────────
-    if(m.t === 'monitors_list'){
-      renderMonitorButtons(m.monitors || [], m.current || 1);
-      sbMsg((m.monitors ? m.monitors.length : 0) + ' monitor(es) encontrado(s).');
-      return;
+  try{
+    var m=JSON.parse(e.data);
+    if(m.t==='monitors_list'){ renderMonitorButtons(m.monitors||[],m.current||1); sbMsg((m.monitors?m.monitors.length:0)+' monitor(es) encontrado(s).'); return; }
+    if(m.t==='monitor_switched'){
+      $('monitorselector').querySelectorAll('.monbtn').forEach(function(b,i){ b.classList.toggle('active',_monitors[i]&&_monitors[i].id===m.index); });
+      toast('Monitor '+m.index+' ativo','ok',2000); sbMsg('Monitor '+m.index+' ativo.'); return;
     }
-    if(m.t === 'monitor_switched'){
-      $('monitorselector').querySelectorAll('.monbtn').forEach(function(btn, i){
-        btn.classList.toggle('active', _monitors[i] && _monitors[i].id === m.index);
-      });
-      toast('Monitor ' + m.index + ' ativo', 'ok', 2000);
-      sbMsg('Monitor ' + m.index + ' ativo.');
-      return;
-    }
-
-    // ── Clipboard ────────────────────────────────────────────
-    if(m.t === 'clipboard'){ $('clipta').value = m.text; toast('Clipboard recebido', 'ok'); }
-
-    // ── Arquivos ─────────────────────────────────────────────
-    if(m.t === 'file_done') toast('Arquivo recebido: ' + (m.name||''), 'ok');
-    if(m.t === 'file_err')  toast('Erro: ' + (m.reason||''), 'err');
-  } catch(ex){}
+    if(m.t==='screen_locked')  { toast('Tela bloqueada confirmada','warn',2000); return; }
+    if(m.t==='screen_unlocked'){ toast('Tela desbloqueada confirmada','ok',2000); return; }
+    if(m.t==='clipboard'){ $('clipta').value=m.text; toast('Clipboard recebido','ok'); }
+    if(m.t==='file_done') toast('Arquivo recebido: '+(m.name||''),'ok');
+    if(m.t==='file_err')  toast('Erro: '+(m.reason||''),'err');
+  }catch(ex){}
 }
 
 // ═══════════════════════════════════════
 // CLIPBOARD
 // ═══════════════════════════════════════
-function sendClip(){
-  var t = $('clipta').value;
-  if(!t){ toast('Nenhum texto', 'warn'); return; }
-  send({ t:'clipboard_set', text:t }); toast('Clipboard enviado', 'ok');
-}
-function reqClip(){ send({ t:'clipboard_req' }); sbMsg('Solicitando clipboard remoto…'); }
+function sendClip(){ var t=$('clipta').value; if(!t){toast('Nenhum texto','warn');return;} send({t:'clipboard_set',text:t}); toast('Clipboard enviado','ok'); }
+function reqClip(){ send({t:'clipboard_req'}); sbMsg('Solicitando clipboard remoto…'); }
 
 // ═══════════════════════════════════════
-// ARQUIVOS
+// ARQUIVOS — protocolo corrigido
+//
+// O agente (agent_tray) espera chunks binários com header:
+//   [2 bytes: len(fid)] + [fid em UTF-8] + [dados do chunk]
+// E mensagens JSON no canal "files":
+//   file_start: { t, id, name, size, dest }
+//   file_end:   { t, id }
+//
+// O agent_service usa o mesmo canal "files" com o mesmo
+// protocolo JSON para controle + binário com header para dados.
 // ═══════════════════════════════════════
 function setupFileDC(ch){
-  fileDC = ch;
-  fileDC.binaryType = 'arraybuffer';
-  fileDC.onerror = function(){ toast('Erro canal arquivos', 'err'); };
+  fileDC=ch;
+  fileDC.binaryType='arraybuffer';
+  fileDC.onerror=function(){ toast('Erro canal arquivos','err'); };
 }
 function uploadFiles(files){
-  if(!fileDC || fileDC.readyState !== 'open'){ toast('Canal de arquivos indisponível', 'err'); return; }
+  if(!fileDC||fileDC.readyState!=='open'){toast('Canal de arquivos indisponível','err');return;}
   Array.from(files).forEach(function(f){ uploadFile(f); });
 }
+
 function uploadFile(file){
-  var id = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
-  var CHUNK = 16384;
-  var dest  = getDestPath();
+  var id=(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2));
+  var CHUNK=16384;
+  var dest=getDestPath();
 
-  var item = document.createElement('div');
-  item.className = 'fi';
-  item.innerHTML =
-    '<div class="fi-row">' +
-    '<svg class="fii" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/></svg>' +
-    '<span class="fin">' + file.name + '</span>' +
-    '<span class="fis">' + fmtSize(file.size) + '</span>' +
-    '</div>' +
-    '<div class="fi-prog"><div class="fi-bar" id="fb-' + id + '"></div></div>' +
-    '<div class="fi-st" id="fs-' + id + '">Enviando…</div>';
+  // UI
+  var item=document.createElement('div'); item.className='fi';
+  item.innerHTML='<div class="fi-row"><svg class="fii" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/></svg><span class="fin">'+file.name+'</span><span class="fis">'+fmtSize(file.size)+'</span></div><div class="fi-prog"><div class="fi-bar" id="fb-'+id+'"></div></div><div class="fi-st" id="fs-'+id+'">Preparando…</div>';
   $('flist').prepend(item);
+  var bar=$('fb-'+id), status=$('fs-'+id);
 
-  var bar = $('fb-' + id), status = $('fs-' + id);
-  fileDC.send(JSON.stringify({ t:'file_start', id:id, name:file.name, size:file.size, dest:dest }));
+  // 1. Sinaliza início (JSON no canal files)
+  fileDC.send(JSON.stringify({t:'file_start',id:id,name:file.name,size:file.size,dest:dest}));
+  status.textContent='Enviando…';
 
   file.arrayBuffer().then(function(buf){
-    var sent = 0;
+    var sent=0;
+
     function sendChunk(){
-      if(sent >= file.size){
-        fileDC.send(JSON.stringify({ t:'file_end', id:id }));
-        status.textContent = 'Aguardando confirmação…';
+      if(sent>=file.size){
+        // 3. Sinaliza fim (JSON no canal files)
+        fileDC.send(JSON.stringify({t:'file_end',id:id}));
+        status.textContent='Aguardando confirmação…';
         bar.classList.add('done');
         return;
       }
-      if(fileDC.bufferedAmount > 4*1024*1024){ setTimeout(sendChunk, 50); return; }
-      var chunk = buf.slice(sent, sent + CHUNK);
-      fileDC.send(chunk);
-      sent += chunk.byteLength;
-      var pct = Math.round(sent / file.size * 100);
-      bar.style.width = pct + '%';
-      status.textContent = 'Enviando… ' + pct + '%';
-      setTimeout(sendChunk, 0);
+      // Backpressure
+      if(fileDC.bufferedAmount>4*1024*1024){ setTimeout(sendChunk,50); return; }
+
+      var chunkData=buf.slice(sent,sent+CHUNK);
+      sent+=chunkData.byteLength;
+
+      // 2. Chunk binário com header: [2 bytes len(id)][id UTF-8][dados]
+      var idBytes=new TextEncoder().encode(id);
+      var header=new Uint8Array(2+idBytes.length);
+      header[0]=(idBytes.length>>8)&0xff;
+      header[1]=idBytes.length&0xff;
+      header.set(idBytes,2);
+
+      var payload=new Uint8Array(header.length+chunkData.byteLength);
+      payload.set(header,0);
+      payload.set(new Uint8Array(chunkData),header.length);
+      fileDC.send(payload.buffer);
+
+      var pct=Math.round(sent/file.size*100);
+      bar.style.width=pct+'%';
+      status.textContent='Enviando… '+pct+'%';
+      setTimeout(sendChunk,0);
     }
+
     sendChunk();
+  }).catch(function(e){
+    status.textContent='Erro ao ler arquivo';
+    bar.classList.add('err');
+    toast('Erro ao ler arquivo: '+file.name,'err');
   });
 }
+
 function fmtSize(b){
-  if(b < 1024) return b + ' B';
-  if(b < 1048576) return (b/1024).toFixed(1) + ' KB';
-  if(b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
-  return (b/1073741824).toFixed(2) + ' GB';
+  if(b<1024) return b+' B';
+  if(b<1048576) return (b/1024).toFixed(1)+' KB';
+  if(b<1073741824) return (b/1048576).toFixed(1)+' MB';
+  return (b/1073741824).toFixed(2)+' GB';
 }
 
 // ═══════════════════════════════════════
 // STATS
 // ═══════════════════════════════════════
 function startStats(){
-  stopStats();
-  var lb = 0, lf = 0, lt = Date.now();
-  statsTimer = setInterval(function(){
+  stopStats(); var lb=0,lf=0,lt=Date.now();
+  statsTimer=setInterval(function(){
     if(!pc) return;
     pc.getStats().then(function(ss){
       ss.forEach(function(r){
-        if(r.type === 'inbound-rtp' && r.kind === 'video'){
-          var now = Date.now(), dt = (now - lt) / 1000; if(dt <= 0) return;
-          var fps = Math.round((r.framesDecoded - lf) / dt);
-          var bwK = Math.round((r.bytesReceived - lb) / dt * 8 / 1024);
-          lf = r.framesDecoded; lb = r.bytesReceived; lt = now;
-          sv('sfps',  fps + ' fps',  fps >= 25 ? 'g' : fps >= 15 ? 'w' : 'b');
-          sv('sbw',   bwK >= 1024 ? (bwK/1024).toFixed(1)+' Mbps' : bwK+' kbps', bwK >= 1000 ? 'g' : bwK >= 200 ? 'w' : 'b');
-          sv('sloss', (r.packetsLost||0)+'', (r.packetsLost||0) === 0 ? 'g' : (r.packetsLost||0) < 20 ? 'w' : 'b');
-          if(r.frameWidth){ $('sres').textContent = r.frameWidth + '×' + r.frameHeight; screenW = r.frameWidth; screenH = r.frameHeight; }
+        if(r.type==='inbound-rtp'&&r.kind==='video'){
+          var now=Date.now(),dt=(now-lt)/1000; if(dt<=0)return;
+          var fps=Math.round((r.framesDecoded-lf)/dt);
+          var bwK=Math.round((r.bytesReceived-lb)/dt*8/1024);
+          lf=r.framesDecoded;lb=r.bytesReceived;lt=now;
+          sv('sfps',fps+' fps',fps>=25?'g':fps>=15?'w':'b');
+          sv('sbw',bwK>=1024?(bwK/1024).toFixed(1)+' Mbps':bwK+' kbps',bwK>=1000?'g':bwK>=200?'w':'b');
+          sv('sloss',(r.packetsLost||0)+'',(r.packetsLost||0)===0?'g':(r.packetsLost||0)<20?'w':'b');
+          if(r.frameWidth){$('sres').textContent=r.frameWidth+'×'+r.frameHeight;screenW=r.frameWidth;screenH=r.frameHeight;}
         }
-        if(r.type === 'candidate-pair' && r.state === 'succeeded'){
-          var rtt = Math.round((r.currentRoundTripTime||0)*1000);
-          sv('srtt', rtt + ' ms', rtt < 50 ? 'g' : rtt < 150 ? 'w' : 'b');
+        if(r.type==='candidate-pair'&&r.state==='succeeded'){
+          var rtt=Math.round((r.currentRoundTripTime||0)*1000);
+          sv('srtt',rtt+' ms',rtt<50?'g':rtt<150?'w':'b');
         }
       });
     }).catch(function(){});
-  }, 1000);
+  },1000);
 }
-function sv(id, text, cls){ var el = $(id); el.textContent = text; el.className = 'sv ' + cls; }
-function stopStats(){ if(statsTimer){ clearInterval(statsTimer); statsTimer = null; } }
+function sv(id,text,cls){ var el=$(id); el.textContent=text; el.className='sv '+cls; }
+function stopStats(){ if(statsTimer){clearInterval(statsTimer);statsTimer=null;} }
 
-// Inicializa o destino padrão no load
 selDest('explorer');
 </script>
 </body>

@@ -154,6 +154,44 @@ def _handle_input_event(event: dict, session_id: str = ""):
             vk = event.get("vk")
             if vk:
                 win32api.keybd_event(vk, 0, win32con.KEYEVENTF_KEYUP, 0)
+        elif t == "cad":
+            # Ctrl+Alt+Del via SendSAS (única forma válida no Windows)
+            # sas.dll está disponível em C:\Windows\System32\sas.dll
+            try:
+                import ctypes
+                sas = ctypes.WinDLL("sas.dll")
+                # SendSAS(FALSE) — FALSE = não veio de teclado físico
+                sas.SendSAS(0)
+                logger.info("CAD enviado via SendSAS")
+            except Exception as cad_err:
+                logger.warning(f"SendSAS falhou ({cad_err}), tentando WinLogon...")
+                try:
+                    # Fallback: post WM_HOTKEY para WinLogon (Session 0 apenas)
+                    import subprocess
+                    subprocess.run(
+                        ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
+                         "(New-Object -ComObject Shell.Application).WindowsSecurity()"],
+                        timeout=5, creationflags=subprocess.CREATE_NO_WINDOW
+                    )
+                except Exception as e2:
+                    logger.error(f"CAD fallback falhou: {e2}")
+        elif t == 'screen_lock':
+            import tkinter as tk, threading
+            def show_lock():
+                root = tk.Tk()
+                root.attributes('-fullscreen', True, '-topmost', True)
+                root.configure(bg='black')
+                root.overrideredirect(True)
+                root._lock_active = True
+                root.mainloop()
+
+            threading.Thread(target=show_lock, daemon=True).start()
+
+        elif t == 'screen_unlock':
+            # Fecha a janela de bloqueio se existir
+            import tkinter as tk
+            for w in tk._default_root.winfo_children() if tk._default_root else []:
+                w.destroy()
     except Exception as e:
         logger.error(f"Input event error: {e}")
 
