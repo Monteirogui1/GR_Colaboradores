@@ -169,6 +169,42 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 #pauseind.show{display:flex;}
 @keyframes bw{0%,100%{opacity:1}50%{opacity:.4}}
 
+/* ── MONITOR SELECTOR ── */
+#monitorselector{
+  display:none;
+  align-items:center;
+  gap:3px;
+  overflow:hidden;
+  transition:opacity .25s ease;
+  opacity:0;
+}
+#monitorselector.show{
+  display:flex;
+  opacity:1;
+}
+.monbtn{
+  padding:3px 8px;
+  background:transparent;
+  border:1px solid var(--b2);
+  color:var(--t3);
+  font-family:var(--mn);
+  font-size:8px;
+  font-weight:600;
+  letter-spacing:.07em;
+  border-radius:var(--r);
+  cursor:pointer;
+  transition:all var(--tr);
+  white-space:nowrap;
+  text-transform:uppercase;
+  line-height:1;
+}
+.monbtn:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.18);color:var(--txt);}
+.monbtn.active{
+  background:var(--ad);
+  border-color:rgba(0,200,160,.38);
+  color:var(--acc);
+}
+
 /* ── TOASTS ── */
 #toasts{position:fixed;top:48px;right:10px;z-index:200;display:flex;flex-direction:column;gap:5px;pointer-events:none;}
 .t{padding:7px 13px;border-radius:var(--r);font-size:10px;letter-spacing:.05em;border-width:1px;border-style:solid;opacity:0;transform:translateX(18px);transition:all .18s ease;pointer-events:none;white-space:nowrap;}
@@ -214,6 +250,18 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
   <button class="tb" id="btnfs" disabled onclick="toggleFS()">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>FULLSCREEN
   </button>
+  <div class="tdiv"></div>
+
+  <!-- ── MONITOR: botão + seletor inline ── -->
+  <button class="tb" id="btnmon" disabled onclick="requestMonitorList()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+      <rect x="1" y="2" width="8" height="6" rx="1"/>
+      <rect x="10" y="4" width="5" height="5" rx="1"/>
+      <path d="M3 8v2M5 10H1M12.5 9v2"/>
+    </svg>MONITOR
+  </button>
+  <div id="monitorselector"></div>
+
   <div class="tdiv"></div>
   <button class="tb" id="btncad" disabled onclick="sendCAD()">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v5l3 2"/><circle cx="8" cy="8" r="6"/></svg>C+A+DEL
@@ -404,8 +452,8 @@ var reconnAtt = 0;
 var MAX_R = 5;
 var statsTimer = null;
 var paused = false, viewOnly = false, isSelf = false;
-var destMode = 'explorer';    // modo de destino ativo
-var explorerPath = '';        // caminho real retornado pelo agente
+var destMode = 'explorer';
+var explorerPath = '';
 
 // ═══════════════════════════════════════
 // HELPERS
@@ -577,12 +625,19 @@ function cycleQual(){
   send({ t:'quality', q:quality });
 }
 function setConnUI(on){
-  ['btnpause','btnvo','btnqual','btnclip','btnfile','btnstats','btnfs','btncad'].forEach(function(id){
+  ['btnpause','btnvo','btnqual','btnclip','btnfile','btnstats','btnfs','btncad','btnmon'].forEach(function(id){
     if($(id)) $(id).disabled = !on;
   });
   $('btndisc').style.display = on ? '' : 'none';
   $('btnback').style.display = on ? '' : 'none';
   if(on) $('btnpause').disabled = viewOnly;
+  if(!on){
+    // Limpa seletor de monitores ao desconectar
+    var sel = $('monitorselector');
+    sel.classList.remove('show');
+    sel.innerHTML = '';
+    _monitors = [];
+  }
 }
 function goBack(){ disconnect(); }
 function togglePanel(id){
@@ -609,6 +664,52 @@ function toggleStats(){ $('stats').classList.toggle('show'); $('btnstats').class
 function toggleFS(){
   if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function(){});
   else document.exitFullscreen().catch(function(){});
+}
+
+// ═══════════════════════════════════════
+// MONITOR SWITCHER
+// ═══════════════════════════════════════
+var _monitors = [];
+
+function requestMonitorList(){
+  if(!dc || dc.readyState !== 'open') return;
+  dc.send(JSON.stringify({ t:'list_monitors' }));
+  sbMsg('Consultando monitores…');
+}
+
+function renderMonitorButtons(monitors, current){
+  _monitors = monitors;
+  var sel = $('monitorselector');
+  sel.innerHTML = '';
+
+  if(!monitors || monitors.length === 0){
+    sel.classList.remove('show');
+    sbMsg('Nenhum monitor encontrado.');
+    return;
+  }
+
+  monitors.forEach(function(m){
+    var btn = document.createElement('button');
+    btn.className = 'monbtn' + (m.id === current ? ' active' : '');
+    var label = 'MON\u00a0' + m.id;
+    if(m.w && m.h) label += '\u00a0' + m.w + '\u00d7' + m.h;
+    btn.textContent = label;
+    btn.title = 'Monitor ' + m.id + (m.w ? ' — ' + m.w + '×' + m.h : '') + (m.x !== undefined ? ' @ ' + m.x + ',' + m.y : '');
+    btn.onclick = function(){ switchMonitor(m.id); };
+    sel.appendChild(btn);
+  });
+
+  sel.classList.add('show');
+}
+
+function switchMonitor(idx){
+  if(!dc || dc.readyState !== 'open') return;
+  dc.send(JSON.stringify({ t:'switch_monitor', index:idx }));
+  // Feedback visual imediato
+  $('monitorselector').querySelectorAll('.monbtn').forEach(function(btn, i){
+    btn.classList.toggle('active', _monitors[i] && _monitors[i].id === idx);
+  });
+  sbMsg('Trocando para Monitor ' + idx + '…');
 }
 
 // ═══════════════════════════════════════
@@ -691,6 +792,8 @@ function openConn(machine, token, iceServers){
     send({ t:'quality', q:quality });
     sbMsg('Sessão ativa — ' + new Date().toLocaleTimeString());
     protectSelf();
+    // Solicita lista de monitores automaticamente ao conectar
+    setTimeout(function(){ requestMonitorList(); }, 600);
   };
   dc.onmessage = handleDC;
 
@@ -899,12 +1002,31 @@ function sendCAD(){
 }
 
 // ═══════════════════════════════════════
-// DATA CHANNEL
+// DATA CHANNEL — handler principal
 // ═══════════════════════════════════════
 function handleDC(e){
   try {
     var m = JSON.parse(e.data);
+
+    // ── Monitor switcher ────────────────────────────────────
+    if(m.t === 'monitors_list'){
+      renderMonitorButtons(m.monitors || [], m.current || 1);
+      sbMsg((m.monitors ? m.monitors.length : 0) + ' monitor(es) encontrado(s).');
+      return;
+    }
+    if(m.t === 'monitor_switched'){
+      $('monitorselector').querySelectorAll('.monbtn').forEach(function(btn, i){
+        btn.classList.toggle('active', _monitors[i] && _monitors[i].id === m.index);
+      });
+      toast('Monitor ' + m.index + ' ativo', 'ok', 2000);
+      sbMsg('Monitor ' + m.index + ' ativo.');
+      return;
+    }
+
+    // ── Clipboard ────────────────────────────────────────────
     if(m.t === 'clipboard'){ $('clipta').value = m.text; toast('Clipboard recebido', 'ok'); }
+
+    // ── Arquivos ─────────────────────────────────────────────
     if(m.t === 'file_done') toast('Arquivo recebido: ' + (m.name||''), 'ok');
     if(m.t === 'file_err')  toast('Erro: ' + (m.reason||''), 'err');
   } catch(ex){}

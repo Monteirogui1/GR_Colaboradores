@@ -59,7 +59,7 @@ _file_buffers_lock           = threading.Lock()
 
 class ScreenTrack:
     """Captura a tela principal com mss — funciona na sessão do usuário."""
-
+    _monitor_index = 1
     _aiortc_base = None
 
     @classmethod
@@ -86,12 +86,17 @@ class ScreenTrack:
     @staticmethod
     async def _recv_impl(self):
         if not hasattr(self, "_sct"):
-            self._sct     = mss.mss()
-            self._monitor = self._sct.monitors[1]
-        pts, time_base  = await self.next_timestamp()
-        img             = self._sct.grab(self._monitor)
-        frame           = av.VideoFrame.from_ndarray(np.array(img), format="bgra")
-        frame.pts       = pts
+            self._sct = mss.mss()
+        # Atualiza o monitor a cada frame (permite troca em runtime)
+        idx = ScreenTrack._monitor_index
+        monitors = self._sct.monitors
+        if idx < 1 or idx >= len(monitors):
+            idx = 1
+        self._monitor = monitors[idx]
+        pts, time_base = await self.next_timestamp()
+        img = self._sct.grab(self._monitor)
+        frame = av.VideoFrame.from_ndarray(np.array(img), format="bgra")
+        frame.pts = pts
         frame.time_base = time_base
         return frame
 
@@ -233,9 +238,38 @@ def _handle_webrtc_offer(body: dict) -> dict:
                 if channel.label == "input":
                     if isinstance(message, str):
                         try:
+                            evt = json.loads(message)
+
+                            # ── NOVO: listar monitores ───────────────────────
+                            if evt.get("t") == "list_monitors":
+                                import mss as _mss
+                                with _mss.mss() as sct:
+                                    monitors = [
+                                        {"id": i, "w": m["width"], "h": m["height"],
+                                         "x": m["left"], "y": m["top"]}
+                                        for i, m in enumerate(sct.monitors)
+                                        if i > 0  # 0 = virtual (todos juntos)
+                                    ]
+                                reply = json.dumps({"t": "monitors_list", "monitors": monitors,
+                                                    "current": ScreenTrack._monitor_index})
+                                channel.send(reply)
+                                return
+
+                            # ── NOVO: trocar monitor ─────────────────────────
+                            elif evt.get("t") == "switch_monitor":
+                                idx = int(evt.get("index", 1))
+                                import mss as _mss
+                                with _mss.mss() as sct:
+                                    count = len(sct.monitors) - 1  # exclui o virtual
+                                if 1 <= idx <= count:
+                                    ScreenTrack._monitor_index = idx
+                                    channel.send(json.dumps({"t": "monitor_switched", "index": idx}))
+                                return
+
+                            # ── original: input de mouse/teclado ─────────────
                             threading.Thread(
                                 target=_handle_input_event,
-                                args=(json.loads(message), session_id),
+                                args=(evt, session_id),
                                 daemon=True,
                             ).start()
                         except Exception:
@@ -1125,7 +1159,7 @@ class TrayIcon:
     def _build_menu(self):
         return pystray.Menu(
             item("📊 Status",      lambda i, it: StatusWindow.open(self)),
-            item("🎫 Chamados",    lambda i, it: self._open_chamados()),
+            item("🎫 Chamados",    lambda i, it: self._open_chamados(), default=True,),
             item("⚡ Forçar Sync", lambda i, it: self._force_sync()),
             pystray.Menu.SEPARATOR,
             item("❌ Sair",        lambda i, it: self._quit()),
