@@ -5,9 +5,7 @@
 {% block conteudo %}
 <div class="content">
 
-    <!-- ═══════════════════════════════════════════════════════════
-         CABEÇALHO
-    ════════════════════════════════════════════════════════════════ -->
+    <!-- CABEÇALHO -->
     <div class="page-header">
         <h1><i class="bi bi-pc-display"></i> {{ machine.hostname }}</h1>
         <div class="filter-buttons">
@@ -25,9 +23,7 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         STATUS
-    ════════════════════════════════════════════════════════════════ -->
+    <!-- STATUS -->
     <div class="detail-card">
         <h2><i class="bi bi-activity"></i> Status</h2>
         <div class="detail-content">
@@ -58,9 +54,7 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         HARDWARE
-    ════════════════════════════════════════════════════════════════ -->
+    <!-- HARDWARE -->
     <div class="detail-card">
         <h2><i class="bi bi-cpu"></i> Hardware</h2>
         <div class="detail-content">
@@ -101,9 +95,7 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         MEMÓRIA RAM
-    ════════════════════════════════════════════════════════════════ -->
+    <!-- MEMÓRIA RAM -->
     <div class="detail-card">
         <h2><i class="bi bi-memory"></i> Memória RAM</h2>
         <div class="detail-content">
@@ -144,9 +136,7 @@
         {% endif %}
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         ARMAZENAMENTO
-    ════════════════════════════════════════════════════════════════ -->
+    <!-- ARMAZENAMENTO -->
     <div class="detail-card">
         <h2><i class="bi bi-hdd"></i> Armazenamento</h2>
         <div class="detail-content">
@@ -187,9 +177,7 @@
         {% endif %}
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         SISTEMA OPERACIONAL
-    ════════════════════════════════════════════════════════════════ -->
+    <!-- SISTEMA OPERACIONAL -->
     <div class="detail-card">
         <h2><i class="bi bi-windows"></i> Sistema Operacional</h2>
         <div class="detail-content">
@@ -222,9 +210,7 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         REDE
-    ════════════════════════════════════════════════════════════════ -->
+    <!-- REDE -->
     <div class="detail-card">
         <h2><i class="bi bi-ethernet"></i> Rede</h2>
         <div class="detail-content">
@@ -267,9 +253,7 @@
         {% endif %}
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         SEGURANÇA
-    ════════════════════════════════════════════════════════════════ -->
+    <!-- SEGURANÇA -->
     <div class="detail-card">
         <h2><i class="bi bi-shield-check"></i> Segurança</h2>
         <div class="detail-content">
@@ -311,116 +295,65 @@
         {% endif %}
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         TERMINAL REMOTO — só para staff
-         Chama POST /run/<machine_id>/ → RunCommandView (Django)
-         que encaminha para http://{ip}:7071/command (agent_service)
-         Roda em Session 0, sem WinRM, sem agent_tray necessário.
-    ════════════════════════════════════════════════════════════════ -->
+    <!-- TERMINAL REMOTO -->
     {% if user.is_staff %}
     <div class="detail-card" id="terminal-card">
-
-        <!-- Cabeçalho do card -->
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
             <h2 style="margin:0;"><i class="bi bi-terminal-fill"></i> Terminal Remoto</h2>
             <div style="display:flex; gap:8px; align-items:center;">
-                <!-- Indicador de status da máquina -->
-                <span id="term-status-badge" style="
+                <span style="
                     font-size:12px; padding:3px 10px; border-radius:20px; font-weight:600;
                     background:{% if machine.is_online %}#dcfce7{% else %}#fee2e2{% endif %};
                     color:{% if machine.is_online %}#166534{% else %}#991b1b{% endif %};">
                     {% if machine.is_online %}● Agente Online{% else %}● Agente Offline{% endif %}
                 </span>
-                <!-- Seletor de tipo de comando -->
                 <select id="cmd-type" style="
-                    font-family: 'Consolas', monospace;
-                    font-size: 12px;
-                    background: #2d2d2d;
-                    color: #c9d1d9;
-                    border: 1px solid #444;
-                    border-radius: 5px;
-                    padding: 4px 8px;
-                    cursor: pointer;
-                ">
+                    font-family:'Consolas',monospace; font-size:12px;
+                    background:#2d2d2d; color:#c9d1d9;
+                    border:1px solid #444; border-radius:5px;
+                    padding:4px 8px; cursor:pointer;">
                     <option value="powershell">PowerShell</option>
                     <option value="cmd">CMD</option>
                 </select>
-                <!-- Botão limpar -->
                 <button onclick="clearTerminal()" title="Limpar terminal" style="
-                    background: #2d2d2d; color: #8b949e; border: 1px solid #444;
-                    border-radius: 5px; padding: 4px 10px; cursor: pointer; font-size: 13px;
-                ">
+                    background:#2d2d2d; color:#8b949e; border:1px solid #444;
+                    border-radius:5px; padding:4px 10px; cursor:pointer; font-size:13px;">
                     <i class="bi bi-trash"></i>
                 </button>
             </div>
         </div>
 
-        <!-- Área de output -->
         <div id="terminal-output" style="
-            background: #0d1117;
-            color: #e6edf3;
-            font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.55;
-            padding: 14px 16px;
-            border-radius: 8px;
-            border: 1px solid #30363d;
-            height: 360px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-break: break-all;
-            margin-bottom: 10px;
+            background:#0d1117; color:#e6edf3;
+            font-family:'Consolas','Courier New',monospace;
+            font-size:13px; line-height:1.55;
+            padding:14px 16px; border-radius:8px;
+            border:1px solid #30363d; height:360px;
+            overflow-y:auto; white-space:pre-wrap;
+            word-break:break-all; margin-bottom:10px;
         "></div>
 
-        <!-- Linha de input -->
         <div style="display:flex; gap:6px; align-items:center;">
             <span id="term-prompt" style="
-                color: #58a6ff;
-                font-family: 'Consolas', monospace;
-                font-size: 13px;
-                white-space: nowrap;
-                padding: 0 4px;
-                line-height: 38px;
-            ">PS&gt;</span>
-
-            <input
-                type="text"
-                id="terminal-input"
+                color:#58a6ff; font-family:'Consolas',monospace;
+                font-size:13px; white-space:nowrap;
+                padding:0 4px; line-height:38px;">PS&gt;</span>
+            <input type="text" id="terminal-input"
                 placeholder="Get-ComputerInfo | Select-Object CsName, OsName"
-                autocomplete="off"
-                autocorrect="off"
-                spellcheck="false"
-                style="
-                    flex: 1;
-                    font-family: 'Consolas', monospace;
-                    font-size: 13px;
-                    background: #161b22;
-                    color: #e6edf3;
-                    border: 1px solid #30363d;
-                    border-radius: 6px;
-                    padding: 7px 12px;
-                    outline: none;
-                "
-            />
-
+                autocomplete="off" autocorrect="off" spellcheck="false"
+                style="flex:1; font-family:'Consolas',monospace; font-size:13px;
+                       background:#161b22; color:#e6edf3;
+                       border:1px solid #30363d; border-radius:6px;
+                       padding:7px 12px; outline:none;" />
             <button id="btn-run" onclick="runCommand()" style="
-                background: #238636;
-                color: #fff;
-                border: none;
-                border-radius: 6px;
-                padding: 7px 18px;
-                font-size: 13px;
-                cursor: pointer;
-                white-space: nowrap;
-                display: flex;
-                align-items: center;
-                gap: 5px;
-            ">
+                background:#238636; color:#fff; border:none;
+                border-radius:6px; padding:7px 18px; font-size:13px;
+                cursor:pointer; white-space:nowrap;
+                display:flex; align-items:center; gap:5px;">
                 <i class="bi bi-play-fill"></i> Executar
             </button>
         </div>
 
-        <!-- Dica de atalhos -->
         <div style="margin-top:8px; font-size:11px; color:#8b949e;">
             <i class="bi bi-info-circle"></i>
             <kbd style="background:#21262d;border:1px solid #30363d;border-radius:3px;padding:1px 5px;">Enter</kbd> executar &nbsp;·&nbsp;
@@ -429,28 +362,46 @@
             Timeout máximo: 60s &nbsp;·&nbsp; Roda em Session 0 (sem UI)
         </div>
     </div>
+    {% endif %}
+
+    <!-- SCRIPTS -->
+    <script>
+    /* ── Exclusão de máquina ─────────────────────────────────────────────────── */
+    document.querySelectorAll('.btn-delete[data-id]').forEach(function(btn) {
+        btn.addEventListener('click', function () {
+            var id = this.dataset.id;
+            if (confirm('Tem certeza que deseja excluir esta máquina?')) {
+                fetch('/machines/' + id + '/delete/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+                }).then(function(r) {
+                    if (r.ok || r.redirected) {
+                        window.location.href = "{% url 'inventario:machine_list' %}";
+                    }
+                });
+            }
+        });
+    });
+    </script>
 
     {% if user.is_staff %}
     <script>
-    // ── Configuração ─────────────────────────────────────────────────────────────
-    const RUN_URL    = "{% url 'inventario:run_command' machine.id %}";
-    const CSRF_TOKEN = "{{ csrf_token }}";
-    const HOSTNAME   = "{{ machine.hostname }}";
-    const IS_ONLINE  = {% if machine.is_online %}true{% else %}false{% endif %};
+    /* ── Terminal Remoto ─────────────────────────────────────────────────────── */
+    var RUN_URL    = "{% url 'inventario:run_command' machine.id %}";
+    var CSRF_TOKEN = "{{ csrf_token }}";
+    var HOSTNAME   = "{{ machine.hostname }}";
+    var IS_ONLINE  = {% if machine.is_online %}true{% else %}false{% endif %};
 
-    // ── Referências DOM ───────────────────────────────────────────────────────────
-    const _output  = document.getElementById('terminal-output');
-    const _input   = document.getElementById('terminal-input');
-    const _btnRun  = document.getElementById('btn-run');
-    const _prompt  = document.getElementById('term-prompt');
-    const _cmdType = document.getElementById('cmd-type');
+    var _output  = document.getElementById('terminal-output');
+    var _input   = document.getElementById('terminal-input');
+    var _btnRun  = document.getElementById('btn-run');
+    var _prompt  = document.getElementById('term-prompt');
+    var _cmdType = document.getElementById('cmd-type');
 
-    // ── Histórico ─────────────────────────────────────────────────────────────────
-    const _history = [];
-    let   _histIdx = -1;
+    var _history = [];
+    var _histIdx = -1;
 
-    // ── Cores ─────────────────────────────────────────────────────────────────────
-    const COLORS = {
+    var COLORS = {
         header:   '#58a6ff',
         ok:       '#3fb950',
         err:      '#f85149',
@@ -460,12 +411,11 @@
         stdout:   '#e6edf3',
         prompt:   '#58a6ff',
         exit_ok:  '#3fb950',
-        exit_err: '#f85149',
+        exit_err: '#f85149'
     };
 
-    // ── Helpers ───────────────────────────────────────────────────────────────────
     function _appendLine(text, type) {
-        const span       = document.createElement('span');
+        var span = document.createElement('span');
         span.style.color   = COLORS[type] || '#e6edf3';
         span.style.display = 'block';
         span.textContent   = text;
@@ -481,14 +431,13 @@
     }
 
     function _boot() {
-        _appendLine('TI Manager — Terminal Remoto', 'header');
-        _appendLine('Máquina : ' + HOSTNAME, 'muted');
+        _appendLine('TI Manager \u2014 Terminal Remoto', 'header');
+        _appendLine('M\u00e1quina : ' + HOSTNAME, 'muted');
         _appendLine('Status  : ' + (IS_ONLINE ? 'Agente Online' : 'Agente Offline'), IS_ONLINE ? 'ok' : 'err');
         _appendLine('Via     : agent_service:7071/command (Session 0, sem WinRM)', 'muted');
-        _appendLine('─'.repeat(60), 'dim');
+        _appendLine('\u2500'.repeat(60), 'dim');
     }
 
-    // ── Inicialização ─────────────────────────────────────────────────────────────
     _boot();
 
     _cmdType.addEventListener('change', function () {
@@ -512,86 +461,67 @@
 
     _input.focus();
 
-    // ── Funções globais (chamadas pelo onclick do HTML) ───────────────────────────
-
     function clearTerminal() {
         _output.innerHTML = '';
         _boot();
     }
 
-    async function runCommand() {
-        const cmd = _input.value.trim();
+    function runCommand() {
+        var cmd = _input.value.trim();
         if (!cmd) return;
 
         _history.unshift(cmd);
-        _histIdx = -1;
+        _histIdx         = -1;
         _input.value     = '';
         _input.disabled  = true;
         _btnRun.disabled = true;
-        _btnRun.innerHTML = '<i class="bi bi-hourglass-split"></i> Executando…';
+        _btnRun.innerHTML = '<i class="bi bi-hourglass-split"></i> Executando\u2026';
 
-        const typeLabel = _cmdType.value === 'cmd' ? 'CMD' : 'PS';
+        var typeLabel = _cmdType.value === 'cmd' ? 'CMD' : 'PS';
         _appendLine(typeLabel + '> ' + cmd, 'prompt');
 
-        const startTs = Date.now();
+        var startTs = Date.now();
 
-        try {
-            const resp = await fetch(RUN_URL, {
-                method:  'POST',
-                headers: {
-                    'X-CSRFToken':  CSRF_TOKEN,
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: 'command=' + encodeURIComponent(cmd) + '&type=' + encodeURIComponent(_cmdType.value),
-            });
-
-            const elapsed = ((Date.now() - startTs) / 1000).toFixed(2);
-            const data    = await resp.json();
+        fetch(RUN_URL, {
+            method:  'POST',
+            headers: {
+                'X-CSRFToken':  CSRF_TOKEN,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'command=' + encodeURIComponent(cmd) + '&type=' + encodeURIComponent(_cmdType.value)
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            var elapsed = ((Date.now() - startTs) / 1000).toFixed(2);
 
             if (data.error && !data.stdout && !data.stderr) {
-                _appendLine('✗ ERRO: ' + data.error, 'err');
+                _appendLine('\u2717 ERRO: ' + data.error, 'err');
             } else {
-                if (data.stdout && data.stdout.trim()) _appendRaw(data.stdout.trimEnd(), 'stdout');
-                if (data.stderr && data.stderr.trim()) _appendRaw(data.stderr.trimEnd(), 'warn');
-                if (!data.stdout?.trim() && !data.stderr?.trim() && !data.error) {
-                    _appendLine('(sem saída)', 'muted');
+                if (data.stdout && data.stdout.trim()) _appendRaw(data.stdout.replace(/\s+$/, ''), 'stdout');
+                if (data.stderr && data.stderr.trim()) _appendRaw(data.stderr.replace(/\s+$/, ''), 'warn');
+                if ((!data.stdout || !data.stdout.trim()) &&
+                    (!data.stderr || !data.stderr.trim()) && !data.error) {
+                    _appendLine('(sem sa\u00edda)', 'muted');
                 }
-                const exitCode = data.exit_code !== undefined ? data.exit_code : (data.status_code !== undefined ? data.status_code : -1);
-                _appendLine('[exit: ' + exitCode + ' | ' + elapsed + 's]', exitCode === 0 ? 'exit_ok' : 'exit_err');
+                var exitCode = data.exit_code !== undefined ? data.exit_code
+                             : data.status_code !== undefined ? data.status_code : -1;
+                _appendLine('[exit: ' + exitCode + ' | ' + elapsed + 's]',
+                            exitCode === 0 ? 'exit_ok' : 'exit_err');
             }
-        } catch (err) {
-            _appendLine('✗ Falha na requisição: ' + err.message, 'err');
-        }
-
-        _appendLine('─'.repeat(60), 'dim');
-        _input.disabled  = false;
-        _btnRun.disabled = false;
-        _btnRun.innerHTML = '<i class="bi bi-play-fill"></i> Executar';
-        _input.focus();
+        })
+        .catch(function(err) {
+            _appendLine('\u2717 Falha na requisi\u00e7\u00e3o: ' + err.message, 'err');
+        })
+        .finally(function() {
+            _appendLine('\u2500'.repeat(60), 'dim');
+            _input.disabled  = false;
+            _btnRun.disabled = false;
+            _btnRun.innerHTML = '<i class="bi bi-play-fill"></i> Executar';
+            _input.focus();
+        });
     }
     </script>
     {% endif %}
-
-    <!-- ═══════════════════════════════════════════════════════════
-         SCRIPT: confirmar exclusão
-    ════════════════════════════════════════════════════════════════ -->
-    <script>
-    document.querySelectorAll('.btn-delete[data-id]').forEach(btn => {
-        btn.addEventListener('click', function () {
-            const id = this.dataset.id;
-            if (confirm('Tem certeza que deseja excluir esta máquina?')) {
-                fetch(`/machines/${id}/delete/`, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
-                }).then(r => {
-                    if (r.ok || r.redirected) {
-                        window.location.href = "{% url 'inventario:machine_list' %}";
-                    }
-                });
-            }
-        });
-    });
-    </script>
 
 </div>
 {% endblock %}
