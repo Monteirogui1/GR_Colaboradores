@@ -258,6 +258,7 @@ class MachineCheckinView(View):
         return JsonResponse(list(sites), safe=False)
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class RunCommandView(LoginRequiredMixin, View):
 
     def handle_no_permission(self):
