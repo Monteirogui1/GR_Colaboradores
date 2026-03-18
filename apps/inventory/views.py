@@ -284,10 +284,29 @@ class RunCommandView(LoginRequiredMixin, View):
             return JsonResponse({'error': 'Comando obrigatório'}, status=400)
 
         # Busca token ativo para autenticar na chamada ao agente
-        token_obj = AgentToken.objects.filter(is_active=True).first()
-        headers   = {}
-        if token_obj:
-            headers['Authorization'] = f'Bearer {token_obj.token_hash}'
+        token_obj = None
+        try:
+            usage = (AgentTokenUsage.objects
+                     .filter(machine_name__iexact=machine.hostname)
+                     .select_related('agent_token')
+                     .order_by('-last_used_at')
+                     .first())
+            if usage and usage.agent_token.is_active and not usage.agent_token.is_expired():
+                token_obj = usage.agent_token
+        except Exception:
+            pass
+
+        # Fallback: qualquer token ativo
+        if token_obj is None:
+            token_obj = AgentToken.objects.filter(is_active=True).first()
+
+        if not token_obj:
+            return JsonResponse(
+                {'error': 'Nenhum token ativo disponível para autenticar no agente'},
+                status=500
+            )
+
+        headers = {'Authorization': f'Bearer {token_obj.token_hash}'}
 
         try:
             import requests as req
