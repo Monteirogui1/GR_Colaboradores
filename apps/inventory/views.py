@@ -259,6 +259,11 @@ class MachineCheckinView(View):
 
 
 class RunCommandView(LoginRequiredMixin, View):
+
+    def handle_no_permission(self):
+        # Retorna JSON em vez de redirect para login
+        return JsonResponse({'error': 'Autenticação necessária'}, status=401)
+
     def post(self, request, machine_id):
         if not request.user.is_staff:
             return JsonResponse({'error': 'Acesso negado'}, status=403)
@@ -271,27 +276,26 @@ class RunCommandView(LoginRequiredMixin, View):
         if not machine.ip_address:
             return JsonResponse({'error': 'Máquina sem IP cadastrado'}, status=400)
 
-        cmd = request.POST.get('command', '').strip()
-        cmd_type = request.POST.get('type', 'powershell')  # 'powershell' ou 'cmd'
+        cmd      = request.POST.get('command', '').strip()
+        cmd_type = request.POST.get('type', 'powershell').strip()
+
         if not cmd:
             return JsonResponse({'error': 'Comando obrigatório'}, status=400)
 
-        # Busca o token do agente para autenticar na chamada
-        token_obj = AgentToken.objects.filter(
-            machine=machine, is_active=True
-        ).first()
-
-        headers = {}
+        # Busca token ativo para autenticar na chamada ao agente
+        token_obj = AgentToken.objects.filter(is_active=True).first()
+        headers   = {}
         if token_obj:
             headers['Authorization'] = f'Bearer {token_obj.token_hash}'
 
         try:
-            resp = requests.post(
-                f"http://{machine.ip_address}:{AGENT_IPC_PORT}/command",
+            import requests as req
+            resp = req.post(
+                f"http://{machine.ip_address}:7071/command",
                 json={
-                    "type": cmd_type,
-                    "script": cmd,
-                    "timeout": 60,
+                    'type':    cmd_type,
+                    'script':  cmd,
+                    'timeout': 60,
                 },
                 headers=headers,
                 timeout=65,
@@ -303,10 +307,16 @@ class RunCommandView(LoginRequiredMixin, View):
                 'exit_code': data.get('exit_code', -1),
                 'error':     data.get('error', ''),
             })
-        except requests.exceptions.ConnectionError:
-            return JsonResponse({'error': f'Agente offline ou inacessível em {machine.ip_address}:{AGENT_IPC_PORT}'}, status=503)
-        except requests.exceptions.Timeout:
-            return JsonResponse({'error': 'Timeout — comando demorou mais de 60s'}, status=504)
+        except req.exceptions.ConnectionError:
+            return JsonResponse(
+                {'error': f'Agente offline ou inacessível ({machine.ip_address}:7071)'},
+                status=503
+            )
+        except req.exceptions.Timeout:
+            return JsonResponse(
+                {'error': 'Timeout — agente não respondeu em 65s'},
+                status=504
+            )
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
