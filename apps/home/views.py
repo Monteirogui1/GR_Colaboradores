@@ -13,8 +13,9 @@ def dashboard_view(request):
     user = request.user
     cliente = user if user.is_staff else user
 
-    hoje = timezone.now().date()
-    inicio_mes = hoje.replace(day=1)
+    agora = timezone.now()
+    hoje = agora.date()
+    inicio_mes = agora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     context = {
         'stats': {}

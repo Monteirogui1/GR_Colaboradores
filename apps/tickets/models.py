@@ -707,8 +707,7 @@ class Ticket(models.Model):
     def save(self, *args, **kwargs):
         # Gera número do ticket
         if not self.numero:
-            from datetime import datetime
-            ano = datetime.now().year
+            ano = timezone.now().year
             ultimo_ticket = Ticket.objects.filter(
                 numero__startswith=f"{ano}"
             ).order_by('-numero').first()
