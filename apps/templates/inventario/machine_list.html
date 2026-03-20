@@ -69,10 +69,10 @@
                 <td>{{ machine.ram_gb|floatformat:2|default:"-" }}</td>
                 <td>{{ machine.disk_free_gb|floatformat:2|default:"-" }}</td>
                 <td>
-                    {% if machine.is_online %}
-                        <span style="color: green;">● Online</span>
+                    {% if machine.is_currently_online %}
+                        <span style="color:#22c55e;font-weight:600;">● Online</span>
                     {% else %}
-                        <span style="color: red;">● Offline</span>
+                        <span style="color:#ef4444;font-weight:600;">● Offline</span>
                     {% endif %}
                 </td>
                 <td>{{ machine.last_seen|date:"d/m/Y H:i" }}</td>

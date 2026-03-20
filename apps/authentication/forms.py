@@ -27,15 +27,28 @@ class ClienteUserForm(forms.ModelForm):
         }
 
     # Opcional: esconder campo senha ao editar usuário
-    # def __init__(self, *args, **kwargs):
-    #         super().__init__(*args, **kwargs)
-    #         if self.instance and self.instance.pk:
-    #             self.fields['password'].required = False
-    #             self.fields['password'].widget = forms.HiddenInput()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            # Editando: senha opcional, mostra o campo mas não obriga
+            self.fields['password'].required = False
+            self.fields['password'].widget = forms.PasswordInput(
+                attrs={'class': 'form-control', 'placeholder': 'Deixe em branco para manter a senha atual'},
+                render_value=False,
+            )
+            self.fields['password'].help_text = 'Deixe em branco para não alterar.'
 
     def save(self, commit=True, cliente=None):
         user = super().save(commit=False)
-        user.set_password(self.cleaned_data['password'])
+
+        password = self.cleaned_data.get('password')
+        if password:
+            # Só altera a senha se foi preenchida
+            user.set_password(password)
+        elif not user.pk:
+            # Novo usuário sem senha — força erro (não deveria chegar aqui)
+            raise ValueError('Senha obrigatória para novo usuário.')
+
         if cliente:
             user.cliente = cliente
         if commit:

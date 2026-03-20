@@ -507,8 +507,10 @@ class MachineListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(ip_address__icontains=ip_address)
         if group:
             queryset = queryset.filter(group_id=group)
-        if is_online:
-            queryset = queryset.filter(is_online=(is_online == 'true'))
+        if is_online == 'true':
+            queryset = queryset.filter(is_online=True)
+        elif is_online == 'false':
+            queryset = queryset.filter(is_online=False)
 
         return queryset.order_by('-last_seen')
 

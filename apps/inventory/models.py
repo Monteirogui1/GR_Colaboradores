@@ -55,7 +55,7 @@ class Machine(models.Model):
     antivirus_name  = models.CharField("Antivírus", max_length=200, null=True, blank=True)
     av_state        = models.CharField("Estado AV", max_length=50, null=True, blank=True)
 
-    last_seen = models.DateTimeField("Última Conexão", auto_now=True)
+    last_seen = models.DateTimeField("Última Conexão", null=True, blank=True)
     is_online = models.BooleanField("Online", default=False)
     group     = models.ForeignKey(MachineGroup, on_delete=models.SET_NULL, null=True, blank=True)
 
@@ -65,6 +65,20 @@ class Machine(models.Model):
     class Meta:
         verbose_name = "Máquina"
         verbose_name_plural = "Máquinas"
+
+    @property
+    def is_currently_online(self) -> bool:
+        """Calcula status em tempo real, sem depender do campo is_online."""
+        if not self.last_seen:
+            return False
+        timeout = getattr(settings, 'MACHINE_OFFLINE_TIMEOUT', 15)
+        return (timezone.now() - self.last_seen).total_seconds() < timeout * 60
+
+    def update_online_status(self):
+        new_status = self.is_currently_online
+        if self.is_online != new_status:
+            self.is_online = new_status
+            self.save(update_fields=['is_online'])
 
 
 class BlockedSite(models.Model):

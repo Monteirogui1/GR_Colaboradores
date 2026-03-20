@@ -31,11 +31,11 @@
                 <div class="detail-row">
                     <span class="detail-label">Status:</span>
                     <span class="detail-value">
-                        {% if machine.is_online %}
-                            <span style="color:#22c55e;font-weight:600;">● Online</span>
-                        {% else %}
-                            <span style="color:#ef4444;font-weight:600;">● Offline</span>
-                        {% endif %}
+                    {% if machine.is_currently_online %}
+                        <span style="color:#22c55e;font-weight:600;">● Online</span>
+                    {% else %}
+                        <span style="color:#ef4444;font-weight:600;">● Offline</span>
+                    {% endif %}
                     </span>
                 </div>
                 <div class="detail-row">
@@ -303,9 +303,9 @@
             <div style="display:flex; gap:8px; align-items:center;">
                 <span style="
                     font-size:12px; padding:3px 10px; border-radius:20px; font-weight:600;
-                    background:{% if machine.is_online %}#dcfce7{% else %}#fee2e2{% endif %};
-                    color:{% if machine.is_online %}#166534{% else %}#991b1b{% endif %};">
-                    {% if machine.is_online %}● Agente Online{% else %}● Agente Offline{% endif %}
+                    background:{% if machine.is_currently_online %}#dcfce7{% else %}#fee2e2{% endif %};
+                    color:{% if machine.is_currently_online %}#166534{% else %}#991b1b{% endif %};">
+                    {% if machine.is_currently_online %}● Agente Online{% else %}● Agente Offline{% endif %}
                 </span>
                 <select id="cmd-type" style="
                     font-family:'Consolas',monospace; font-size:12px;
@@ -359,7 +359,7 @@
             <kbd style="background:#21262d;border:1px solid #30363d;border-radius:3px;padding:1px 5px;">Enter</kbd> executar &nbsp;·&nbsp;
             <kbd style="background:#21262d;border:1px solid #30363d;border-radius:3px;padding:1px 5px;">↑</kbd>
             <kbd style="background:#21262d;border:1px solid #30363d;border-radius:3px;padding:1px 5px;">↓</kbd> histórico &nbsp;·&nbsp;
-            Timeout máximo: 60s &nbsp;·&nbsp; Roda em Session 0 (sem UI)
+            Timeout máximo: 60s &nbsp;·&nbsp;
         </div>
     </div>
     {% endif %}
@@ -390,7 +390,7 @@
     var RUN_URL    = "{% url 'inventario:run_command' machine.id %}";
     var CSRF_TOKEN = "{{ csrf_token }}";
     var HOSTNAME   = "{{ machine.hostname }}";
-    var IS_ONLINE  = {% if machine.is_online %}true{% else %}false{% endif %};
+    var IS_ONLINE  = {% if machine.is_currently_online %}true{% else %}false{% endif %};
 
     var _output  = document.getElementById('terminal-output');
     var _input   = document.getElementById('terminal-input');
