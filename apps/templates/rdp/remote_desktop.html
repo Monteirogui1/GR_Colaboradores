@@ -11,7 +11,7 @@ html,body{height:100%;overflow:hidden;background:#07090c;}
   --bg:#07090c;--s1:#0d1117;--s2:#111820;
   --b1:rgba(255,255,255,.06);--b2:rgba(255,255,255,.10);
   --acc:#00c8a0;--ad:rgba(0,200,160,.14);--a2:#3b82f6;
-  --txt:#e2e8f0;--t2:#94a3b8;--t3:#475569;
+  --txt:#e2e8f0;--t2:#94a3b8;--t3:#b7bbd0;
   --err:#f87171;--wrn:#fbbf24;--ok:#34d399;
   --r:6px;--r2:10px;--mn:'JetBrains Mono','Fira Code','Consolas',monospace;--tr:.15s ease;
 }
@@ -846,7 +846,6 @@ function setupInput(){
   v.addEventListener('drop',function(e){e.preventDefault();$('dropov').classList.remove('show');uploadFiles(e.dataTransfer.files);});
 }
 function sendCAD(){
-  if(paused||viewOnly){toast('Ative o input primeiro','warn');return;}
   send({t:'cad'}); toast('Ctrl+Alt+Del enviado','info');
 }
 

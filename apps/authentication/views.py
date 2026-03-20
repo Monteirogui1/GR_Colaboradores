@@ -44,7 +44,7 @@ class ClienteUserCreateView(LoginRequiredMixin, CreateView):
     model = User
     form_class = ClienteUserForm
     template_name = 'authentication/clienteuser_form.html'
-    success_url = reverse_lazy('clienteuser_list')
+    success_url = reverse_lazy('authentication:clienteuser_list')
 
     def form_valid(self, form):
         form.save(cliente=self.request.user.cliente)
@@ -54,7 +54,7 @@ class ClienteUserUpdateView(LoginRequiredMixin, UpdateView):
     model = User
     form_class = ClienteUserForm
     template_name = 'authentication/clienteuser_form.html'
-    success_url = reverse_lazy('clienteuser_list')
+    success_url = reverse_lazy('authentication:clienteuser_list')
 
     def get_queryset(self):
         return User.objects.filter(cliente=self.request.user.cliente)
@@ -62,7 +62,7 @@ class ClienteUserUpdateView(LoginRequiredMixin, UpdateView):
 class ClienteUserDeleteView(LoginRequiredMixin, DeleteView):
     model = User
     template_name = 'authentication/clienteuser_confirm_delete.html'
-    success_url = reverse_lazy('clienteuser_list')
+    success_url = reverse_lazy('authentication:clienteuser_list')
 
     def get_queryset(self):
         return User.objects.filter(cliente=self.request.user.cliente)

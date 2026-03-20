@@ -27,11 +27,11 @@ class ClienteUserForm(forms.ModelForm):
         }
 
     # Opcional: esconder campo senha ao editar usuário
-    def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            if self.instance and self.instance.pk:
-                self.fields['password'].required = False
-                self.fields['password'].widget = forms.HiddenInput()
+    # def __init__(self, *args, **kwargs):
+    #         super().__init__(*args, **kwargs)
+    #         if self.instance and self.instance.pk:
+    #             self.fields['password'].required = False
+    #             self.fields['password'].widget = forms.HiddenInput()
 
     def save(self, commit=True, cliente=None):
         user = super().save(commit=False)

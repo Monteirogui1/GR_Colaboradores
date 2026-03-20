@@ -94,9 +94,7 @@ class AgentConfig:
     def set(self, key, value):
         self.data[key] = value
 
-# ── Instância global — acessível pelo snapshot ────────────────────────────────
-# Criada no main() e atribuída aqui para o snapshot() poder ler sem depender
-# de os.environ (que pode não estar disponível se o NSSM não reinjetou).
+# Instância global — acessível pelo snapshot
 _CONFIG: AgentConfig = None
 
 
@@ -138,10 +136,6 @@ def ssl_verify(config: AgentConfig):
     return config.get("ssl_verify", True)
 
 def auth_headers(config: AgentConfig) -> dict:
-    """
-    Retorna headers de autenticação.
-    Inclui X-Machine-Name para permitir tokens compartilhados entre máquinas.
-    """
     token_hash   = config.get("token_hash", "")
     machine_name = config.get("machine_name", socket.gethostname())
     if token_hash:
@@ -179,7 +173,7 @@ class AgentState:
         self.shown_notification_ids:  set        = self._load_shown_ids()
         self.version          = VERSION
         self.webrtc_sessions: dict = {}
-        self.logged_user: str = ""   # atualizado a cada checkin com o usuário Windows atual
+        self.logged_user: str = ""
 
     def add_notifications(self, notifs: list[dict]):
         with self._lock:
@@ -254,15 +248,12 @@ class AgentState:
             logger.info(f"WebRTC: expirando sessão {sid[:8]}…")
             self.remove_webrtc_session(sid)
 
-    # ── CORREÇÃO: snapshot usa _CONFIG (instância) e não os.environ direto ────
     def snapshot(self) -> dict:
         with self._lock:
-            # Usa _CONFIG se já inicializado, senão cai para os.environ como fallback
             cfg_server = (_CONFIG.get("server_url", "") if _CONFIG
                           else os.environ.get("AGENT_SERVER_URL", ""))
             cfg_token  = (_CONFIG.get("token_hash", "") if _CONFIG
                           else os.environ.get("AGENT_TOKEN_HASH", ""))
-
             snap = {
                 "version":               self.version,
                 "machine":               socket.gethostname(),
@@ -387,7 +378,7 @@ def send_checkin(config: AgentConfig, data: dict) -> bool:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# WebRTC (idêntico ao original — sem alterações)
+# WebRTC
 # ═════════════════════════════════════════════════════════════════════════════
 
 _webrtc_data_channels: dict = {}
@@ -426,7 +417,6 @@ class ScreenTrack:
     async def _recv_impl(self):
         if not hasattr(self, "_sct"):
             self._sct = mss.mss()
-        # Atualiza o monitor a cada frame (permite troca em runtime)
         idx = ScreenTrack._monitor_index
         monitors = self._sct.monitors
         if idx < 1 or idx >= len(monitors):
@@ -440,12 +430,67 @@ class ScreenTrack:
         return frame
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Screen Lock
+#
+# O agent_service roda em Session 0 (sem desktop visível ao usuário).
+# Por isso, screen_lock / screen_unlock são DELEGADOS ao agent_tray via HTTP
+# loopback 127.0.0.1:7071/screen — o tray roda na sessão do usuário e pode
+# criar janelas tkinter visíveis no desktop dele.
+#
+# O tray confirma o resultado enviando {"t":"screen_locked"} ou
+# {"t":"screen_unlocked"} de volta pelo data channel (drain_queue).
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _forward_screen_lock_to_tray(t: str, session_id: str):
+    """Repassa screen_lock/screen_unlock para o agent_tray via HTTP loopback."""
+    try:
+        resp = requests.post(
+            "http://127.0.0.1:7071/screen",
+            json={"t": t, "session_id": session_id},
+            timeout=5,
+        )
+        if resp.ok:
+            logger.info(f"screen_lock: delegado ao tray com sucesso ({t})")
+        else:
+            logger.warning(f"screen_lock: tray respondeu HTTP {resp.status_code}")
+    except Exception as e:
+        logger.error(f"screen_lock: falha ao contactar tray — {e}")
+
+
+def _send_to_session(session_id: str, msg: dict):
+    """Envia mensagem JSON de volta ao frontend via data channel."""
+    try:
+        payload = json.dumps(msg)
+        with _webrtc_dc_lock:
+            queue = _webrtc_data_channels.get(session_id)
+        if queue:
+            queue.put_nowait(payload)
+    except Exception as e:
+        logger.warning(f"_send_to_session falhou: {e}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Input handler
+# ─────────────────────────────────────────────────────────────────────────────
+
 def _handle_input_event(event: dict, session_id: str = ""):
+    t = event.get("t")
+
+    # ── Screen lock: delega para o tray (Session 0 não tem desktop) ──────────
+    if t in ("screen_lock", "screen_unlock"):
+        threading.Thread(
+            target=_forward_screen_lock_to_tray,
+            args=(t, session_id),
+            daemon=True,
+        ).start()
+        return
+
+    # ── Inputs normais ────────────────────────────────────────────────────────
     try:
         import ctypes, win32api, win32con
         user32 = ctypes.windll.user32
         sw, sh = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
-        t      = event.get("t")
 
         def abs_xy(e):
             return (max(0, min(sw-1, int(e.get("x",0)*sw))),
@@ -493,19 +538,14 @@ def _handle_input_event(event: dict, session_id: str = ""):
         elif t == "clipboard_req":
             _send_clipboard_to_browser(session_id)
         elif t == "cad":
-            # Ctrl+Alt+Del via SendSAS (única forma válida no Windows)
-            # sas.dll está disponível em C:\Windows\System32\sas.dll
+            # Ctrl+Alt+Del via SendSAS — única forma válida no Windows
             try:
-                import ctypes
                 sas = ctypes.WinDLL("sas.dll")
-                # SendSAS(FALSE) — FALSE = não veio de teclado físico
                 sas.SendSAS(0)
                 logger.info("CAD enviado via SendSAS")
             except Exception as cad_err:
-                logger.warning(f"SendSAS falhou ({cad_err}), tentando WinLogon...")
+                logger.warning(f"SendSAS falhou ({cad_err}), tentando Shell.WindowsSecurity...")
                 try:
-                    # Fallback: post WM_HOTKEY para WinLogon (Session 0 apenas)
-                    import subprocess
                     subprocess.run(
                         ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
                          "(New-Object -ComObject Shell.Application).WindowsSecurity()"],
@@ -513,27 +553,11 @@ def _handle_input_event(event: dict, session_id: str = ""):
                     )
                 except Exception as e2:
                     logger.error(f"CAD fallback falhou: {e2}")
-        elif t == 'screen_lock':
-            import tkinter as tk, threading
-            def show_lock():
-                root = tk.Tk()
-                root.attributes('-fullscreen', True, '-topmost', True)
-                root.configure(bg='black')
-                root.overrideredirect(True)
-                root._lock_active = True
-                root.mainloop()
 
-            threading.Thread(target=show_lock, daemon=True).start()
-
-        elif t == 'screen_unlock':
-            # Fecha a janela de bloqueio se existir
-            import tkinter as tk
-            for w in tk._default_root.winfo_children() if tk._default_root else []:
-                w.destroy()
     except ImportError as e:
         logger.warning(f"WebRTC input: biblioteca ausente ({e})")
     except Exception as e:
-        logger.error(f"WebRTC input error (t={event.get('t')}): {e}")
+        logger.error(f"WebRTC input error (t={t}): {e}")
 
 
 def _send_clipboard_to_browser(session_id: str):
@@ -551,12 +575,19 @@ def _send_clipboard_to_browser(session_id: str):
 
 
 def _handle_file_chunk(data: bytes):
+    """Chunk binário com header [2 bytes len(fid)][fid UTF-8][dados]."""
     with _file_buffers_lock:
-        for fid, buf in _file_buffers.items():
-            if not buf.get("done"):
-                buf["chunks"].append(data)
-                buf["received"] = buf.get("received", 0) + len(data)
-                return
+        if len(data) < 3:
+            return
+        fid_len = int.from_bytes(data[:2], "big")
+        if len(data) < 2 + fid_len:
+            return
+        fid   = data[2:2 + fid_len].decode("utf-8", errors="replace")
+        chunk = data[2 + fid_len:]
+        buf = _file_buffers.get(fid)
+        if buf and not buf.get("done"):
+            buf["chunks"].append(chunk)
+            buf["received"] = buf.get("received", 0) + len(chunk)
 
 
 def _sanitize_filename(name: str) -> str:
@@ -688,7 +719,6 @@ def _handle_webrtc_offer(body: dict) -> dict:
                         try:
                             evt = json.loads(message)
 
-                            # ── NOVO: listar monitores ───────────────────────
                             if evt.get("t") == "list_monitors":
                                 import mss as _mss
                                 with _mss.mss() as sct:
@@ -696,25 +726,25 @@ def _handle_webrtc_offer(body: dict) -> dict:
                                         {"id": i, "w": m["width"], "h": m["height"],
                                          "x": m["left"], "y": m["top"]}
                                         for i, m in enumerate(sct.monitors)
-                                        if i > 0  # 0 = virtual (todos juntos)
+                                        if i > 0
                                     ]
-                                reply = json.dumps({"t": "monitors_list", "monitors": monitors,
-                                                    "current": ScreenTrack._monitor_index})
-                                channel.send(reply)
+                                channel.send(json.dumps({
+                                    "t": "monitors_list",
+                                    "monitors": monitors,
+                                    "current": ScreenTrack._monitor_index,
+                                }))
                                 return
 
-                            # ── NOVO: trocar monitor ─────────────────────────
                             elif evt.get("t") == "switch_monitor":
                                 idx = int(evt.get("index", 1))
                                 import mss as _mss
                                 with _mss.mss() as sct:
-                                    count = len(sct.monitors) - 1  # exclui o virtual
+                                    count = len(sct.monitors) - 1
                                 if 1 <= idx <= count:
                                     ScreenTrack._monitor_index = idx
                                     channel.send(json.dumps({"t": "monitor_switched", "index": idx}))
                                 return
 
-                            # ── original: input de mouse/teclado ─────────────
                             threading.Thread(
                                 target=_handle_input_event,
                                 args=(evt, session_id),
@@ -914,10 +944,6 @@ class WebRTCHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self._guard(): return
-        # ── ADICIONADO: endpoint /command para execução remota pelo Django ─────
-        # Reutiliza IPCHandler._run_command — mesma lógica, Session 0, sem WinRM.
-        # O Django chama POST http://{ip}:7071/command com Bearer token.
-        # Não altera nenhum outro comportamento existente.
         if self.path == "/command":
             body = self._read_json()
             logger.info(
@@ -925,7 +951,6 @@ class WebRTCHandler(BaseHTTPRequestHandler):
                 f"[{body.get('type', 'powershell')}] {str(body.get('script', ''))[:80]}"
             )
             self._send_json(200, IPCHandler._run_command(None, body))
-        # ── FIM DA ADIÇÃO ──────────────────────────────────────────────────────
         elif self.path == "/webrtc/offer":
             body = self._read_json()
             try:
@@ -968,7 +993,7 @@ def _force_sync(config: AgentConfig):
         STATE.online       = True
         STATE.last_checkin = datetime.now()
         STATE.last_error   = "" if ok else "HTTP error on checkin"
-        STATE.logged_user  = data.get("logged_user", "")   # ── CORRIGIDO
+        STATE.logged_user  = data.get("logged_user", "")
         logger.info("Check-in concluído" if ok else "Falha no check-in")
     except Exception as e:
         STATE.last_error = str(e)
@@ -981,12 +1006,12 @@ def checkin_loop(config: AgentConfig):
     time.sleep(jitter)
     while True:
         try:
-            data = collect_hardware()                       # ── variável correta: data
+            data = collect_hardware()
             ok   = send_checkin(config, data)
             STATE.online       = True
             STATE.last_checkin = datetime.now()
             STATE.last_error   = "" if ok else "HTTP error on checkin"
-            STATE.logged_user  = data.get("logged_user", "")  # ── CORRIGIDO: era hw_data
+            STATE.logged_user  = data.get("logged_user", "")
             logger.info(f"Check-in {'OK' if ok else 'FALHOU'} | user={STATE.logged_user}")
         except Exception as e:
             STATE.online     = False
@@ -1115,7 +1140,7 @@ def _apply_update(config: AgentConfig, info: dict):
 # Ponto de entrada
 # ─────────────────────────────────────────────
 def main():
-    global _CONFIG   # ── expõe para snapshot() usar a instância real
+    global _CONFIG
 
     token = None
     for arg in sys.argv[1:]:
@@ -1123,7 +1148,7 @@ def main():
             token = arg.split("=", 1)[1]
 
     config  = AgentConfig()
-    _CONFIG = config   # ── atribui globalmente antes de qualquer thread
+    _CONFIG = config
 
     if token:
         config.set("token_hash", hashlib.sha256(token.encode()).hexdigest())

@@ -1,4 +1,4 @@
-# agent_tray.py — v3.3.1
+# agent_tray.py — v3.4.1
 # Tray App: roda na sessão do usuário, recebe WebRTC do agent_service,
 # exibe notificações nativas e gerencia chamados de suporte.
 
@@ -12,6 +12,8 @@ import asyncio
 import threading
 import platform
 import tkinter as tk
+import ctypes
+import ctypes.wintypes
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import logging
@@ -31,9 +33,9 @@ except ImportError:
     print("ERRO: pip install pystray pillow")
     sys.exit(1)
 
-VERSION       = "3.3.1"
+VERSION       = "3.4.1"
 IPC_URL       = "http://127.0.0.1:7070"
-WEBRTC_PORT   = 7071   # porta local — agent_service delega para cá
+WEBRTC_PORT   = 7071
 POLL_INTERVAL = 8
 
 LOG_DIR = Path(os.path.dirname(__file__)) / "logs"
@@ -58,7 +60,7 @@ _file_buffers_lock           = threading.Lock()
 
 
 class ScreenTrack:
-    """Captura a tela principal com mss — funciona na sessão do usuário."""
+    """Captura a tela com mss — suporte a múltiplos monitores."""
     _monitor_index = 1
     _aiortc_base = None
 
@@ -87,7 +89,6 @@ class ScreenTrack:
     async def _recv_impl(self):
         if not hasattr(self, "_sct"):
             self._sct = mss.mss()
-        # Atualiza o monitor a cada frame (permite troca em runtime)
         idx = ScreenTrack._monitor_index
         monitors = self._sct.monitors
         if idx < 1 or idx >= len(monitors):
@@ -101,15 +102,198 @@ class ScreenTrack:
         return frame
 
 
-def _handle_input_event(event: dict, session_id: str = ""):
-    """Processa eventos de mouse/teclado recebidos via WebRTC."""
+# ═════════════════════════════════════════════════════════════════════════════
+# Screen Lock — cobre TODOS os monitores na sessão do usuário
+# ═════════════════════════════════════════════════════════════════════════════
+
+_lock_windows:   list                   = []
+_lock_tk_root:   tk.Tk | None          = None
+_lock_thread:    threading.Thread | None = None
+_lock_state_lock = threading.Lock()
+
+
+def _get_all_monitors() -> list[dict]:
+    """Enumera todos os monitores físicos via EnumDisplayMonitors (Win32)."""
+    monitors = []
+
+    MONITORENUMPROC = ctypes.WINFUNCTYPE(
+        ctypes.c_int,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.POINTER(ctypes.wintypes.RECT),
+        ctypes.c_double,
+    )
+
+    def _cb(hMonitor, hdcMonitor, lprcMonitor, dwData):
+        r = lprcMonitor.contents
+        monitors.append({
+            "left":   r.left,
+            "top":    r.top,
+            "width":  r.right  - r.left,
+            "height": r.bottom - r.top,
+        })
+        return 1
+
+    ctypes.windll.user32.EnumDisplayMonitors(
+        None, None, MONITORENUMPROC(_cb), 0
+    )
+
+    if not monitors:
+        user32 = ctypes.windll.user32
+        monitors = [{"left": 0, "top": 0,
+                     "width":  user32.GetSystemMetrics(0),
+                     "height": user32.GetSystemMetrics(1)}]
+    return monitors
+
+
+def _screen_lock_thread(session_id: str):
+    global _lock_windows, _lock_tk_root
+
     try:
-        import ctypes
+        root = tk.Tk()
+        root.withdraw()
+    except Exception as e:
+        logger.error(f"Screen lock: falha ao criar Tk root — {e}")
+        return
+
+    with _lock_state_lock:
+        _lock_tk_root = root
+        _lock_windows = []
+
+    monitors = _get_all_monitors()
+    logger.info(f"Screen lock: cobrindo {len(monitors)} monitor(es)")
+
+    for mon in monitors:
+        try:
+            win = tk.Toplevel(root)
+            win.configure(bg="black")
+            win.overrideredirect(True)
+            win.attributes("-topmost", True)
+            win.attributes("-alpha", 1.0)
+            win.geometry(
+                f"{mon['width']}x{mon['height']}"
+                f"+{mon['left']}+{mon['top']}"
+            )
+            for seq in ("<Key>", "<KeyPress>", "<KeyRelease>",
+                        "<Button>", "<ButtonPress>", "<ButtonRelease>",
+                        "<Motion>", "<MouseWheel>", "<Enter>", "<Leave>"):
+                win.bind(seq, lambda e: "break")
+
+            win.grab_set()
+            win.focus_force()
+
+            with _lock_state_lock:
+                _lock_windows.append(win)
+        except Exception as e:
+            logger.error(f"Screen lock: erro no monitor {mon} — {e}")
+
+    _send_to_session(session_id, {"t": "screen_locked"})
+    logger.info("Screen lock: ativo")
+
+    try:
+        root.mainloop()
+    except Exception as e:
+        logger.error(f"Screen lock: mainloop encerrado com erro — {e}")
+
+    logger.info("Screen lock: thread encerrada")
+
+
+def _do_screen_lock(session_id: str):
+    global _lock_thread
+
+    with _lock_state_lock:
+        if _lock_thread and _lock_thread.is_alive():
+            logger.warning("Screen lock: já ativo, ignorando duplicata")
+            _send_to_session(session_id, {"t": "screen_locked"})
+            return
+
+    _lock_thread = threading.Thread(
+        target=_screen_lock_thread,
+        args=(session_id,),
+        daemon=True,
+        name="ScreenLock",
+    )
+    _lock_thread.start()
+
+
+def _do_screen_unlock(session_id: str):
+    global _lock_windows, _lock_tk_root
+
+    def _destroy_all():
+        global _lock_windows, _lock_tk_root
+
+        for win in list(_lock_windows):
+            try:
+                win.grab_release()
+                win.destroy()
+            except Exception:
+                pass
+
+        with _lock_state_lock:
+            _lock_windows.clear()
+
+        root = _lock_tk_root
+        if root:
+            try:
+                root.quit()
+                root.destroy()
+            except Exception:
+                pass
+            with _lock_state_lock:
+                _lock_tk_root = None
+
+        logger.info("Screen lock: janelas destruídas com sucesso")
+
+    root = None
+    with _lock_state_lock:
+        root = _lock_tk_root
+
+    if root:
+        try:
+            root.after(0, _destroy_all)
+        except Exception:
+            _destroy_all()
+    else:
+        with _lock_state_lock:
+            _lock_windows.clear()
+
+    _send_to_session(session_id, {"t": "screen_unlocked"})
+    logger.info("Screen lock: desbloqueado")
+
+
+def _send_to_session(session_id: str, msg: dict):
+    """Envia mensagem JSON de volta ao frontend via data channel."""
+    try:
+        payload = json.dumps(msg)
+        with _webrtc_dc_lock:
+            queue = _webrtc_data_channels.get(session_id)
+        if queue:
+            queue.put_nowait(payload)
+    except Exception as e:
+        logger.warning(f"_send_to_session falhou: {e}")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Input handler
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _handle_input_event(event: dict, session_id: str = ""):
+    """Processa eventos de mouse/teclado/screen recebidos via WebRTC."""
+
+    t = event.get("t")
+
+    if t == "screen_lock":
+        _do_screen_lock(session_id)
+        return
+    if t == "screen_unlock":
+        _do_screen_unlock(session_id)
+        return
+
+    try:
         import win32api
         import win32con
         user32 = ctypes.windll.user32
         sw, sh = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
-        t      = event.get("t")
 
         def abs_xy(e):
             return (max(0, min(sw - 1, int(e.get("x", 0) * sw))),
@@ -146,93 +330,216 @@ def _handle_input_event(event: dict, session_id: str = ""):
         elif t == "mw":
             delta = int(event.get("delta", 0) * 120)
             win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, 0, 0, delta)
+        elif t == "mb":
+            if event.get("d"):
+                win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEDOWN, 0, 0)
+            else:
+                win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEUP, 0, 0)
+        elif t == "ms":
+            win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, 0, 0,
+                                 int(event.get("d", 0)) * win32con.WHEEL_DELTA)
+        elif t == "msh":
+            win32api.mouse_event(win32con.MOUSEEVENTF_HWHEEL, 0, 0,
+                                 int(event.get("d", 0)) * win32con.WHEEL_DELTA)
         elif t == "kd":
             vk = event.get("vk")
-            if vk:
-                win32api.keybd_event(vk, 0, 0, 0)
+            if vk: win32api.keybd_event(vk, 0, 0, 0)
         elif t == "ku":
             vk = event.get("vk")
-            if vk:
-                win32api.keybd_event(vk, 0, win32con.KEYEVENTF_KEYUP, 0)
+            if vk: win32api.keybd_event(vk, 0, win32con.KEYEVENTF_KEYUP, 0)
+        elif t == "kt":
+            import pyautogui
+            char = event.get("k", "")
+            if char: pyautogui.typewrite(char, interval=0)
+        elif t == "kp":
+            import pyautogui
+            key = event.get("k", "")
+            if key: pyautogui.press(key)
+        elif t == "kc":
+            import pyautogui
+            mods = ["winleft" if m == "win" else m for m in event.get("mods", [])]
+            key  = event.get("k", "")
+            if key: pyautogui.hotkey(*mods, key) if mods else pyautogui.press(key)
+        elif t == "paste":
+            import pyperclip, pyautogui
+            text = event.get("text", "")
+            if text: pyperclip.copy(text); pyautogui.hotkey("ctrl", "v")
+        elif t == "clipboard_req":
+            _send_clipboard_to_browser(session_id)
         elif t == "cad":
-            # Ctrl+Alt+Del via SendSAS (única forma válida no Windows)
-            # sas.dll está disponível em C:\Windows\System32\sas.dll
             try:
-                import ctypes
                 sas = ctypes.WinDLL("sas.dll")
-                # SendSAS(FALSE) — FALSE = não veio de teclado físico
                 sas.SendSAS(0)
                 logger.info("CAD enviado via SendSAS")
             except Exception as cad_err:
-                logger.warning(f"SendSAS falhou ({cad_err}), tentando WinLogon...")
+                logger.warning(f"SendSAS falhou ({cad_err}), tentando Shell.WindowsSecurity...")
                 try:
-                    # Fallback: post WM_HOTKEY para WinLogon (Session 0 apenas)
                     import subprocess
                     subprocess.run(
                         ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
                          "(New-Object -ComObject Shell.Application).WindowsSecurity()"],
-                        timeout=5, creationflags=subprocess.CREATE_NO_WINDOW
+                        timeout=5, creationflags=subprocess.CREATE_NO_WINDOW,
                     )
                 except Exception as e2:
                     logger.error(f"CAD fallback falhou: {e2}")
-        elif t == 'screen_lock':
-            import tkinter as tk, threading
-            def show_lock():
-                root = tk.Tk()
-                root.attributes('-fullscreen', True, '-topmost', True)
-                root.configure(bg='black')
-                root.overrideredirect(True)
-                root._lock_active = True
-                root.mainloop()
 
-            threading.Thread(target=show_lock, daemon=True).start()
-
-        elif t == 'screen_unlock':
-            # Fecha a janela de bloqueio se existir
-            import tkinter as tk
-            for w in tk._default_root.winfo_children() if tk._default_root else []:
-                w.destroy()
     except Exception as e:
-        logger.error(f"Input event error: {e}")
+        logger.error(f"Input event error (t={t}): {e}")
+
+
+def _send_clipboard_to_browser(session_id: str):
+    try:
+        import pyperclip
+        text = pyperclip.paste()
+        if not text: return
+        msg = json.dumps({"t": "clipboard", "text": text})
+        with _webrtc_dc_lock:
+            queue = _webrtc_data_channels.get(session_id)
+        if queue:
+            queue.put_nowait(msg)
+    except Exception as e:
+        logger.warning(f"Clipboard request failed: {e}")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# File transfer — protocolo idêntico ao agent_service
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _sanitize_filename(name: str) -> str:
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)
+    name = name.strip(". ")
+    return name or "arquivo_recebido"
+
+
+def _resolve_dest_dir_tray(dest_key: str) -> Path:
+    """Resolve diretório de destino (sem FOLDERID, usa Path.home())."""
+    home = Path.home()
+    known = {
+        "downloads": home / "Downloads",
+        "desktop":   home / "Desktop",
+        "documents": home / "Documents",
+    }
+    if dest_key in known:
+        return known[dest_key]
+    if dest_key == "explorer":
+        try:
+            resp = requests.get("http://127.0.0.1:7070/explorer/path", timeout=3)
+            if resp.ok:
+                raw = resp.json().get("path", "")
+                if raw and raw not in known:
+                    p = Path(raw)
+                    if p.is_absolute():
+                        return p
+                elif raw in known:
+                    return known[raw]
+        except Exception:
+            pass
+        return known["downloads"]
+    # Caminho absoluto customizado
+    if dest_key and (os.sep in dest_key or (len(dest_key) >= 3 and dest_key[1:3] == ":\\")):
+        return Path(dest_key)
+    return known["downloads"]
 
 
 def _handle_file_chunk(data: bytes):
-    """Processa chunk binário de transferência de arquivo."""
+    """
+    Processa chunk binário de transferência de arquivo.
+    Appenda ao buffer do fid ativo — chunks chegam sem header, igual ao agent_service.
+    """
     with _file_buffers_lock:
-        if len(data) < 4:
-            return
-        fid_len = int.from_bytes(data[:2], "big")
-        fid     = data[2:2 + fid_len].decode("utf-8", errors="replace")
-        chunk   = data[2 + fid_len:]
-        if fid not in _file_buffers:
-            _file_buffers[fid] = bytearray()
-        _file_buffers[fid].extend(chunk)
+        for fid, buf in _file_buffers.items():
+            if isinstance(buf, dict) and not buf.get("done"):
+                buf["chunks"].append(data)
+                buf["received"] = buf.get("received", 0) + len(data)
+                return
 
 
 def _handle_file_message(msg: dict, session_id: str):
-    """Finaliza e salva arquivo recebido via WebRTC."""
-    fid       = msg.get("id", "")
-    file_name = msg.get("name", "arquivo")
-    with _file_buffers_lock:
-        data = bytes(_file_buffers.pop(fid, b""))
-    try:
-        desktop   = Path.home() / "Desktop"
-        safe_name = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", file_name).strip(". ") or "arquivo"
-        dest      = desktop / safe_name
-        dest.write_bytes(data)
-        logger.info(f"WebRTC file: '{file_name}' salvo em '{dest}'")
-        ack = json.dumps({"t": "file_done", "id": fid})
-    except Exception as e:
-        logger.error(f"WebRTC file erro: {e}")
-        ack = json.dumps({"t": "file_err", "id": fid, "reason": str(e)})
-    with _webrtc_dc_lock:
-        queue = _webrtc_data_channels.get(session_id)
-    if queue:
-        try:
-            queue.put_nowait(ack)
-        except Exception:
-            pass
+    """
+    Trata file_start e file_end — protocolo idêntico ao agent_service.
 
+    Fluxo:
+        1. Frontend envia JSON {t:'file_start', id, name, size, dest}
+        2. Frontend envia chunks binários (ArrayBuffer)
+        3. Frontend envia JSON {t:'file_end', id}
+        4. Agente salva no destino e devolve {t:'file_done', id, name, path}
+    """
+    t = msg.get("t")
+
+    # ── Início de transferência: registra meta + destino ─────────────────────
+    if t == "file_start":
+        fid = msg.get("id")
+        if not fid:
+            return
+        with _file_buffers_lock:
+            _file_buffers[fid] = {
+                "meta":     msg,
+                "chunks":   [],
+                "received": 0,
+                "done":     False,
+            }
+        logger.info(
+            f"WebRTC file: iniciando '{msg.get('name')}' "
+            f"dest='{msg.get('dest', 'downloads')}'"
+        )
+        return
+
+    # ── Fim de transferência: monta, salva e envia ACK ───────────────────────
+    if t == "file_end":
+        fid = msg.get("id")
+        if not fid:
+            return
+
+        with _file_buffers_lock:
+            buf = _file_buffers.get(fid)
+            if not buf:
+                logger.warning(f"WebRTC file: file_end para fid desconhecido '{fid}'")
+                return
+            buf["done"] = True
+            data      = b"".join(buf["chunks"])
+            file_name = buf["meta"].get("name", f"arquivo_{fid[:8]}")
+            dest_key  = buf["meta"].get("dest", "downloads")
+            _file_buffers.pop(fid, None)
+
+        try:
+            dest_dir = _resolve_dest_dir_tray(dest_key)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+
+            safe_name = _sanitize_filename(file_name)
+            dest_path = dest_dir / safe_name
+
+            # Evita sobrescrever arquivo existente
+            if dest_path.exists():
+                stem, suffix = dest_path.stem, dest_path.suffix
+                counter = 1
+                while dest_path.exists():
+                    dest_path = dest_dir / f"{stem} ({counter}){suffix}"
+                    counter += 1
+
+            dest_path.write_bytes(data)
+            logger.info(f"WebRTC file: '{file_name}' salvo em '{dest_path}'")
+            ack = json.dumps({
+                "t":    "file_done",
+                "id":   fid,
+                "name": file_name,
+                "path": str(dest_path),
+            })
+        except Exception as e:
+            logger.error(f"WebRTC file erro ao salvar '{file_name}': {e}")
+            ack = json.dumps({"t": "file_err", "id": fid, "reason": str(e)})
+
+        with _webrtc_dc_lock:
+            queue = _webrtc_data_channels.get(session_id)
+        if queue:
+            try:
+                queue.put_nowait(ack)
+            except Exception:
+                pass
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# WebRTC offer handler
+# ═════════════════════════════════════════════════════════════════════════════
 
 def _handle_webrtc_offer(body: dict) -> dict:
     try:
@@ -278,7 +585,6 @@ def _handle_webrtc_offer(body: dict) -> dict:
                         try:
                             evt = json.loads(message)
 
-                            # ── NOVO: listar monitores ───────────────────────
                             if evt.get("t") == "list_monitors":
                                 import mss as _mss
                                 with _mss.mss() as sct:
@@ -286,25 +592,28 @@ def _handle_webrtc_offer(body: dict) -> dict:
                                         {"id": i, "w": m["width"], "h": m["height"],
                                          "x": m["left"], "y": m["top"]}
                                         for i, m in enumerate(sct.monitors)
-                                        if i > 0  # 0 = virtual (todos juntos)
+                                        if i > 0
                                     ]
-                                reply = json.dumps({"t": "monitors_list", "monitors": monitors,
-                                                    "current": ScreenTrack._monitor_index})
-                                channel.send(reply)
+                                channel.send(json.dumps({
+                                    "t":        "monitors_list",
+                                    "monitors": monitors,
+                                    "current":  ScreenTrack._monitor_index,
+                                }))
                                 return
 
-                            # ── NOVO: trocar monitor ─────────────────────────
                             elif evt.get("t") == "switch_monitor":
                                 idx = int(evt.get("index", 1))
                                 import mss as _mss
                                 with _mss.mss() as sct:
-                                    count = len(sct.monitors) - 1  # exclui o virtual
+                                    count = len(sct.monitors) - 1
                                 if 1 <= idx <= count:
                                     ScreenTrack._monitor_index = idx
-                                    channel.send(json.dumps({"t": "monitor_switched", "index": idx}))
+                                    channel.send(json.dumps({
+                                        "t":     "monitor_switched",
+                                        "index": idx,
+                                    }))
                                 return
 
-                            # ── original: input de mouse/teclado ─────────────
                             threading.Thread(
                                 target=_handle_input_event,
                                 args=(evt, session_id),
@@ -312,6 +621,7 @@ def _handle_webrtc_offer(body: dict) -> dict:
                             ).start()
                         except Exception:
                             pass
+
                 elif channel.label == "files":
                     if isinstance(message, bytes):
                         _handle_file_chunk(message)
@@ -365,7 +675,7 @@ def _handle_webrtc_offer(body: dict) -> dict:
 # Servidor WebRTC local — 127.0.0.1:7071
 # ─────────────────────────────────────────────
 class WebRTCLocalHandler(BaseHTTPRequestHandler):
-    """Recebe SDP offer do agent_service via loopback."""
+    """Recebe SDP offer e comandos screen_lock do agent_service via loopback."""
 
     def log_message(self, fmt, *args):
         logger.debug(f"WebRTC-local {fmt % args}")
@@ -385,6 +695,25 @@ class WebRTCLocalHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
             self._send_json(200, {"ok": True, "version": VERSION})
+        elif self.path == "/explorer/path":
+            try:
+                import subprocess
+                ps = (
+                    "try { "
+                    "$sh = New-Object -ComObject Shell.Application; "
+                    "$w = $sh.Windows() | Where-Object { $_.Name -eq 'File Explorer' } | Select-Object -First 1; "
+                    "if ($w) { $w.Document.Folder.Self.Path } else { '' } "
+                    "} catch { '' }"
+                )
+                result = subprocess.run(
+                    ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+                    capture_output=True, text=True, timeout=5,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                path = result.stdout.strip()
+                self._send_json(200, {"path": path or "downloads"})
+            except Exception:
+                self._send_json(200, {"path": "downloads"})
         else:
             self._send_json(404, {"error": "not found"})
 
@@ -397,6 +726,7 @@ class WebRTCLocalHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 logger.exception(f"WebRTC offer error: {e}")
                 self._send_json(500, {"error": str(e)})
+
         elif self.path == "/webrtc/close":
             body       = self._read_json()
             session_id = body.get("session_id", "")
@@ -404,6 +734,28 @@ class WebRTCLocalHandler(BaseHTTPRequestHandler):
                 with _webrtc_dc_lock:
                     _webrtc_data_channels.pop(session_id, None)
             self._send_json(200, {"ok": True})
+
+        elif self.path == "/screen":
+            body       = self._read_json()
+            t          = body.get("t", "")
+            session_id = body.get("session_id", "")
+            if t == "screen_lock":
+                threading.Thread(
+                    target=_do_screen_lock,
+                    args=(session_id,),
+                    daemon=True,
+                ).start()
+                self._send_json(200, {"ok": True})
+            elif t == "screen_unlock":
+                threading.Thread(
+                    target=_do_screen_unlock,
+                    args=(session_id,),
+                    daemon=True,
+                ).start()
+                self._send_json(200, {"ok": True})
+            else:
+                self._send_json(400, {"error": f"t inválido: {t}"})
+
         else:
             self._send_json(404, {"error": "not found"})
 
@@ -601,7 +953,6 @@ class ChamadosWindow:
         self._email     = os.environ.get("AGENT_USER_EMAIL", "")
         threading.Thread(target=self._build, daemon=True).start()
 
-    # ── helpers de API ──────────────────────────────────────
     def _headers(self):
         return {
             "Authorization": f"Bearer {self.token_hash}",
@@ -611,10 +962,7 @@ class ChamadosWindow:
     def _api_get(self, path, params=None):
         r = requests.get(
             f"{self.server_url}{path}",
-            headers=self._headers(),
-            params=params,
-            timeout=10,
-            verify=False,
+            headers=self._headers(), params=params, timeout=10, verify=False,
         )
         r.raise_for_status()
         return r.json()
@@ -622,15 +970,11 @@ class ChamadosWindow:
     def _api_post(self, path, body):
         r = requests.post(
             f"{self.server_url}{path}",
-            headers=self._headers(),
-            json=body,
-            timeout=10,
-            verify=False,
+            headers=self._headers(), json=body, timeout=10, verify=False,
         )
         r.raise_for_status()
         return r.json()
 
-    # ── build da UI ──────────────────────────────────────────
     def _build(self):
         win = tk.Tk()
         self.window = win
@@ -643,162 +987,96 @@ class ChamadosWindow:
         main = tk.Frame(win, bg="#f1f5f9")
         main.pack(fill=tk.BOTH, expand=True)
 
-        # ── SIDEBAR ─────────────────────────────────────────
         sidebar = tk.Frame(main, bg="#1e293b", width=290)
         sidebar.pack(side=tk.LEFT, fill=tk.Y)
         sidebar.pack_propagate(False)
 
-        # Cabeçalho sidebar
         hdr = tk.Frame(sidebar, bg="#0f172a", pady=12)
         hdr.pack(fill=tk.X)
         tk.Label(hdr, text="🎫  Chamados", font=("Segoe UI", 12, "bold"),
                  bg="#0f172a", fg="#f8fafc").pack(side=tk.LEFT, padx=14)
-        tk.Button(
-            hdr, text="+ Novo",
-            font=("Segoe UI", 9, "bold"),
-            bg="#1a73e8", fg="white",
-            relief=tk.FLAT, padx=10, pady=4,
-            cursor="hand2",
-            command=self._abrir_novo_ticket,
-        ).pack(side=tk.RIGHT, padx=10)
+        tk.Button(hdr, text="+ Novo", font=("Segoe UI", 9, "bold"),
+                  bg="#1a73e8", fg="white", relief=tk.FLAT, padx=10, pady=4,
+                  cursor="hand2", command=self._abrir_novo_ticket).pack(side=tk.RIGHT, padx=10)
 
-        # Campo de e-mail + botão carregar
         email_frm = tk.Frame(sidebar, bg="#1e293b", pady=6, padx=10)
         email_frm.pack(fill=tk.X)
         tk.Label(email_frm, text="Seu e-mail:", font=("Segoe UI", 8),
                  bg="#1e293b", fg="#94a3b8").pack(anchor="w")
         self.email_var = tk.StringVar(value=self._email)
-        tk.Entry(
-            email_frm,
-            textvariable=self.email_var,
-            font=("Segoe UI", 9),
-            bg="#334155", fg="white",
-            insertbackground="white",
-            relief=tk.FLAT, bd=0,
-            highlightthickness=1,
-            highlightbackground="#475569",
-        ).pack(fill=tk.X, pady=(2, 4))
-        tk.Button(
-            email_frm, text="🔄  Carregar chamados",
-            font=("Segoe UI", 8),
-            bg="#334155", fg="#94a3b8",
-            relief=tk.FLAT, pady=4,
-            cursor="hand2",
-            command=self._carregar_tickets,
-        ).pack(fill=tk.X)
+        tk.Entry(email_frm, textvariable=self.email_var, font=("Segoe UI", 9),
+                 bg="#334155", fg="white", insertbackground="white",
+                 relief=tk.FLAT, bd=0, highlightthickness=1,
+                 highlightbackground="#475569").pack(fill=tk.X, pady=(2, 4))
+        tk.Button(email_frm, text="🔄  Carregar chamados", font=("Segoe UI", 8),
+                  bg="#334155", fg="#94a3b8", relief=tk.FLAT, pady=4, cursor="hand2",
+                  command=self._carregar_tickets).pack(fill=tk.X)
 
-        # Lista scrollável de tickets
         lista_frm = tk.Frame(sidebar, bg="#1e293b")
         lista_frm.pack(fill=tk.BOTH, expand=True, pady=(6, 0))
-
         sb = tk.Scrollbar(lista_frm, orient=tk.VERTICAL, bg="#334155",
                           troughcolor="#1e293b", bd=0)
         sb.pack(side=tk.RIGHT, fill=tk.Y)
-
         self.lista_canvas = tk.Canvas(lista_frm, bg="#1e293b", bd=0,
-                                      highlightthickness=0,
-                                      yscrollcommand=sb.set)
+                                      highlightthickness=0, yscrollcommand=sb.set)
         self.lista_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         sb.config(command=self.lista_canvas.yview)
-
         self.lista_inner = tk.Frame(self.lista_canvas, bg="#1e293b")
         self.lista_canvas.create_window((0, 0), window=self.lista_inner, anchor="nw")
-        self.lista_inner.bind(
-            "<Configure>",
-            lambda e: self.lista_canvas.configure(
-                scrollregion=self.lista_canvas.bbox("all")),
-        )
+        self.lista_inner.bind("<Configure>",
+            lambda e: self.lista_canvas.configure(scrollregion=self.lista_canvas.bbox("all")))
 
-        # ── CONTEÚDO DIREITO ─────────────────────────────────
         content = tk.Frame(main, bg="#f1f5f9")
         content.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Cabeçalho do ticket selecionado
-        self.ticket_hdr = tk.Frame(
-            content, bg="#ffffff",
-            highlightthickness=1, highlightbackground="#e2e8f0",
-        )
+        self.ticket_hdr = tk.Frame(content, bg="#ffffff",
+                                   highlightthickness=1, highlightbackground="#e2e8f0")
         self.ticket_hdr.pack(fill=tk.X)
-
-        self.lbl_assunto = tk.Label(
-            self.ticket_hdr,
+        self.lbl_assunto = tk.Label(self.ticket_hdr,
             text="← Selecione um chamado na lista",
-            font=("Segoe UI", 12, "bold"),
-            bg="#ffffff", fg="#1e293b",
-            pady=14, padx=20, anchor="w",
-        )
+            font=("Segoe UI", 12, "bold"), bg="#ffffff", fg="#1e293b",
+            pady=14, padx=20, anchor="w")
         self.lbl_assunto.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        self.lbl_status_ticket = tk.Label(
-            self.ticket_hdr, text="",
-            font=("Segoe UI", 9, "bold"),
-            bg="#ffffff", fg="#64748b",
-            padx=16,
-        )
+        self.lbl_status_ticket = tk.Label(self.ticket_hdr, text="",
+            font=("Segoe UI", 9, "bold"), bg="#ffffff", fg="#64748b", padx=16)
         self.lbl_status_ticket.pack(side=tk.RIGHT)
 
-        # Área de histórico (balões)
         hist_wrap = tk.Frame(content, bg="#f1f5f9")
         hist_wrap.pack(fill=tk.BOTH, expand=True, padx=14, pady=(10, 0))
-
         hist_sb = tk.Scrollbar(hist_wrap, orient=tk.VERTICAL)
         hist_sb.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.hist_canvas = tk.Canvas(
-            hist_wrap, bg="#f1f5f9", bd=0,
-            highlightthickness=0,
-            yscrollcommand=hist_sb.set,
-        )
+        self.hist_canvas = tk.Canvas(hist_wrap, bg="#f1f5f9", bd=0,
+                                     highlightthickness=0, yscrollcommand=hist_sb.set)
         self.hist_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         hist_sb.config(command=self.hist_canvas.yview)
-
         self.hist_inner = tk.Frame(self.hist_canvas, bg="#f1f5f9")
         self.hist_canvas.create_window((0, 0), window=self.hist_inner, anchor="nw")
-        self.hist_inner.bind(
-            "<Configure>",
-            lambda e: self.hist_canvas.configure(
-                scrollregion=self.hist_canvas.bbox("all")),
-        )
+        self.hist_inner.bind("<Configure>",
+            lambda e: self.hist_canvas.configure(scrollregion=self.hist_canvas.bbox("all")))
 
-        # Área de resposta
-        reply_frm = tk.Frame(
-            content, bg="#ffffff",
-            highlightthickness=1, highlightbackground="#e2e8f0",
-        )
+        reply_frm = tk.Frame(content, bg="#ffffff",
+                             highlightthickness=1, highlightbackground="#e2e8f0")
         reply_frm.pack(fill=tk.X, padx=14, pady=10)
-
         tk.Label(reply_frm, text="Responder:", font=("Segoe UI", 9, "bold"),
                  bg="#ffffff", fg="#374151").pack(anchor="w", padx=12, pady=(8, 2))
-
-        self.reply_text = tk.Text(
-            reply_frm, height=4,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT, bg="#f8fafc",
-            bd=0, highlightthickness=1,
-            highlightbackground="#e2e8f0",
-            padx=10, pady=8,
-        )
+        self.reply_text = tk.Text(reply_frm, height=4, font=("Segoe UI", 10),
+                                  relief=tk.FLAT, bg="#f8fafc", bd=0,
+                                  highlightthickness=1, highlightbackground="#e2e8f0",
+                                  padx=10, pady=8)
         self.reply_text.pack(fill=tk.X, padx=12, pady=(0, 6))
         self._placeholder_text = "Digite sua resposta aqui…"
         self.reply_text.insert("1.0", self._placeholder_text)
         self.reply_text.config(fg="#9ca3af")
         self.reply_text.bind("<FocusIn>",  self._reply_focus_in)
         self.reply_text.bind("<FocusOut>", self._reply_focus_out)
+        tk.Button(reply_frm, text="Enviar Resposta  ➤",
+                  font=("Segoe UI", 9, "bold"), bg="#1a73e8", fg="white",
+                  relief=tk.FLAT, padx=16, pady=6, cursor="hand2",
+                  command=self._enviar_resposta).pack(anchor="e", padx=12, pady=(0, 10))
 
-        tk.Button(
-            reply_frm, text="Enviar Resposta  ➤",
-            font=("Segoe UI", 9, "bold"),
-            bg="#1a73e8", fg="white",
-            relief=tk.FLAT, padx=16, pady=6,
-            cursor="hand2",
-            command=self._enviar_resposta,
-        ).pack(anchor="e", padx=12, pady=(0, 10))
-
-        # Carrega tickets ao abrir
         win.after(200, self._carregar_tickets)
         win.mainloop()
 
-    # ── placeholder ─────────────────────────────────────────
     def _reply_focus_in(self, _e):
         if self.reply_text.get("1.0", tk.END).strip() == self._placeholder_text:
             self.reply_text.delete("1.0", tk.END)
@@ -809,44 +1087,31 @@ class ChamadosWindow:
             self.reply_text.insert("1.0", self._placeholder_text)
             self.reply_text.config(fg="#9ca3af")
 
-    # ── carregar lista ───────────────────────────────────────
     def _carregar_tickets(self):
         email = self.email_var.get().strip()
-        if not email:
-            return
+        if not email: return
         self._email = email
-
         def fetch():
             try:
                 data = self._api_get("/tickets/api/agent/list/", params={"email": email})
                 self.window.after(0, lambda: self._render_lista(data.get("tickets", [])))
             except Exception as ex:
                 logger.error(f"Erro ao carregar tickets: {ex}")
-                ToastNotification.show(
-                    title="Erro", message=f"Não foi possível carregar chamados: {ex}",
+                ToastNotification.show(title="Erro",
+                    message=f"Não foi possível carregar chamados: {ex}",
                     notif_type="error", duration=5)
-
         threading.Thread(target=fetch, daemon=True).start()
 
     def _render_lista(self, tickets):
         self._tickets = tickets
-        for w in self.lista_inner.winfo_children():
-            w.destroy()
-
+        for w in self.lista_inner.winfo_children(): w.destroy()
         if not tickets:
-            tk.Label(
-                self.lista_inner,
-                text="Nenhum chamado encontrado.",
-                font=("Segoe UI", 9, "italic"),
-                bg="#1e293b", fg="#64748b",
-                pady=24,
-            ).pack()
+            tk.Label(self.lista_inner, text="Nenhum chamado encontrado.",
+                     font=("Segoe UI", 9, "italic"), bg="#1e293b", fg="#64748b",
+                     pady=24).pack()
             return
-
         for t in tickets:
             self._render_ticket_card(t)
-
-        # Seleciona o primeiro automaticamente
         if tickets and self._selected is None:
             self._selecionar_ticket(tickets[0])
 
@@ -855,111 +1120,72 @@ class ChamadosWindow:
         bg_base = "#2d4a7a" if is_sel else "#1e293b"
         bg_hvr  = "#253352"
         cor     = t.get("status_cor", "#64748b")
-
-        card = tk.Frame(self.lista_inner, bg=bg_base, cursor="hand2",
-                        highlightthickness=0)
+        card = tk.Frame(self.lista_inner, bg=bg_base, cursor="hand2", highlightthickness=0)
         card.pack(fill=tk.X, padx=0, pady=1)
-
-        # Faixa lateral colorida com status
         tk.Frame(card, bg=cor, width=4).pack(side=tk.LEFT, fill=tk.Y)
-
         body = tk.Frame(card, bg=bg_base, padx=10, pady=10)
         body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
         tk.Label(body, text=f"#{t['numero']}", font=("Segoe UI", 8, "bold"),
                  bg=bg_base, fg="#94a3b8", anchor="w").pack(fill=tk.X)
-
         assunto_txt = t["assunto"][:44] + ("…" if len(t["assunto"]) > 44 else "")
         tk.Label(body, text=assunto_txt, font=("Segoe UI", 9, "bold"),
-                 bg=bg_base, fg="#f1f5f9", anchor="w",
-                 wraplength=238).pack(fill=tk.X)
-
+                 bg=bg_base, fg="#f1f5f9", anchor="w", wraplength=238).pack(fill=tk.X)
         meta = tk.Frame(body, bg=bg_base)
         meta.pack(fill=tk.X, pady=(4, 0))
         tk.Label(meta, text=t["status"], font=("Segoe UI", 8),
                  bg=bg_base, fg=cor, anchor="w").pack(side=tk.LEFT)
         tk.Label(meta, text=t["criado_em"], font=("Segoe UI", 7),
                  bg=bg_base, fg="#64748b", anchor="e").pack(side=tk.RIGHT)
-
-        # Bind click + hover em todos os filhos
-        all_widgets = [card, body, meta] + body.winfo_children() + meta.winfo_children()
-
-        def on_click(_e, ticket=t):
-            self._selecionar_ticket(ticket)
-
+        all_w = [card, body, meta] + body.winfo_children() + meta.winfo_children()
+        def on_click(_e, ticket=t): self._selecionar_ticket(ticket)
         def on_enter(_e):
             if not (self._selected and self._selected["id"] == t["id"]):
-                for w in all_widgets:
-                    try:
-                        w.config(bg=bg_hvr)
-                    except Exception:
-                        pass
-
+                for w in all_w:
+                    try: w.config(bg=bg_hvr)
+                    except Exception: pass
         def on_leave(_e):
             if not (self._selected and self._selected["id"] == t["id"]):
-                for w in all_widgets:
-                    try:
-                        w.config(bg="#1e293b")
-                    except Exception:
-                        pass
-
-        for w in all_widgets:
+                for w in all_w:
+                    try: w.config(bg="#1e293b")
+                    except Exception: pass
+        for w in all_w:
             w.bind("<Button-1>", on_click)
             w.bind("<Enter>",    on_enter)
             w.bind("<Leave>",    on_leave)
 
-    # ── selecionar ticket ────────────────────────────────────
     def _selecionar_ticket(self, ticket):
         self._selected = ticket
         self.lbl_assunto.config(text=f"#{ticket['numero']}  —  {ticket['assunto']}")
         self.lbl_status_ticket.config(text=ticket["status"])
-
-        # Redesenha cards para refletir seleção
         self._render_lista(self._tickets)
-
         def fetch():
             try:
                 data = self._api_get(f"/tickets/api/agent/{ticket['id']}/")
-                self.window.after(0, lambda: self._render_historico(
-                    data.get("historico", [])))
+                self.window.after(0, lambda: self._render_historico(data.get("historico", [])))
             except Exception as ex:
                 logger.error(f"Erro ao carregar histórico: {ex}")
-
         threading.Thread(target=fetch, daemon=True).start()
 
-    # ── renderizar histórico ─────────────────────────────────
     def _render_historico(self, historico):
         self._historico = historico
-        for w in self.hist_inner.winfo_children():
-            w.destroy()
-
+        for w in self.hist_inner.winfo_children(): w.destroy()
         if not historico:
-            tk.Label(
-                self.hist_inner,
-                text="Nenhuma mensagem ainda. Seja o primeiro a responder!",
-                font=("Segoe UI", 9, "italic"),
-                bg="#f1f5f9", fg="#94a3b8",
-                pady=24,
-            ).pack()
+            tk.Label(self.hist_inner,
+                     text="Nenhuma mensagem ainda. Seja o primeiro a responder!",
+                     font=("Segoe UI", 9, "italic"), bg="#f1f5f9", fg="#94a3b8",
+                     pady=24).pack()
             return
-
-        for acao in historico:           # já vem mais recente primeiro
-            self._render_balao(acao)
-
+        for acao in historico: self._render_balao(acao)
         self.hist_canvas.update_idletasks()
-        self.hist_canvas.yview_moveto(0) # topo = mais recente
+        self.hist_canvas.yview_moveto(0)
 
     def _render_balao(self, acao):
         is_staff = acao.get("is_staff", False)
-        # Staff (suporte) → direita azul  |  cliente → esquerda branco
         anchor  = "e" if is_staff else "w"
         bg_msg  = "#1a73e8" if is_staff else "#ffffff"
         fg_msg  = "#ffffff"  if is_staff else "#1e293b"
-
         outer = tk.Frame(self.hist_inner, bg="#f1f5f9")
         outer.pack(fill=tk.X, padx=12, pady=5)
-
-        # Linha de meta (nome + hora)
         meta = tk.Frame(outer, bg="#f1f5f9")
         meta.pack(fill=tk.X)
         if is_staff:
@@ -972,35 +1198,19 @@ class ChamadosWindow:
                      bg="#f1f5f9", fg="#475569").pack(side=tk.LEFT)
             tk.Label(meta, text=acao["criado_em"], font=("Segoe UI", 7),
                      bg="#f1f5f9", fg="#94a3b8").pack(side=tk.RIGHT, padx=4)
+        tk.Label(outer, text=acao["conteudo"], font=("Segoe UI", 10),
+                 bg=bg_msg, fg=fg_msg, wraplength=520, justify=tk.LEFT,
+                 anchor="w", padx=14, pady=10, relief=tk.FLAT).pack(anchor=anchor, pady=(2, 0))
 
-        # Balão
-        bubble = tk.Label(
-            outer,
-            text=acao["conteudo"],
-            font=("Segoe UI", 10),
-            bg=bg_msg, fg=fg_msg,
-            wraplength=520,
-            justify=tk.LEFT,
-            anchor="w",
-            padx=14, pady=10,
-            relief=tk.FLAT,
-        )
-        bubble.pack(anchor=anchor, pady=(2, 0))
-
-    # ── enviar resposta ──────────────────────────────────────
     def _enviar_resposta(self):
         if not self._selected:
             ToastNotification.show(title="Aviso",
-                                   message="Selecione um chamado antes de responder.",
-                                   notif_type="warning", duration=4)
+                message="Selecione um chamado antes de responder.",
+                notif_type="warning", duration=4)
             return
-
         conteudo = self.reply_text.get("1.0", tk.END).strip()
-        if not conteudo or conteudo == self._placeholder_text:
-            return
-
+        if not conteudo or conteudo == self._placeholder_text: return
         email = self.email_var.get().strip()
-
         def send():
             try:
                 data = self._api_post(
@@ -1008,31 +1218,25 @@ class ChamadosWindow:
                     {"email": email, "conteudo": conteudo},
                 )
                 if data.get("ok"):
-                    nova_acao = data["acao"]
-                    self.window.after(0, lambda: self._append_acao(nova_acao))
+                    self.window.after(0, lambda: self._append_acao(data["acao"]))
                     self.window.after(0, self._limpar_reply)
-                    ToastNotification.show(
-                        title="Resposta enviada",
+                    ToastNotification.show(title="Resposta enviada",
                         message=f"Ticket #{self._selected['numero']} atualizado.",
                         notif_type="success", duration=4)
                 else:
                     ToastNotification.show(title="Erro",
-                                           message=data.get("error", "Erro desconhecido"),
-                                           notif_type="error", duration=5)
+                        message=data.get("error", "Erro desconhecido"),
+                        notif_type="error", duration=5)
             except Exception as ex:
                 logger.error(f"Erro ao responder: {ex}")
                 ToastNotification.show(title="Erro", message=str(ex),
                                        notif_type="error", duration=5)
-
         threading.Thread(target=send, daemon=True).start()
 
     def _append_acao(self, acao):
-        """Insere nova ação no topo sem recarregar tudo."""
         self._historico.insert(0, acao)
-        for w in self.hist_inner.winfo_children():
-            w.destroy()
-        for a in self._historico:
-            self._render_balao(a)
+        for w in self.hist_inner.winfo_children(): w.destroy()
+        for a in self._historico: self._render_balao(a)
         self.hist_canvas.update_idletasks()
         self.hist_canvas.yview_moveto(0)
 
@@ -1041,7 +1245,6 @@ class ChamadosWindow:
         self.reply_text.insert("1.0", self._placeholder_text)
         self.reply_text.config(fg="#9ca3af")
 
-    # ── abrir novo ticket ────────────────────────────────────
     def _abrir_novo_ticket(self):
         NovoTicketModal(self)
 
@@ -1063,10 +1266,9 @@ class NovoTicketModal:
         win.geometry("460x420")
         win.resizable(False, False)
         win.configure(bg="#f8fafc")
-        win.grab_set()  # modal
+        win.grab_set()
 
         pad = {"padx": 18, "pady": 3}
-
         tk.Label(win, text="Novo Chamado", font=("Segoe UI", 13, "bold"),
                  bg="#f8fafc", fg="#0f172a").pack(pady=(16, 8))
 
@@ -1076,34 +1278,22 @@ class NovoTicketModal:
 
         def entry_var():
             var = tk.StringVar()
-            e = tk.Entry(
-                win, textvariable=var,
-                font=("Segoe UI", 10), relief=tk.FLAT,
-                bd=0, highlightthickness=1,
-                highlightbackground="#d1d5db",
-                bg="#ffffff",
-            )
-            e.pack(fill=tk.X, padx=18, pady=(0, 6))
+            tk.Entry(win, textvariable=var, font=("Segoe UI", 10), relief=tk.FLAT,
+                     bd=0, highlightthickness=1, highlightbackground="#d1d5db",
+                     bg="#ffffff").pack(fill=tk.X, padx=18, pady=(0, 6))
             return var
 
         lbl("E-mail do solicitante *")
         self.email_var = entry_var()
         self.email_var.set(parent.email_var.get())
-
         lbl("Tipo do chamado (Serviço)  — opcional")
         self.tipo_var = entry_var()
-
         lbl("Assunto *")
         self.assunto_var = entry_var()
-
         lbl("Descrição *")
-        self.desc_widget = tk.Text(
-            win, height=5,
-            font=("Segoe UI", 10), relief=tk.FLAT,
-            bd=0, highlightthickness=1,
-            highlightbackground="#d1d5db",
-            bg="#ffffff", padx=8, pady=6,
-        )
+        self.desc_widget = tk.Text(win, height=5, font=("Segoe UI", 10), relief=tk.FLAT,
+                                   bd=0, highlightthickness=1, highlightbackground="#d1d5db",
+                                   bg="#ffffff", padx=8, pady=6)
         self.desc_widget.pack(fill=tk.X, padx=18, pady=(0, 10))
 
         btns = tk.Frame(win, bg="#f8fafc")
@@ -1117,44 +1307,34 @@ class NovoTicketModal:
 
     def _submit(self):
         from tkinter import messagebox
-        email    = self.email_var.get().strip()
-        tipo     = self.tipo_var.get().strip()
-        assunto  = self.assunto_var.get().strip()
+        email     = self.email_var.get().strip()
+        tipo      = self.tipo_var.get().strip()
+        assunto   = self.assunto_var.get().strip()
         descricao = self.desc_widget.get("1.0", tk.END).strip()
-
         if not email or not assunto or not descricao:
             messagebox.showerror("Campos obrigatórios",
                                  "Preencha: E-mail, Assunto e Descrição.")
             return
-
         def send():
             try:
-                data = self.parent._api_post(
-                    "/tickets/api/agent/criar/",
-                    {
-                        "email_solicitante": email,
-                        "tipo_chamado":      tipo,
-                        "assunto":           assunto,
-                        "descricao":         descricao,
-                    },
-                )
+                data = self.parent._api_post("/tickets/api/agent/criar/", {
+                    "email_solicitante": email, "tipo_chamado": tipo,
+                    "assunto": assunto, "descricao": descricao,
+                })
                 if data.get("ok"):
-                    ToastNotification.show(
-                        title="Chamado aberto!",
+                    ToastNotification.show(title="Chamado aberto!",
                         message=f"Ticket #{data['numero']} criado com sucesso.",
                         notif_type="success", duration=5)
                     self.window.after(0, self.window.destroy)
-                    # Recarrega a lista após 500ms
                     self.parent.window.after(500, self.parent._carregar_tickets)
                 else:
                     ToastNotification.show(title="Erro",
-                                           message=data.get("error", "Erro desconhecido"),
-                                           notif_type="error", duration=5)
+                        message=data.get("error", "Erro desconhecido"),
+                        notif_type="error", duration=5)
             except Exception as ex:
                 logger.error(f"NovoTicket erro: {ex}")
                 ToastNotification.show(title="Erro", message=str(ex),
                                        notif_type="error", duration=5)
-
         threading.Thread(target=send, daemon=True).start()
 
 
@@ -1197,31 +1377,24 @@ class TrayIcon:
     def _build_menu(self):
         return pystray.Menu(
             item("📊 Status",      lambda i, it: StatusWindow.open(self)),
-            item("🎫 Chamados",    lambda i, it: self._open_chamados(), default=True,),
+            item("🎫 Chamados",    lambda i, it: self._open_chamados(), default=True),
             item("⚡ Forçar Sync", lambda i, it: self._force_sync()),
             pystray.Menu.SEPARATOR,
             item("❌ Sair",        lambda i, it: self._quit()),
         )
 
     def _open_chamados(self):
-        """Busca server_url, token_hash e logged_user do agent_service via IPC."""
         status = IPCClient.get_status()
         if not status:
             logger.warning("Chamados: agent_service não respondeu via IPC")
             return
-
         server_url  = status.get("server_url", "").rstrip("/")
         token_hash  = status.get("token_hash", "")
         logged_user = status.get("logged_user", "")
-
         if not server_url or not token_hash:
-            logger.warning(
-                f"Chamados: server_url={server_url!r} "
-                f"token_hash={'presente' if token_hash else 'AUSENTE'} "
-                "— agent_service pode não ter carregado as variáveis NSSM ainda"
-            )
+            logger.warning(f"Chamados: server_url={server_url!r} "
+                           f"token_hash={'presente' if token_hash else 'AUSENTE'}")
             return
-
         ChamadosManager.open(
             server_url=server_url,
             token_hash=token_hash,
@@ -1248,22 +1421,12 @@ class TrayIcon:
             self.icon.stop()
 
     def _on_click(self, icon, event):
-        """
-        Duplo clique no ícone abre os Chamados.
-
-        pystray no Windows entrega um objeto MouseButton/HookEvent — não a
-        string "double".  Verificamos via atributo .double (pystray >= 0.19)
-        e, como fallback, pela string para outros backends (Linux/macOS).
-        Sempre executado em thread separada para não bloquear o loop do tray.
-        """
         try:
             is_double = getattr(event, "double", False)
         except Exception:
             is_double = False
-
         if not is_double and event != "double":
-            return  # clique simples — ignora
-
+            return
         threading.Thread(target=self._open_chamados, daemon=True).start()
 
     def run(self):
@@ -1320,10 +1483,10 @@ def main():
 
     if not IPCClient.is_service_running():
         logger.warning("Serviço não detectado em 127.0.0.1:7070.")
-        ToastNotification.show(
-            title="Inventory Agent",
-            message="Serviço não encontrado. Verifique se o serviço Windows está ativo.",
-            notif_type="error", duration=8)
+        # ToastNotification.show(
+        #     title="Inventory Agent",
+        #     message="Serviço não encontrado. Verifique se o serviço Windows está ativo.",
+        #     notif_type="error", duration=8)
 
     TrayIcon().run()
 
