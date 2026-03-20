@@ -114,7 +114,6 @@ class AtivoListView(ClienteQuerySetMixin, LoginRequiredMixin, ListView):
     def get_queryset(self):
         queryset = super().get_queryset()
 
-        # Filtros
         nome = self.request.GET.get('nome')
         etiqueta = self.request.GET.get('etiqueta')
         categoria = self.request.GET.get('categoria')
@@ -153,7 +152,6 @@ class AtivoCreateView(ClienteCreateMixin, LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
-        # Atualizar histórico com usuário
         historico = AtivoHistorico.objects.filter(
             ativo=self.object,
             usuario__isnull=True
@@ -174,6 +172,9 @@ class AtivoDetailView(ClienteObjectMixin, LoginRequiredMixin, DetailView):
         context['utilizadores'] = self.object.utilizadores.all()
         context['anexos'] = self.object.anexos.all()
         context['historico'] = self.object.historico.all()
+        # CORREÇÃO: forms necessários para renderizar os campos no template
+        context['utilizador_form'] = AtivoUtilizadorForm()
+        context['anexo_form'] = AtivoAnexoForm()
         return context
 
 
@@ -196,7 +197,6 @@ class AtivoUpdateView(ClienteObjectMixin, LoginRequiredMixin, UpdateView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
-        # Atualizar históricos sem usuário
         AtivoHistorico.objects.filter(
             ativo=self.object,
             usuario__isnull=True
@@ -227,7 +227,6 @@ class AtivoUtilizadorCreateView(LoginRequiredMixin, View):
             utilizador.ativo = ativo
             utilizador.save()
 
-            # Atualizar histórico
             AtivoHistorico.objects.create(
                 ativo=ativo,
                 descricao=f"Utilizador {utilizador.usuario.get_full_name() or utilizador.usuario.username} atribuído",
@@ -250,7 +249,6 @@ class AtivoUtilizadorDeleteView(LoginRequiredMixin, View):
         ativo = utilizador.ativo
         usuario_nome = utilizador.usuario.get_full_name() or utilizador.usuario.username
 
-        # Criar histórico
         AtivoHistorico.objects.create(
             ativo=ativo,
             descricao=f"Utilizador {usuario_nome} removido",
@@ -273,7 +271,6 @@ class AtivoAnexoCreateView(LoginRequiredMixin, View):
             anexo.ativo = ativo
             anexo.save()
 
-            # Criar histórico
             AtivoHistorico.objects.create(
                 ativo=ativo,
                 descricao=f"Anexo adicionado: {anexo.titulo}",
@@ -296,7 +293,6 @@ class AtivoAnexoDeleteView(LoginRequiredMixin, View):
         ativo = anexo.ativo
         titulo = anexo.titulo
 
-        # Criar histórico
         AtivoHistorico.objects.create(
             ativo=ativo,
             descricao=f"Anexo removido: {titulo}",
