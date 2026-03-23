@@ -7,8 +7,6 @@ import hashlib
 from datetime import datetime
 from django.contrib.postgres.fields import JSONField
 
-from apps.inventory.signals import update_machine_online_status
-
 
 class MachineGroup(models.Model):
     name = models.CharField("Nome do Grupo", max_length=100)
