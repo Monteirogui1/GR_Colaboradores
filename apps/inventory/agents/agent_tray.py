@@ -1399,6 +1399,7 @@ class TrayIcon:
             server_url=server_url,
             token_hash=token_hash,
             logged_user=logged_user,
+            machine_name=status.get("machine", ""),
         )
 
     def _force_sync(self):

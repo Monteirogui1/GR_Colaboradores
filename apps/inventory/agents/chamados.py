@@ -112,13 +112,16 @@ def _pr(prio):
 # _ApiClient
 # ═════════════════════════════════════════════════════════════════════════════
 class _ApiClient:
-    def __init__(self, server_url: str, token_hash: str):
+    def __init__(self, server_url: str, token_hash: str, machine_name: str = ""):
         self._base = server_url.rstrip("/")
         self._sess = requests.Session()
-        self._sess.headers.update({
+        headers = {
             "Authorization": f"Bearer {token_hash}",
-            "Content-Type":  "application/json",
-        })
+            "Content-Type": "application/json",
+        }
+        if machine_name:
+            headers["X-Machine-Name"] = machine_name
+        self._sess.headers.update(headers)
         self._sess.verify = False
 
     def get(self, path, **params):
@@ -349,8 +352,8 @@ class _NovoTicketModal:
 # ═════════════════════════════════════════════════════════════════════════════
 class _ChamadosWindow:
 
-    def __init__(self, server_url: str, token_hash: str, logged_user: str = ""):
-        self._api         = _ApiClient(server_url, token_hash)
+    def __init__(self, server_url: str, token_hash: str, logged_user: str = "", machine_name: str = ""):
+        self._api         = _ApiClient(server_url, token_hash, machine_name)
         self._logged_user = logged_user
         self._email       = _EmailStore.get(logged_user)
         self._tickets     = []
@@ -1117,12 +1120,12 @@ class ChamadosManager:
 
     @classmethod
     def open(cls, server_url: str, token_hash: str,
-             logged_user: str = "") -> None:
+             logged_user: str = "", machine_name: str = "") -> None:
         with cls._lock:
             if cls._instance and cls._instance.alive:
                 cls._instance.lift()
                 return
-            cls._instance = _ChamadosWindow(server_url, token_hash, logged_user)
+            cls._instance = _ChamadosWindow(server_url, token_hash, logged_user, machine_name)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
