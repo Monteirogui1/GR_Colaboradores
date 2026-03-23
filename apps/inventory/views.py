@@ -6,6 +6,8 @@ from datetime import timedelta
 import datetime
 import logging
 import hashlib
+
+from django.conf import settings
 from django.views import View
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -507,10 +509,15 @@ class MachineListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(ip_address__icontains=ip_address)
         if group:
             queryset = queryset.filter(group_id=group)
-        if is_online == 'true':
-            queryset = queryset.filter(is_online=True)
-        elif is_online == 'false':
-            queryset = queryset.filter(is_online=False)
+        if is_online in ('true', 'false'):
+            timeout = getattr(settings, 'MACHINE_OFFLINE_TIMEOUT', 15)
+            threshold = timezone.now() - timedelta(minutes=timeout)
+            if is_online == 'true':
+                queryset = queryset.filter(last_seen__gte=threshold)
+            else:
+                queryset = queryset.filter(
+                    Q(last_seen__lt=threshold) | Q(last_seen__isnull=True)
+                )
 
         return queryset.order_by('-last_seen')
 

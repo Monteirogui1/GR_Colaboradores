@@ -23,5 +23,7 @@ def notification_created(sender, instance, created, **kwargs):
 
 
 @receiver(post_save, sender=Machine)
-def update_machine_online_status(sender, instance, **kwargs):
-    instance.update_online_status()
+def sync_online_status(sender, instance, update_fields, **kwargs):
+    # Só dispara quando last_seen foi o campo salvo
+    if update_fields and 'last_seen' in update_fields:
+        instance.update_online_status()

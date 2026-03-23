@@ -7,6 +7,9 @@ import hashlib
 from datetime import datetime
 from django.contrib.postgres.fields import JSONField
 
+from apps.inventory.signals import update_machine_online_status
+
+
 class MachineGroup(models.Model):
     name = models.CharField("Nome do Grupo", max_length=100)
     description = models.TextField("Descrição", blank=True)
@@ -66,6 +69,12 @@ class Machine(models.Model):
         verbose_name = "Máquina"
         verbose_name_plural = "Máquinas"
 
+    def update_online_status(self):
+        new_status = self.is_currently_online
+        if self.is_online != new_status:
+            self.is_online = new_status
+            self.save(update_fields=['is_online'])
+
     @property
     def is_currently_online(self) -> bool:
         """Calcula status em tempo real, sem depender do campo is_online."""
@@ -73,12 +82,6 @@ class Machine(models.Model):
             return False
         timeout = getattr(settings, 'MACHINE_OFFLINE_TIMEOUT', 15)
         return (timezone.now() - self.last_seen).total_seconds() < timeout * 60
-
-    def update_online_status(self):
-        new_status = self.is_currently_online
-        if self.is_online != new_status:
-            self.is_online = new_status
-            self.save(update_fields=['is_online'])
 
 
 class BlockedSite(models.Model):
