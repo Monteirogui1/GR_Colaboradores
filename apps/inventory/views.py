@@ -138,6 +138,21 @@ class AgentTokenRequiredMixin:
             return None, JsonResponse(error, status=404)
 
 
+def sanitize_hw(value, max_length=None):
+    """Remove caracteres nulos e trunca strings — necessário para PostgreSQL."""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        import json as _json
+        value = _json.loads(_json.dumps(value).replace('\\\\u0000', '').replace('\\x00', ''))
+        return value
+    if isinstance(value, str):
+        value = value.replace('\\x00', '').replace('\\u0000', '')
+        if max_length:
+            value = value[:max_length]
+    return value
+
+
 def parse_wmi_date(wmi_date_str):
     """
     Converte formato de data WMI/JSON do PowerShell/Python
@@ -204,39 +219,31 @@ class MachineCheckinView(View):
                     'ip_address': ip,
                     'is_online': True,
                     'last_seen': timezone.now(),
-
                     'loggedUser': hw.get('logged_user'),
-
-                    'tpm': hw.get('tpm'),
-
-                    'manufacturer': hw.get('manufacturer'),
-                    'model': hw.get('model'),
-
-                    'serial_number': hw.get('serial_number'),
-                    'bios_version': hw.get('bios_version'),
-
-                    'mac_address': hw.get('mac_address'),
+                    'tpm': sanitize_hw(hw.get('tpm')),
+                    'manufacturer': sanitize_hw(hw.get('manufacturer'), max_length=100),
+                    'model': sanitize_hw(hw.get('model'), max_length=100),
+                    'serial_number': sanitize_hw(hw.get('serial_number'), max_length=100),
+                    'bios_version': sanitize_hw(hw.get('bios_version'), max_length=100),
+                    'mac_address': sanitize_hw(hw.get('mac_address'), max_length=100),
                     'total_memory_slots': hw.get('total_memory_slots'),
                     'populated_memory_slots': hw.get('populated_memory_slots'),
-                    'memory_modules': hw.get('memory_modules'),
-
-                    'os_caption': hw.get('os_caption'),
-                    'os_architecture': hw.get('os_architecture'),
+                    'memory_modules': sanitize_hw(hw.get('memory_modules')),
+                    'os_caption': sanitize_hw(hw.get('os_caption'), max_length=100),
+                    'os_architecture': sanitize_hw(hw.get('os_architecture'), max_length=50),
                     'os_build': hw.get('os_build'),
-                    'install_date': install_date,
-                    'last_boot': last_boot,
+                    'install_date': sanitize_hw(install_date, max_length=30),
+                    'last_boot': sanitize_hw(last_boot, max_length=30),
                     'uptime_days': hw.get('uptime_days'),
-
-                    'cpu': hw.get('cpu'),
+                    'cpu': sanitize_hw(hw.get('cpu'), max_length=100),
                     'ram_gb': hw.get('ram_gb'),
                     'disk_space_gb': hw.get('disk_space_gb'),
                     'disk_free_gb': hw.get('disk_free_gb'),
-
-                    'network_info': hw.get('network_adapters'),
-                    'gpu_name': hw.get('gpu_name'),
-                    'gpu_driver': hw.get('gpu_driver'),
-                    'antivirus_name': hw.get('antivirus_name'),
-                    'av_state': str(hw.get('av_state')),
+                    'network_info': sanitize_hw(hw.get('network_adapters')),
+                    'gpu_name': sanitize_hw(hw.get('gpu_name'), max_length=100),
+                    'gpu_driver': sanitize_hw(hw.get('gpu_driver'), max_length=100),
+                    'antivirus_name': sanitize_hw(hw.get('antivirus_name'), max_length=100),
+                    'av_state': sanitize_hw(str(hw.get('av_state')), max_length=50),
                 },
             )
             return JsonResponse({'status': 'ok', 'machine_id': machine.id})

@@ -89,5 +89,25 @@
             {% endfor %}
         </tbody>
     </table>
+    <!-- Paginação -->
+    {% if page_obj.has_other_pages %}
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?{% querystring page=1 %}" class="btn btn-secondary btn-sm">&laquo; Primeira</a>
+            <a href="?{% querystring page=page_obj.previous_page_number %}" class="btn btn-secondary btn-sm">Anterior</a>
+        {% endif %}
+
+        <span class="page-info">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+            &nbsp;({{ page_obj.paginator.count }} registros)
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?{% querystring page=page_obj.next_page_number %}" class="btn btn-secondary btn-sm">Próxima</a>
+            <a href="?{% querystring page=page_obj.paginator.num_pages %}" class="btn btn-secondary btn-sm">Última &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
 </div>
 {% endblock %}
