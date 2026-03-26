@@ -138,34 +138,6 @@ class AgentTokenRequiredMixin:
             return None, JsonResponse(error, status=404)
 
 
-def sanitize_hw(value, max_length=None):
-    if value is None:
-        return None
-    if isinstance(value, dict):
-        raw = json.dumps(value, ensure_ascii=False)
-        raw = raw.replace('\x00', '')  # byte nulo real
-        value = json.loads(raw)
-        return value
-    if isinstance(value, list):
-        raw = json.dumps(value, ensure_ascii=False)
-        raw = raw.replace('\x00', '')
-        return json.loads(raw)
-    if isinstance(value, str):
-        value = value.replace('\x00', '')
-        if max_length:
-            value = value[:max_length]
-    return value
-
-def deep_clean(obj):
-    """Remove null bytes de qualquer estrutura de dados recursivamente."""
-    if isinstance(obj, str):
-        return obj.replace('\x00', '').replace('\u0000', '')
-    if isinstance(obj, dict):
-        return {deep_clean(k): deep_clean(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [deep_clean(i) for i in obj]
-    return obj
-
 def parse_wmi_date(wmi_date_str):
     """
     Converte formato de data WMI/JSON do PowerShell/Python
@@ -204,7 +176,6 @@ class MachineCheckinView(View):
         try:
             raw = request.body.decode('utf-8')
             data = json.loads(raw)
-            data = deep_clean(data)
             hostname = data['hostname']
             ip = data.get('ip', '')
             hw = data.get('hardware', {})
@@ -218,6 +189,7 @@ class MachineCheckinView(View):
             if agent_token.is_expired():
                 return JsonResponse({'error': 'Token expirado'}, status=401)
 
+            # Registra/atualiza uso do token nesta máquina (multi-máquina)
             AgentTokenUsage.objects.update_or_create(
                 agent_token=agent_token,
                 machine_name=hostname,
@@ -232,31 +204,39 @@ class MachineCheckinView(View):
                     'ip_address': ip,
                     'is_online': True,
                     'last_seen': timezone.now(),
+
                     'loggedUser': hw.get('logged_user'),
+
                     'tpm': hw.get('tpm'),
-                    'manufacturer': hw.get('manufacturer', '')[:100],
-                    'model': hw.get('model', '')[:100],
-                    'serial_number': hw.get('serial_number', '')[:100],
-                    'bios_version': hw.get('bios_version', '')[:100],
-                    'mac_address': hw.get('mac_address', '')[:17],
+
+                    'manufacturer': hw.get('manufacturer'),
+                    'model': hw.get('model'),
+
+                    'serial_number': hw.get('serial_number'),
+                    'bios_version': hw.get('bios_version'),
+
+                    'mac_address': hw.get('mac_address'),
                     'total_memory_slots': hw.get('total_memory_slots'),
                     'populated_memory_slots': hw.get('populated_memory_slots'),
                     'memory_modules': hw.get('memory_modules'),
-                    'os_caption': hw.get('os_caption', '')[:100],
-                    'os_architecture': hw.get('os_architecture', '')[:50],
+
+                    'os_caption': hw.get('os_caption'),
+                    'os_architecture': hw.get('os_architecture'),
                     'os_build': hw.get('os_build'),
-                    'install_date': install_date.strftime('%Y-%m-%d %H:%M:%S') if install_date else None,
-                    'last_boot': last_boot.strftime('%Y-%m-%d %H:%M:%S') if last_boot else None,
+                    'install_date': install_date,
+                    'last_boot': last_boot,
                     'uptime_days': hw.get('uptime_days'),
-                    'cpu': hw.get('cpu', '')[:100],
+
+                    'cpu': hw.get('cpu'),
                     'ram_gb': hw.get('ram_gb'),
                     'disk_space_gb': hw.get('disk_space_gb'),
                     'disk_free_gb': hw.get('disk_free_gb'),
+
                     'network_info': hw.get('network_adapters'),
-                    'gpu_name': hw.get('gpu_name', '')[:100],
-                    'gpu_driver': hw.get('gpu_driver', '')[:100],
-                    'antivirus_name': hw.get('antivirus_name', '')[:100],
-                    'av_state': str(hw.get('av_state', ''))[:50],
+                    'gpu_name': hw.get('gpu_name'),
+                    'gpu_driver': hw.get('gpu_driver'),
+                    'antivirus_name': hw.get('antivirus_name'),
+                    'av_state': str(hw.get('av_state')),
                 },
             )
             return JsonResponse({'status': 'ok', 'machine_id': machine.id})
