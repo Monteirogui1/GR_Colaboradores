@@ -41,8 +41,8 @@ class Machine(models.Model):
     os_caption      = models.CharField("SO Caption", max_length=200, null=True, blank=True)
     os_architecture = models.CharField("Arquitetura SO", max_length=50, null=True, blank=True)
     os_build        = models.CharField("Build SO", max_length=20, null=True, blank=True)
-    install_date    = models.CharField("Instalação SO", max_length=30, null=True, blank=True)
-    last_boot       = models.CharField("Último Boot", max_length=30, null=True, blank=True)
+    install_date    = models.CharField("Instalação SO", max_length=50, null=True, blank=True)
+    last_boot       = models.CharField("Último Boot", max_length=50, null=True, blank=True)
     uptime_days     = models.FloatField("Uptime (dias)", null=True, blank=True)
 
     cpu             = models.CharField("CPU", max_length=200, null=True, blank=True)

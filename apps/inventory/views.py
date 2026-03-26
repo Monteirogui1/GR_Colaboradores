@@ -139,15 +139,16 @@ class AgentTokenRequiredMixin:
 
 
 def sanitize_hw(value, max_length=None):
-    """Remove caracteres nulos e trunca strings — necessário para PostgreSQL."""
     if value is None:
         return None
     if isinstance(value, dict):
-        import json as _json
-        value = _json.loads(_json.dumps(value).replace('\\\\u0000', '').replace('\\x00', ''))
+        # Serializa, remove o byte nulo real, deserializa
+        raw = json.dumps(value, ensure_ascii=False)
+        raw = raw.replace('\x00', '')   # remove o null byte real
+        value = json.loads(raw)
         return value
     if isinstance(value, str):
-        value = value.replace('\\x00', '').replace('\\u0000', '')
+        value = value.replace('\x00', '')  # byte nulo real, não representação textual
         if max_length:
             value = value[:max_length]
     return value
