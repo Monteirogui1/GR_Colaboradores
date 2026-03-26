@@ -156,6 +156,15 @@ def sanitize_hw(value, max_length=None):
             value = value[:max_length]
     return value
 
+def deep_clean(obj):
+    """Remove null bytes de qualquer estrutura de dados recursivamente."""
+    if isinstance(obj, str):
+        return obj.replace('\x00', '').replace('\u0000', '')
+    if isinstance(obj, dict):
+        return {deep_clean(k): deep_clean(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [deep_clean(i) for i in obj]
+    return obj
 
 def parse_wmi_date(wmi_date_str):
     """
@@ -195,6 +204,7 @@ class MachineCheckinView(View):
         try:
             raw = request.body.decode('utf-8')
             data = json.loads(raw)
+            data = deep_clean(data)
             hostname = data['hostname']
             ip = data.get('ip', '')
             hw = data.get('hardware', {})
