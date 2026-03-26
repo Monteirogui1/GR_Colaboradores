@@ -142,13 +142,16 @@ def sanitize_hw(value, max_length=None):
     if value is None:
         return None
     if isinstance(value, dict):
-        # Serializa, remove o byte nulo real, deserializa
         raw = json.dumps(value, ensure_ascii=False)
-        raw = raw.replace('\x00', '')   # remove o null byte real
+        raw = raw.replace('\x00', '')  # byte nulo real
         value = json.loads(raw)
         return value
+    if isinstance(value, list):
+        raw = json.dumps(value, ensure_ascii=False)
+        raw = raw.replace('\x00', '')
+        return json.loads(raw)
     if isinstance(value, str):
-        value = value.replace('\x00', '')  # byte nulo real, não representação textual
+        value = value.replace('\x00', '')
         if max_length:
             value = value[:max_length]
     return value
