@@ -1,6 +1,6 @@
+import os
 import ctypes
 from uuid import UUID
-import os
 import sys
 import time
 import json
@@ -388,8 +388,9 @@ _file_buffers_lock           = threading.Lock()
 
 
 class ScreenTrack:
-    _monitor_index = 1
-    _aiortc_base = None
+    _monitor_index  = 1
+    _aiortc_base    = None
+    _switch_lock    = threading.Lock()
 
     @classmethod
     def _get_base(cls):
@@ -405,30 +406,58 @@ class ScreenTrack:
             "recv":     cls._recv_impl,
             "__init__": cls._init_impl,
         })
-        instance = object.__new__(DynTrack)
-        return instance
+        return object.__new__(DynTrack)
 
     @staticmethod
     def _init_impl(self):
         from aiortc.mediastreams import VideoStreamTrack
         VideoStreamTrack.__init__(self)
+        self._sct = None
+        self._monitor = None
+        self._current_idx = None
 
     @staticmethod
     async def _recv_impl(self):
-        if not hasattr(self, "_sct"):
+        # FIX: inicializa mss uma vez por instância
+        if self._sct is None:
             self._sct = mss.mss()
-        idx = ScreenTrack._monitor_index
-        monitors = self._sct.monitors
-        if idx < 1 or idx >= len(monitors):
-            idx = 1
-        self._monitor = monitors[idx]
+
+        # Troca atômica de monitor
+        target_idx = ScreenTrack._monitor_index
+        if self._current_idx != target_idx:
+            monitors = self._sct.monitors
+            idx = target_idx if 1 <= target_idx < len(monitors) else 1
+            self._monitor = monitors[idx]
+            self._current_idx = idx
+
         pts, time_base = await self.next_timestamp()
         img = self._sct.grab(self._monitor)
-        frame = av.VideoFrame.from_ndarray(np.array(img), format="bgra")
+        arr = np.array(img)  # BGRA
+
+        # FIX: dimensões pares obrigatórias para yuv420p
+        h, w = arr.shape[:2]
+        h_e, w_e = (h if h % 2 == 0 else h - 1), (w if w % 2 == 0 else w - 1)
+        if h_e != h or w_e != w:
+            arr = arr[:h_e, :w_e]
+
+        frame = av.VideoFrame.from_ndarray(arr, format="bgra")
+        frame = frame.reformat(format="yuv420p", width=w_e, height=h_e)
         frame.pts = pts
         frame.time_base = time_base
         return frame
 
+def _rank_codecs_service(caps) -> list:
+    """VP8 primeiro — software puro, funciona em qualquer CPU."""
+    vp8  = [c for c in caps.codecs if "vp8"  in c.mimeType.lower()]
+    vp9  = [c for c in caps.codecs if "vp9"  in c.mimeType.lower()]
+    h264 = [c for c in caps.codecs if "h264" in c.mimeType.lower()]
+    ranked = vp8 + vp9 + h264
+    if ranked:
+        logger.info(
+            f"WebRTC codecs: VP8={len(vp8)} VP9={len(vp9)} H264={len(h264)} | "
+            f"usando: {ranked[0].mimeType}"
+        )
+    return ranked
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Screen Lock
@@ -693,18 +722,16 @@ def _handle_webrtc_offer(body: dict) -> dict:
         pc    = RTCPeerConnection()
         track = ScreenTrack()
         track.__init__()
+
         try:
-            caps        = RTCRtpSender.getCapabilities("video")
-            h264        = [c for c in caps.codecs if "h264" in c.mimeType.lower()]
+            caps    = RTCRtpSender.getCapabilities("video")
+            ranked  = _rank_codecs_service(caps)   # VP8 > VP9 > H264
             transceiver = pc.addTransceiver(track, direction="sendonly")
-            if h264:
-                transceiver.setCodecPreferences(h264)
+            if ranked:
+                transceiver.setCodecPreferences(ranked)
         except Exception as e:
             logger.warning(f"WebRTC: addTransceiver falhou ({e}), usando addTrack")
-            try:
-                pc.addTrack(track)
-            except Exception as e2:
-                raise e2
+            pc.addTrack(track)
 
         send_queue: asyncio.Queue = asyncio.Queue()
         with _webrtc_dc_lock:

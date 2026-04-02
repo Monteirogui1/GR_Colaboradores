@@ -11,6 +11,16 @@ from apps.authentication.models import User
 # ==================== CLASSIFICAÇÕES ====================
 
 class CategoriaForm(forms.ModelForm):
+    # Campo virtual para selecionar urgências permitidas
+    urgencias_permitidas_sel = forms.ModelMultipleChoiceField(
+        queryset=Urgencia.objects.none(),
+        required=False,
+        label="Urgências permitidas",
+        widget=forms.CheckboxSelectMultiple(),
+        help_text="Selecione as urgências válidas para esta categoria. "
+                  "Deixe em branco para permitir todas."
+    )
+
     class Meta:
         model = Categoria
         fields = ['nome', 'descricao', 'disponivel_para', 'ativo']
@@ -20,6 +30,43 @@ class CategoriaForm(forms.ModelForm):
             'disponivel_para': forms.Select(attrs={'class': 'form-control'}),
             'ativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        usuario = kwargs.pop('usuario', None)
+        super().__init__(*args, **kwargs)
+
+        if usuario:
+            self.fields['urgencias_permitidas_sel'].queryset = Urgencia.objects.filter(
+                cliente=usuario, ativo=True
+            ).order_by('nivel')
+
+        # Pré-preencher com vínculos existentes (modo edição)
+        if self.instance.pk:
+            urgencias_ids = self.instance.urgencias_permitidas.values_list(
+                'urgencia_id', flat=True
+            )
+            self.fields['urgencias_permitidas_sel'].initial = list(urgencias_ids)
+
+    def save(self, commit=True):
+        instance = super().save(commit=commit)
+        if commit:
+            self._salvar_urgencias(instance)
+        return instance
+
+    def _salvar_urgencias(self, instance):
+        """Sincroniza os vínculos CategoriaUrgencia"""
+        from .models import CategoriaUrgencia
+        urgencias_selecionadas = self.cleaned_data.get('urgencias_permitidas_sel', [])
+
+        # Remove vínculos antigos
+        CategoriaUrgencia.objects.filter(categoria=instance).delete()
+
+        # Cria novos vínculos
+        for urgencia in urgencias_selecionadas:
+            CategoriaUrgencia.objects.create(
+                categoria=instance,
+                urgencia=urgencia
+            )
 
 
 class UrgenciaForm(forms.ModelForm):
@@ -59,12 +106,21 @@ class StatusForm(forms.ModelForm):
 class JustificativaForm(forms.ModelForm):
     class Meta:
         model = Justificativa
-        fields = ['nome', 'descricao', 'ativo']
+        fields = ['nome', 'descricao', 'status_vinculados', 'ativo']
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control'}),
             'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'status_vinculados': forms.CheckboxSelectMultiple(),
             'ativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        usuario = kwargs.pop('usuario', None)
+        super().__init__(*args, **kwargs)
+        if usuario:
+            self.fields['status_vinculados'].queryset = Status.objects.filter(
+                cliente=usuario, ativo=True
+            )
 
 
 class ServicoForm(forms.ModelForm):
@@ -192,16 +248,10 @@ class TicketForm(forms.ModelForm):
             'justificativa': forms.Select(attrs={'class': 'form-control'}),
             'responsavel': forms.Select(attrs={'class': 'form-control'}),
             'assunto': forms.TextInput(attrs={'class': 'form-control'}),
-            'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 5,}),
+            'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
             'tipo_ticket': forms.Select(attrs={'class': 'form-control'}),
-            'tags': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'tag1, tag2, tag3'
-            }),
-            'cc': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'email1@example.com, email2@example.com'
-            }),
+            'tags': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'tag1, tag2, tag3'}),
+            'cc': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'email1@, email2@'}),
             'ticket_pai': forms.Select(attrs={'class': 'form-control'}),
         }
 
@@ -209,23 +259,67 @@ class TicketForm(forms.ModelForm):
         self.usuario = kwargs.pop('usuario', None)
         super().__init__(*args, **kwargs)
 
-        # Filtra urgências baseado na categoria selecionada
-        if self.instance.pk and self.instance.categoria:
-            urgencias_ids = self.instance.categoria.urgencias_permitidas.values_list('urgencia_id', flat=True)
-            self.fields['urgencia'].queryset = Urgencia.objects.filter(id__in=urgencias_ids, ativo=True)
+        # Determinar categoria atual: vem do POST, ou da instância (edição)
+        categoria_id = None
+
+        if self.data.get('categoria'):
+            # Formulário submetido (POST) — usa valor enviado
+            try:
+                categoria_id = int(self.data['categoria'])
+            except (ValueError, TypeError):
+                categoria_id = None
+        elif self.instance.pk and self.instance.categoria_id:
+            # Modo edição sem POST — usa categoria salva
+            categoria_id = self.instance.categoria_id
+
+        if categoria_id:
+            try:
+                from .models import Categoria as CategoriaModel
+                cat = CategoriaModel.objects.get(pk=categoria_id)
+                urgencias_ids = cat.urgencias_permitidas.values_list('urgencia_id', flat=True)
+                if urgencias_ids:
+                    self.fields['urgencia'].queryset = Urgencia.objects.filter(
+                        id__in=urgencias_ids, ativo=True
+                    )
+                else:
+                    # Sem restrição: todas as urgências do cliente
+                    if self.usuario:
+                        self.fields['urgencia'].queryset = Urgencia.objects.filter(
+                            cliente=self.usuario, ativo=True
+                        )
+            except Exception:
+                pass
+        else:
+            # Sem categoria selecionada → urgências desabilitadas ou todas
+            if self.usuario:
+                self.fields['urgencia'].queryset = Urgencia.objects.filter(
+                    cliente=self.usuario, ativo=True
+                )
 
         # Configura obrigatoriedade de justificativa
-        if self.instance.pk and self.instance.status and self.instance.status.requer_justificativa:
-            self.fields['justificativa'].required = True
+        status_id = None
+        if self.data.get('status'):
+            try:
+                status_id = int(self.data['status'])
+            except (ValueError, TypeError):
+                pass
+        elif self.instance.pk and self.instance.status_id:
+            status_id = self.instance.status_id
+
+        if status_id:
+            try:
+                from .models import Status as StatusModel
+                st = StatusModel.objects.get(pk=status_id)
+                self.fields['justificativa'].required = st.requer_justificativa
+            except Exception:
+                self.fields['justificativa'].required = False
         else:
             self.fields['justificativa'].required = False
 
-        # Filtra dados por cliente se usuario fornecido
+        # Filtra dados por cliente
         if self.usuario:
-            cliente = self.usuario if self.usuario.is_staff else self.usuario
-
+            cliente = self.usuario
             self.fields['categoria'].queryset = Categoria.objects.filter(cliente=cliente, ativo=True)
-            self.fields['urgencia'].queryset = Urgencia.objects.filter(cliente=cliente, ativo=True)
             self.fields['status'].queryset = Status.objects.filter(cliente=cliente, ativo=True)
             self.fields['servico'].queryset = Servico.objects.filter(cliente=cliente, ativo=True)
             self.fields['justificativa'].queryset = Justificativa.objects.filter(cliente=cliente, ativo=True)
@@ -234,8 +328,6 @@ class TicketForm(forms.ModelForm):
             self.fields.pop('machine', None)
         else:
             from apps.inventory.models import Machine
-            from django.db.models import Q
-            cliente = self.usuario
             self.fields['machine'].queryset = Machine.objects.all()
             self.fields['machine'].required = False
             self.fields['machine'].label = "Máquina de origem"
@@ -251,13 +343,15 @@ class TicketForm(forms.ModelForm):
         if categoria and urgencia:
             if categoria.urgencias_permitidas.exists():
                 if not categoria.urgencias_permitidas.filter(urgencia=urgencia).exists():
-                    raise ValidationError(
+                    self.add_error(
+                        'urgencia',
                         f"A urgência '{urgencia}' não é permitida para a categoria '{categoria}'"
                     )
 
         # Valida justificativa obrigatória
         if status and status.requer_justificativa and not justificativa:
-            raise ValidationError(
+            self.add_error(
+                'justificativa',
                 f"O status '{status}' requer uma justificativa"
             )
 

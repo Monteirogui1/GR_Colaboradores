@@ -9,12 +9,12 @@
     <div class="detail-card">
         <h2>Lista</h2>
         <div class="detail-content" style="padding: 0;">
-            {% if justificativas or justificativa_list %}
+            {% if justificativa or justificativas %}
                 <div class="table-responsive">
                     <table class="table">
                         <thead><tr><th>Nome</th><th>Status</th><th>Ações</th></tr></thead>
                         <tbody>
-                            {% for obj in justificativas|default:justificativa_list %}
+                            {% for obj in justificativas|default:justificativas %}
                             <tr>
                                 <td><strong>{{ obj.nome }}</strong></td>
                                 <td><span class="badge" style="background-color: {% if obj.ativo %}#28a745{% else %}#6c757d{% endif %}; color: white;">{% if obj.ativo %}Ativo{% else %}Inativo{% endif %}</span></td>

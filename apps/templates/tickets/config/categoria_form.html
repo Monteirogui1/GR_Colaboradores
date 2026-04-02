@@ -45,6 +45,33 @@
                 </div>
             </div>
         </div>
+        <div class="detail-card">
+            <h2>Urgências permitidas</h2>
+            <p class="form-hint" style="margin-bottom: 12px;">
+                Selecione as urgências que podem ser usadas com esta categoria.
+                Se nenhuma for selecionada, todas as urgências estarão disponíveis.
+            </p>
+
+            {% if form.urgencias_permitidas_sel.field.queryset %}
+                <div class="form-group">
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                        {% for checkbox in form.urgencias_permitidas_sel %}
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            {{ checkbox.tag }}
+                            {{ checkbox.choice_label }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% if form.urgencias_permitidas_sel.errors %}
+                        <div class="text-danger">{{ form.urgencias_permitidas_sel.errors }}</div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <p class="text-muted">Nenhuma urgência cadastrada ainda.
+                    <a href="{% url 'tickets:urgencia_create' %}">Cadastrar urgência</a>
+                </p>
+            {% endif %}
+        </div>
 
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Salvar</button>

@@ -104,8 +104,7 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
 #vobadge{position:absolute;top:10px;right:10px;display:none;align-items:center;gap:6px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.28);border-radius:20px;padding:4px 12px;z-index:15;font-size:9px;color:var(--wrn);letter-spacing:.1em;text-transform:uppercase;}
 #vobadge.show{display:flex;}
 
-/* ── SCREEN LOCK OVERLAY (na máquina remota, mostra no stream) ── */
-/* Banner de aviso local para o operador */
+/* ── SCREEN LOCK OVERLAY ── */
 #lockbadge{
   position:absolute;top:10px;left:50%;transform:translateX(-50%);
   display:none;align-items:center;gap:8px;
@@ -349,7 +348,6 @@ body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color
     <div id="vobadge">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/></svg>SOMENTE VISUALIZAÇÃO
     </div>
-    <!-- Badge de tela bloqueada (visível para o operador) -->
     <div id="lockbadge">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><rect x="4" y="7" width="8" height="7" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>
       TELA DO USUÁRIO BLOQUEADA
@@ -453,6 +451,12 @@ var paused = false, viewOnly = false, isSelf = false;
 var screenLocked = false;
 var destMode = 'explorer', explorerPath = '';
 var _monitors = [];
+var _lastIceServers = [];       // FIX P11: preserva ICE servers para reconexão
+var _mouseDown = false;         // FIX P4:  detecta drag para suprimir mc falso
+var _mouseMoved = false;        // FIX P4:  idem
+var _remoteClipboard = '';      // CLIP-B1: último clipboard recebido da máquina remota
+var _clipApiAvailable = (typeof navigator.clipboard !== 'undefined' && typeof navigator.clipboard.readText === 'function');
+var _inVideoFocus = false;      // CLIP-B2: true enquanto o usuário está interagindo com o vídeo
 
 // ═══════════════════════════════════════
 // HELPERS
@@ -539,27 +543,20 @@ function resumeFromSelf(){ isSelf=false; closeSelfBar(); setVO(false); toast('In
 
 // ═══════════════════════════════════════
 // BLOQUEIO DE TELA DO USUÁRIO REMOTO
-// Envia comando para o agente exibir uma
-// tela preta cobrindo o desktop do usuário.
-// O operador continua vendo e controlando.
 // ═══════════════════════════════════════
 function toggleScreenLock(){
   screenLocked = !screenLocked;
   send({ t: screenLocked ? 'screen_lock' : 'screen_unlock' });
-
   var btn = $('btnlock');
   var lbl = $('locklbl');
   var badge = $('lockbadge');
-
   if(screenLocked){
-    btn.classList.add('on');
-    lbl.textContent = 'DESBLOQUEAR';
+    btn.classList.add('on'); lbl.textContent = 'DESBLOQUEAR';
     badge.classList.add('show');
     toast('Tela do usuário bloqueada','warn',3000);
     sbMsg('Tela remota bloqueada — usuário não visualiza.');
   } else {
-    btn.classList.remove('on');
-    lbl.textContent = 'BLOQUEAR TELA';
+    btn.classList.remove('on'); lbl.textContent = 'BLOQUEAR TELA';
     badge.classList.remove('show');
     toast('Tela desbloqueada','ok',2000);
     sbMsg('Tela remota desbloqueada.');
@@ -645,10 +642,18 @@ function toggleEye(){
 function toggleAdv(){ $('advtog').classList.toggle('open'); $('advb').classList.toggle('open'); }
 function selQ(el){ document.querySelectorAll('.qopt').forEach(function(e){ e.classList.remove('on'); }); el.classList.add('on'); quality=el.dataset.q; }
 function selIce(el){ document.querySelectorAll('.iceopt').forEach(function(e){ e.classList.remove('on'); }); el.classList.add('on'); icePolicy=el.dataset.v; }
+
 function cycleQual(){
-  var o=['AUTO','HIGH','MEDIUM','LOW']; quality=o[(o.indexOf(quality)+1)%o.length];
-  $('quallbl').textContent=quality; send({t:'quality',q:quality});
+  var o = ['AUTO','HIGH','MEDIUM','LOW'];
+  quality = o[(o.indexOf(quality) + 1) % o.length];
+  $('quallbl').textContent = quality;
+  // Envia ao agente — tipo correto 't':'set_quality'
+  send({ t: 'set_quality', quality: quality.toLowerCase() });
+  // FIX P1/P3: applyBrowserEncoding respeita "auto" sem teto de bitrate
+  applyBrowserEncoding(quality.toLowerCase());
+  toast('Qualidade: ' + quality, 'info', 2000);
 }
+
 function setConnUI(on){
   ['btnpause','btnvo','btnqual','btnclip','btnfile','btnstats','btnfs','btncad','btnmon','btnlock'].forEach(function(id){
     if($(id)) $(id).disabled=!on;
@@ -657,7 +662,6 @@ function setConnUI(on){
   if(on) $('btnpause').disabled=viewOnly;
   if(!on){
     var sel=$('monitorselector'); sel.classList.remove('show'); sel.innerHTML=''; _monitors=[];
-    // Garante desbloqueio ao desconectar
     if(screenLocked){ screenLocked=false; $('btnlock').classList.remove('on'); $('locklbl').textContent='BLOQUEAR TELA'; $('lockbadge').classList.remove('show'); }
   }
 }
@@ -697,6 +701,56 @@ function relPos(e){
 }
 
 // ═══════════════════════════════════════
+// PERFIS DE QUALIDADE — espelha _QUALITY_PROFILES do agente
+//
+// FIX P1/P3: "auto" não define maxBitrate — REMB corre livre
+// sem o teto de 1.5 Mbps que travava o encoder.
+// Apenas maxFramerate é definido para orientar o congestion control.
+// Os outros perfis mantêm seus tetos explícitos.
+// ═══════════════════════════════════════
+var QUALITY_PROFILES = {
+  'auto':   { maxBitrate: null,    maxFramerate: 30 },
+  'high':   { maxBitrate: 2000000, maxFramerate: 30 },
+  'medium': { maxBitrate:  800000, maxFramerate: 20 },
+  'low':    { maxBitrate:  300000, maxFramerate: 15 },
+};
+
+// FIX P2: só aplica maxBitrate quando não é null (modo auto)
+// FIX P7: degradationPreference removido — browser é receiver, não sender;
+//         o campo é semanticamente inválido no lado que recebe o stream.
+function applyBrowserEncoding(q) {
+  if (!pc) return;
+  var profile = QUALITY_PROFILES[q] || QUALITY_PROFILES['auto'];
+
+  pc.getSenders().forEach(function(sender) {
+    // Browser só envia dados e áudio — não envia vídeo nesta arquitetura.
+    // O vídeo flui Agente → Browser (recvonly).
+    // Manter o bloco por compatibilidade caso arquitetura mude para bidirecional.
+    if (!sender.track) return;
+    var params = sender.getParameters();
+    if (!params.encodings || params.encodings.length === 0) {
+      params.encodings = [{}];
+    }
+    // FIX P3: "auto" → não define maxBitrate, REMB negocia livremente
+    if (profile.maxBitrate !== null) {
+      params.encodings[0].maxBitrate = profile.maxBitrate;
+    } else {
+      delete params.encodings[0].maxBitrate;
+    }
+    params.encodings[0].maxFramerate = profile.maxFramerate;
+    // FIX P7: degradationPreference removido — só válido em senders de vídeo locais
+
+    sender.setParameters(params).then(function() {
+      console.log('[RDP] encoding atualizado:', q,
+        profile.maxBitrate ? profile.maxBitrate/1000+'kbps' : 'REMB livre',
+        profile.maxFramerate+'fps');
+    }).catch(function(e) {
+      console.warn('[RDP] setParameters falhou:', e);
+    });
+  });
+}
+
+// ═══════════════════════════════════════
 // CONNECT
 // ═══════════════════════════════════════
 function doConnect(){
@@ -718,19 +772,29 @@ function doConnect(){
 
 function openConn(machine,token,iceServers){
   if(pc){ pc.close(); pc=null; }
+  _lastIceServers = iceServers || [];   // FIX P11: preserva para reconexão
+
   var tu=$('inpturn')&&$('inpturn').value.trim(), tuu=$('inpturnuser')&&$('inpturnuser').value.trim();
   if(tu) iceServers.push({urls:tu,username:tuu||'rdp',credential:sessToken});
 
   pc=new RTCPeerConnection({iceServers:iceServers,iceTransportPolicy:icePolicy,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'});
-  dc=pc.createDataChannel('input',{ordered:false,maxRetransmits:0});
+  // FIX F1: ordered:true — md/mu/mc/kd/ku precisam chegar sem perda.
+  // Com ordered:false+maxRetransmits:0 um pacote perdido deixava o botao preso.
+  dc=pc.createDataChannel('input',{ordered:true});
   setupFileDC(pc.createDataChannel('files',{ordered:true}));
 
-  dc.onopen=function(){
-    toast('Sessão estabelecida','ok'); setConnUI(true);
-    send({t:'quality',q:quality}); sbMsg('Sessão ativa — '+new Date().toLocaleTimeString());
+  dc.onopen = function() {
+    toast('Sessão estabelecida', 'ok');
+    setConnUI(true);
+    // Envia qualidade inicial ao agente
+    send({ t: 'set_quality', quality: quality.toLowerCase() });
+    sbMsg('Sessão ativa — ' + new Date().toLocaleTimeString());
     protectSelf();
-    setTimeout(function(){ requestMonitorList(); },600);
+    setTimeout(function() { requestMonitorList(); }, 600);
+    // FIX P6: applyBrowserEncoding adiado para após ontrack + video play
+    // Não chama aqui — o sender de vídeo ainda não existe no browser receiver.
   };
+
   dc.onmessage=handleDC;
 
   pc.ontrack=function(e){
@@ -741,7 +805,12 @@ function openConn(machine,token,iceServers){
       $('vw').classList.add('show'); $('mtag').style.display='flex';
       $('mtagname').textContent=connMachine; $('sbmac').textContent=connMachine;
       setStatus('CONNECTED','ok'); reconnAtt=0; setupInput(); startStats();
-      setTimeout(function(){ try{$('sbcodec').textContent=(pc.getTransceivers()[0].receiver.track.kind||'video').toUpperCase();}catch(e){} },2000);
+      // FIX P6: applyBrowserEncoding chamado após ontrack — sender existe agora
+      // FIX P8: codec lido via getStats, não via track.kind (sempre retorna 'video')
+      setTimeout(function(){
+        applyBrowserEncoding(quality.toLowerCase());
+        readCodecFromStats();
+      }, 1000);
     };
     v.addEventListener('resize',function(){ if(v.videoWidth) screenW=v.videoWidth; if(v.videoHeight) screenH=v.videoHeight; });
   };
@@ -757,10 +826,16 @@ function openConn(machine,token,iceServers){
   return pc.createOffer({offerToReceiveVideo:true,offerToReceiveAudio:false})
     .then(function(offer){ return pc.setLocalDescription(offer); })
     .then(function(){
+      // FIX P5: tratamento robusto de ICE gathering
+      // Cobre o caso onde iceGatheringState já é 'complete' ao registrar o listener
       return new Promise(function(res,rej){
         var t=setTimeout(function(){rej(new Error('ICE gathering timeout (25s)'));},25000);
-        if(pc.iceGatheringState==='complete'){clearTimeout(t);res();return;}
-        pc.onicegatheringstatechange=function(){ if(pc.iceGatheringState==='complete'){clearTimeout(t);res();} };
+        function checkComplete(){
+          if(pc.iceGatheringState==='complete'){ clearTimeout(t); res(); }
+        }
+        // Verifica imediatamente — se já completo, resolve na hora
+        checkComplete();
+        pc.onicegatheringstatechange=function(){ checkComplete(); };
       });
     })
     .then(function(){
@@ -771,19 +846,60 @@ function openConn(machine,token,iceServers){
     .then(function(answer){ sbMsg('Estabelecendo WebRTC…'); return pc.setRemoteDescription(new RTCSessionDescription(answer)); });
 }
 
+// FIX P8: lê o codec real via getStats (track.kind sempre retorna 'video')
+function readCodecFromStats(){
+  if(!pc) return;
+  pc.getStats().then(function(ss){
+    ss.forEach(function(r){
+      if(r.type==='inbound-rtp'&&r.kind==='video'&&r.codecId){
+        var codec=ss.get(r.codecId);
+        if(codec&&codec.mimeType){
+          var name=codec.mimeType.split('/')[1]||'VIDEO';
+          $('sbcodec').textContent=name.toUpperCase();
+        }
+      }
+    });
+  }).catch(function(){});
+}
+
 // ═══════════════════════════════════════
 // RECONEXÃO / DESCONEXÃO
 // ═══════════════════════════════════════
+
+// FIX P11: schedReconn preserva ICE servers — usa _lastIceServers em vez de []
 function schedReconn(machine,token){
   if(reconnAtt>=MAX_R){setStatus('FALHOU','err');toast('Máximo de reconexões','err');$('reconn').classList.remove('show');return;}
   reconnAtt++; var delay=Math.min(1000*Math.pow(2,reconnAtt),30000);
   $('recontxt').textContent='Reconectando em '+Math.round(delay/1000)+'s… ('+reconnAtt+'/'+MAX_R+')';
-  fetch('/api/rdp/config/',{credentials:'same-origin'}).then(function(r){return r.json();})
-    .then(function(d){setTimeout(function(){openConn(machine,token,d.ice_servers);},delay);})
-    .catch(function(){setTimeout(function(){openConn(machine,token,[]);},delay);});
+  // Tenta refrescar ICE config, mas usa _lastIceServers como fallback garantido
+  fetch('/api/rdp/config/',{credentials:'same-origin'})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var servers=d.ice_servers||_lastIceServers;
+      _lastIceServers=servers;
+      setTimeout(function(){openConn(machine,token,servers);},delay);
+    })
+    .catch(function(){
+      // FIX P11: fallback com servidores anteriores, não []
+      setTimeout(function(){openConn(machine,token,_lastIceServers.slice());},delay);
+    });
 }
+
+// FIX P10: disconnect() notifica o agente para fechar a sessão
 function disconnect(){
   reconnAtt=MAX_R; stopStats();
+  // Notifica backend para limpar a sessão no agente
+  if(sessToken && connMachine){
+    try{
+      fetch('/api/rdp/close/',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-RDP-Token':sessToken,'X-Machine-ID':connMachine,'X-CSRFToken':getCookie('csrftoken')},
+        body:JSON.stringify({}),
+        credentials:'same-origin',
+        keepalive:true   // garante envio mesmo se página estiver saindo
+      });
+    }catch(e){}
+  }
   if(dc){try{dc.close();}catch(e){} dc=null;}
   if(fileDC){try{fileDC.close();}catch(e){} fileDC=null;}
   if(pc){pc.close();pc=null;}
@@ -796,42 +912,179 @@ function disconnect(){
   setConnUI(false); setStatus('OFFLINE'); sbMsg('Sessão encerrada — '+new Date().toLocaleTimeString());
   toast('Sessão encerrada','info');
   paused=false; viewOnly=false; isSelf=false; screenLocked=false;
+  _remoteClipboard=''; _inVideoFocus=false;
+  _lastIceServers=[];
   $('sbmac').textContent=$('sbcodec').textContent='—';
 }
+
+// Fecha sessão ao fechar aba/janela
+window.addEventListener('beforeunload', function(){
+  if(pc) disconnect();
+});
+
 function send(obj){
   if(dc&&dc.readyState==='open') try{dc.send(JSON.stringify(obj));}catch(e){}
 }
 
 // ═══════════════════════════════════════
 // INPUT
+// FIX P4: mc (click) suprimido quando houve movimento (drag)
+// FIX P9: guard paused||viewOnly em mousedown button===1 (middle)
 // ═══════════════════════════════════════
 function setupInput(){
   var v=$('rv');
-  v.addEventListener('mousemove',function(e){ if(paused||viewOnly)return; var p=relPos(e); send({t:'mm',x:p.x,y:p.y}); });
+  var DRAG_THRESHOLD = 4; // px de movimento para considerar drag
+
+  v.addEventListener('mousemove',function(e){
+    if(paused||viewOnly)return;
+    var p=relPos(e);
+    send({t:'mm',x:p.x,y:p.y});
+    if(_mouseDown) _mouseMoved=true;
+  });
+
   v.addEventListener('mousedown',function(e){
-    if(paused||viewOnly)return; e.preventDefault(); var p=relPos(e);
+    // FIX P9: guard paused/viewOnly para todos os botões
+    if(paused||viewOnly)return;
+    e.preventDefault();
+    _mouseDown=true; _mouseMoved=false;
+
+    // CLIP-B4: ao entrar no foco do vídeo, empurra clipboard local → remoto
+    // Isso garante que Ctrl+V funciona logo após o primeiro clique na tela.
+    if(!_inVideoFocus){
+      _inVideoFocus=true;
+      if(_clipApiAvailable){
+        navigator.clipboard.readText().then(function(text){
+          if(text && text !== _remoteClipboard){
+            // Sincroniza silenciosamente — não chama paste, só define o clipboard remoto
+            send({t:'clipboard_set_silent', text:text});
+          }
+        }).catch(function(){});
+      }
+    }
+
+    var p=relPos(e);
     if(e.button===0) send({t:'md',b:'left',x:p.x,y:p.y});
     if(e.button===2) send({t:'md',b:'right',x:p.x,y:p.y});
-    if(e.button===1){e.preventDefault();send({t:'mb',d:true});}
+    if(e.button===1){ e.preventDefault(); send({t:'mb',d:true}); }
   });
+
   v.addEventListener('mouseup',function(e){
-    if(e.button===1){send({t:'mb',d:false});return;}
-    if(paused||viewOnly)return; e.preventDefault(); var p=relPos(e);
-    if(e.button===0){send({t:'mu',b:'left',x:p.x,y:p.y});send({t:'mc',b:'left',x:p.x,y:p.y});}
-    if(e.button===2) send({t:'mc',b:'right',x:p.x,y:p.y});
+    // Middle button não tem guard paused no original — corrigido aqui pelo guard global
+    if(e.button===1){ if(!paused&&!viewOnly) send({t:'mb',d:false}); _mouseDown=false; return; }
+    if(paused||viewOnly){ _mouseDown=false; return; }
+    e.preventDefault();
+    var p=relPos(e);
+    var wasDrag=_mouseMoved;
+    _mouseDown=false; _mouseMoved=false;
+    if(e.button===0){
+      send({t:'mu',b:'left',x:p.x,y:p.y});
+      // FIX P4: só envia mc (click) se não houve drag
+      if(!wasDrag) send({t:'mc',b:'left',x:p.x,y:p.y});
+    }
+    if(e.button===2){
+      // FIX F2: envia mu (rightup) antes do mc — sem isso o botao direito
+      // ficava preso RIGHTDOWN na maquina remota apos cada clique direito
+      send({t:'mu',b:'right',x:p.x,y:p.y});
+      if(!wasDrag) send({t:'mc',b:'right',x:p.x,y:p.y});
+    }
   });
-  v.addEventListener('dblclick',function(e){ if(paused||viewOnly)return; e.preventDefault(); var p=relPos(e); send({t:'mdc',x:p.x,y:p.y}); });
+
+  v.addEventListener('dblclick',function(e){
+    if(paused||viewOnly)return;
+    e.preventDefault();
+    var p=relPos(e);
+    send({t:'mdc',x:p.x,y:p.y});
+  });
+
   v.addEventListener('contextmenu',function(e){e.preventDefault();});
+
   v.addEventListener('wheel',function(e){
-    if(paused||viewOnly)return; e.preventDefault();
+    if(paused||viewOnly)return;
+    e.preventDefault();
     if(e.deltaY) send({t:'ms',d:e.deltaY>0?-3:3});
     if(e.deltaX) send({t:'msh',d:e.deltaX>0?-3:3});
   },{passive:false});
+
+  // Cancela _mouseDown se mouse sai do vídeo durante drag
+  // CLIP-B4: reseta _inVideoFocus ao sair do vídeo
+  v.addEventListener('mouseleave',function(){
+    if(_mouseDown){
+      _mouseDown=false; _mouseMoved=false;
+    }
+    _inVideoFocus=false;
+  });
+
   var KEY_MAP={Enter:'enter',Backspace:'backspace',Tab:'tab',Escape:'escape',Delete:'delete',Insert:'insert',Home:'home',End:'end',PageUp:'pageup',PageDown:'pagedown',CapsLock:'capslock',ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',' ':'space',F1:'f1',F2:'f2',F3:'f3',F4:'f4',F5:'f5',F6:'f6',F7:'f7',F8:'f8',F9:'f9',F10:'f10',F11:'f11',F12:'f12',PrintScreen:'printscreen',ScrollLock:'scrolllock',Pause:'pause',NumLock:'numlock'};
+
+  // ── CLIPBOARD BRIDGE ────────────────────────────────────────────────────
+  // CLIP-B1: Ctrl+C interceptado ANTES do browser copiar texto local.
+  //   e.preventDefault() cancela a ação nativa do browser.
+  //   O agente injeta Ctrl+C na máquina remota E responde com clipboard_req
+  //   para sincronizar o conteúdo de volta ao browser.
+  //
+  // CLIP-B2: Ctrl+V interceptado ANTES do browser colar conteúdo local.
+  //   1ª opção: usa _remoteClipboard (recebido via datachannel) — zero latência.
+  //   2ª opção: lê navigator.clipboard (requer HTTPS + permissão).
+  //   3ª opção: usa panel clipboard se preenchido.
+  //   Envia {t:'paste'} ao agente com o texto determinado.
+  //
+  // CLIP-B3: Ctrl+X — idem ao Ctrl+C mas também injeta o corte na remota.
+  //
+  // CLIP-B4: ao entrar no foco do vídeo (mousedown), sincroniza clipboard
+  //   local → remoto automaticamente para que Ctrl+V funcione imediatamente.
+  // ────────────────────────────────────────────────────────────────────────
+
+  function _bridgeCtrlC(e, cut) {
+    e.preventDefault();
+    send({ t: 'kc', k: cut ? 'x' : 'c', mods: ['ctrl'] });
+    send({ t: 'clipboard_req' });
+    toast(cut ? 'Ctrl+X enviado' : 'Ctrl+C enviado', 'info', 1800);
+}
+
+  function _bridgeCtrlV(e) {
+    e.preventDefault();
+    if (_remoteClipboard) {
+        send({ t: 'paste', text: _remoteClipboard });
+        return;
+    }
+    // Prioridade 2: Clipboard API do browser (HTTPS obrigatório)
+    if(_clipApiAvailable){
+      navigator.clipboard.readText().then(function(text){
+        if(text) send({t:'paste', text:text});
+        else toast('Clipboard local vazio','warn',2000);
+      }).catch(function(){
+        // Permissão negada ou não-HTTPS: usa painel clipboard se preenchido
+        var panelText=$('clipta').value.trim();
+        if(panelText) send({t:'paste', text:panelText});
+        else toast('Permissão de clipboard negada — use o painel Clipboard','warn',3500);
+      });
+      return;
+    }
+    // Prioridade 3: fallback para painel clipboard
+    var panelText=$('clipta').value.trim();
+    if(panelText){ send({t:'paste', text:panelText}); return; }
+    toast('Use o painel Clipboard para colar texto','info',3000);
+  }
+
   document.addEventListener('keydown',function(e){
     if(!$('vw').classList.contains('show'))return;
     if(paused||viewOnly)return;
     if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
+
+    // CLIP-B1/B2/B3: intercepta atalhos de clipboard ANTES do preventDefault global
+    if((e.ctrlKey||e.metaKey) && !e.altKey && !e.shiftKey){
+      var k=e.key.toLowerCase();
+      if (k === 'c') { _bridgeCtrlC(e, false); return; }
+      if (k === 'x') { _bridgeCtrlC(e, true);  return; }
+      if (k === 'v') { _bridgeCtrlV(e);        return; }
+      if(k==='a'){
+        // Ctrl+A: passa normalmente para a máquina remota mas previne seleção local
+        e.preventDefault();
+        send({t:'kc',k:'a',mods:['ctrl']});
+        return;
+      }
+    }
+
     e.preventDefault();
     var mods=[];
     if(e.ctrlKey) mods.push('ctrl'); if(e.altKey) mods.push('alt');
@@ -841,50 +1094,80 @@ function setupInput(){
     else if(mapped){ send({t:'kp',k:mapped}); }
     else if(e.key.length===1){ send({t:'kt',k:e.key}); }
   });
+
   v.addEventListener('dragover',function(e){e.preventDefault();$('dropov').classList.add('show');});
   v.addEventListener('dragleave',function(){$('dropov').classList.remove('show');});
   v.addEventListener('drop',function(e){e.preventDefault();$('dropov').classList.remove('show');uploadFiles(e.dataTransfer.files);});
 }
+
 function sendCAD(){
   send({t:'cad'}); toast('Ctrl+Alt+Del enviado','info');
 }
 
 // ═══════════════════════════════════════
 // DATA CHANNEL
+// FIX P12: trata 'quality_applied' — confirmação do agente
 // ═══════════════════════════════════════
 function handleDC(e){
   try{
     var m=JSON.parse(e.data);
-    if(m.t==='monitors_list'){ renderMonitorButtons(m.monitors||[],m.current||1); sbMsg((m.monitors?m.monitors.length:0)+' monitor(es) encontrado(s).'); return; }
+    if(m.t==='monitors_list'){
+      renderMonitorButtons(m.monitors||[],m.current||1);
+      sbMsg((m.monitors?m.monitors.length:0)+' monitor(es) encontrado(s).');
+      return;
+    }
     if(m.t==='monitor_switched'){
-      $('monitorselector').querySelectorAll('.monbtn').forEach(function(b,i){ b.classList.toggle('active',_monitors[i]&&_monitors[i].id===m.index); });
-      toast('Monitor '+m.index+' ativo','ok',2000); sbMsg('Monitor '+m.index+' ativo.'); return;
+      $('monitorselector').querySelectorAll('.monbtn').forEach(function(b,i){
+        b.classList.toggle('active',_monitors[i]&&_monitors[i].id===m.index);
+      });
+      toast('Monitor '+m.index+' ativo','ok',2000);
+      sbMsg('Monitor '+m.index+' ativo.');
+      return;
+    }
+    // FIX P12: confirmação de qualidade aplicada no agente
+    if(m.t==='quality_applied'){
+      sbMsg('Qualidade aplicada no agente: '+(m.quality||'').toUpperCase());
+      return;
     }
     if(m.t==='screen_locked')  { toast('Tela bloqueada confirmada','warn',2000); return; }
     if(m.t==='screen_unlocked'){ toast('Tela desbloqueada confirmada','ok',2000); return; }
-    if(m.t==='clipboard'){ $('clipta').value=m.text; toast('Clipboard recebido','ok'); }
+    if(m.t==='clipboard'){
+      // CLIP-B1: armazena o clipboard remoto para Ctrl+V local via bridge
+      _remoteClipboard = m.text || '';
+      $('clipta').value = _remoteClipboard;
+      // Tenta escrever no clipboard do browser para que Ctrl+V nativo também funcione
+      if(_clipApiAvailable && _remoteClipboard){
+        navigator.clipboard.writeText(_remoteClipboard).catch(function(){});
+      }
+      toast('Clipboard recebido','ok');
+    }
     if(m.t==='file_done') toast('Arquivo recebido: '+(m.name||''),'ok');
     if(m.t==='file_err')  toast('Erro: '+(m.reason||''),'err');
+    if(m.t==='ping'){} // keepalive — ignora silenciosamente
   }catch(ex){}
 }
 
 // ═══════════════════════════════════════
 // CLIPBOARD
+// FIX P3: sendClip usava t:'clipboard_set' — agente espera t:'paste'
 // ═══════════════════════════════════════
-function sendClip(){ var t=$('clipta').value; if(!t){toast('Nenhum texto','warn');return;} send({t:'clipboard_set',text:t}); toast('Clipboard enviado','ok'); }
+function sendClip(){
+  var t=$('clipta').value;
+  if(!t){ toast('Nenhum texto','warn'); return; }
+  // FIX P3: tipo correto — agente trata 'paste' com pyperclip + ctrl+v
+  send({t:'paste', text:t});
+  toast('Clipboard enviado','ok');
+}
 function reqClip(){ send({t:'clipboard_req'}); sbMsg('Solicitando clipboard remoto…'); }
 
 // ═══════════════════════════════════════
-// ARQUIVOS — protocolo corrigido
+// ARQUIVOS — protocolo com header fid
 //
-// O agente (agent_tray) espera chunks binários com header:
-//   [2 bytes: len(fid)] + [fid em UTF-8] + [dados do chunk]
-// E mensagens JSON no canal "files":
-//   file_start: { t, id, name, size, dest }
-//   file_end:   { t, id }
-//
-// O agent_service usa o mesmo canal "files" com o mesmo
-// protocolo JSON para controle + binário com header para dados.
+// Protocolo binário (alinhado com agent_tray v3.5.0):
+//   chunk: [2 bytes big-endian = len(fid)] + [fid UTF-8] + [dados]
+//   controle: JSON no canal "files"
+//     file_start: { t, id, name, size, dest }
+//     file_end:   { t, id }
 // ═══════════════════════════════════════
 function setupFileDC(ch){
   fileDC=ch;
@@ -897,7 +1180,7 @@ function uploadFiles(files){
 }
 
 function uploadFile(file){
-  var id=(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2));
+  var id=(crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
   var CHUNK=16384;
   var dest=getDestPath();
 
@@ -907,7 +1190,7 @@ function uploadFile(file){
   $('flist').prepend(item);
   var bar=$('fb-'+id), status=$('fs-'+id);
 
-  // 1. Sinaliza início (JSON no canal files)
+  // Sinaliza início
   fileDC.send(JSON.stringify({t:'file_start',id:id,name:file.name,size:file.size,dest:dest}));
   status.textContent='Enviando…';
 
@@ -916,19 +1199,18 @@ function uploadFile(file){
 
     function sendChunk(){
       if(sent>=file.size){
-        // 3. Sinaliza fim (JSON no canal files)
         fileDC.send(JSON.stringify({t:'file_end',id:id}));
         status.textContent='Aguardando confirmação…';
         bar.classList.add('done');
         return;
       }
-      // Backpressure
+      // Backpressure — aguarda esvaziamento do buffer
       if(fileDC.bufferedAmount>4*1024*1024){ setTimeout(sendChunk,50); return; }
 
       var chunkData=buf.slice(sent,sent+CHUNK);
       sent+=chunkData.byteLength;
 
-      // 2. Chunk binário com header: [2 bytes len(id)][id UTF-8][dados]
+      // Monta chunk com header: [2 bytes len(id)][id UTF-8][dados]
       var idBytes=new TextEncoder().encode(id);
       var header=new Uint8Array(2+idBytes.length);
       header[0]=(idBytes.length>>8)&0xff;
@@ -963,6 +1245,7 @@ function fmtSize(b){
 
 // ═══════════════════════════════════════
 // STATS
+// FIX P8: readCodecFromStats usa codecId do getStats, não track.kind
 // ═══════════════════════════════════════
 function startStats(){
   stopStats(); var lb=0,lf=0,lt=Date.now();
@@ -979,6 +1262,14 @@ function startStats(){
           sv('sbw',bwK>=1024?(bwK/1024).toFixed(1)+' Mbps':bwK+' kbps',bwK>=1000?'g':bwK>=200?'w':'b');
           sv('sloss',(r.packetsLost||0)+'',(r.packetsLost||0)===0?'g':(r.packetsLost||0)<20?'w':'b');
           if(r.frameWidth){$('sres').textContent=r.frameWidth+'×'+r.frameHeight;screenW=r.frameWidth;screenH=r.frameHeight;}
+          // FIX P8: atualiza codec a cada ciclo de stats
+          if(r.codecId){
+            var codec=ss.get(r.codecId);
+            if(codec&&codec.mimeType){
+              var name=codec.mimeType.split('/')[1]||'VIDEO';
+              $('sbcodec').textContent=name.toUpperCase();
+            }
+          }
         }
         if(r.type==='candidate-pair'&&r.state==='succeeded'){
           var rtt=Math.round((r.currentRoundTripTime||0)*1000);

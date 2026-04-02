@@ -98,6 +98,7 @@ urlpatterns = [
     path('config/macros/<int:pk>/excluir/', views.MacroDeleteView.as_view(), name='macro_delete'),
 
     # ==================== AJAX / API ====================
+    path('api/justificativas/<int:status_id>/', views.justificativas_por_status, name='justificativas_por_status'),
     path('api/urgencias/<int:categoria_id>/', views.urgencias_por_categoria, name='urgencias_por_categoria'),
     path('api/toggle/<str:model_name>/<int:pk>/', views.toggle_ativo, name='toggle_ativo'),
 

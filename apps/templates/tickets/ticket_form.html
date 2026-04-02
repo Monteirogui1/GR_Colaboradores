@@ -152,5 +152,63 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     });
 });
+
+const statusEl = document.getElementById('id_status');
+if (statusEl) {
+    statusEl.addEventListener('change', function () {
+        const id = this.value;
+        const justEl = document.getElementById('id_justificativa');
+        if (!id) {
+            justEl.innerHTML = '<option value="">---------</option>';
+            return;
+        }
+        fetch(`/tickets/api/justificativas/${id}/`)
+            .then(r => r.json())
+            .then(data => {
+                justEl.innerHTML = '<option value="">---------</option>';
+                (data.justificativas || []).forEach(j => {
+                    const o = document.createElement('option');
+                    o.value = j.id;
+                    o.textContent = j.nome;
+                    justEl.appendChild(o);
+                });
+                // Tornar obrigatório se status exige
+                justEl.required = data.requer_justificativa || false;
+                const hint = justEl.closest('.form-group')?.querySelector('.form-hint');
+                if (hint) {
+                    hint.textContent = data.requer_justificativa
+                        ? '* Obrigatório para este status'
+                        : 'Opcional para este status';
+                }
+            });
+    });
+}
+
+catEl.addEventListener('change', function () {
+    const id = this.value;
+    const sel = document.getElementById('id_urgencia');
+    if (!id) {
+        sel.innerHTML = '<option value="">---------</option>';
+        return;
+    }
+    fetch(`/tickets/api/urgencias/${id}/`)
+        .then(r => r.json())
+        .then(data => {
+            sel.innerHTML = '<option value="">---------</option>';
+            (data.urgencias || []).forEach(u => {
+                const o = document.createElement('option');
+                o.value = u.id;
+                o.textContent = u.nome;
+                sel.appendChild(o);
+            });
+            // Indicação visual de restrição
+            const hint = sel.closest('.form-group')?.querySelector('.form-hint');
+            if (hint) {
+                hint.textContent = data.restrito
+                    ? 'Urgências filtradas pela categoria selecionada'
+                    : 'Todas as urgências disponíveis';
+            }
+        });
+});
 </script>
 {% endblock %}

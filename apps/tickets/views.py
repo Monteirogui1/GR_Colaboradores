@@ -906,9 +906,17 @@ class CategoriaCreateView(LoginRequiredMixin, ClienteCreateMixin, CreateView):
     template_name = 'tickets/config/categoria_form.html'
     success_url = reverse_lazy('tickets:categoria_list')
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['usuario'] = self.request.user
+        return kwargs
+
     def form_valid(self, form):
+        response = super().form_valid(form)
+        # Salvar urgências após criar (precisa do pk)
+        form._salvar_urgencias(self.object)
         messages.success(self.request, 'Categoria criada com sucesso!')
-        return super().form_valid(form)
+        return response
 
 
 class CategoriaUpdateView(LoginRequiredMixin, ClienteObjectMixin, UpdateView):
@@ -916,6 +924,11 @@ class CategoriaUpdateView(LoginRequiredMixin, ClienteObjectMixin, UpdateView):
     form_class = CategoriaForm
     template_name = 'tickets/config/categoria_form.html'
     success_url = reverse_lazy('tickets:categoria_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['usuario'] = self.request.user
+        return kwargs
 
     def form_valid(self, form):
         messages.success(self.request, 'Categoria atualizada com sucesso!')
@@ -1033,6 +1046,11 @@ class JustificativaCreateView(LoginRequiredMixin, ClienteCreateMixin, CreateView
     template_name = 'tickets/config/justificativa_form.html'
     success_url = reverse_lazy('tickets:justificativa_list')
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['usuario'] = self.request.user
+        return kwargs
+
     def form_valid(self, form):
         messages.success(self.request, 'Justificativa criada com sucesso!')
         return super().form_valid(form)
@@ -1043,6 +1061,11 @@ class JustificativaUpdateView(LoginRequiredMixin, ClienteObjectMixin, UpdateView
     form_class = JustificativaForm
     template_name = 'tickets/config/justificativa_form.html'
     success_url = reverse_lazy('tickets:justificativa_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['usuario'] = self.request.user
+        return kwargs
 
     def form_valid(self, form):
         messages.success(self.request, 'Justificativa atualizada com sucesso!')
@@ -1402,26 +1425,61 @@ class MacroDeleteView(LoginRequiredMixin, ClienteObjectMixin, DeleteView):
 # ==================== AJAX / API ====================
 
 @login_required
+def justificativas_por_status(request, status_id):
+    """Retorna justificativas válidas para um status (AJAX)"""
+    try:
+        status = Status.objects.get(pk=status_id, cliente=request.user)
+
+        # Busca justificativas vinculadas ao status
+        vinculadas = status.justificativas_vinculadas.filter(ativo=True)
+
+        if vinculadas.exists():
+            justificativas = vinculadas
+        else:
+            # Se não há vínculo específico, retorna todas ativas do cliente
+            justificativas = Justificativa.objects.filter(
+                cliente=request.user, ativo=True
+            )
+
+        data = [
+            {'id': j.id, 'nome': j.nome}
+            for j in justificativas
+        ]
+        requer = status.requer_justificativa
+
+        return JsonResponse({
+            'success': True,
+            'justificativas': data,
+            'requer_justificativa': requer
+        })
+
+    except Status.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Status não encontrado'}, status=404)
+
+@login_required
 def urgencias_por_categoria(request, categoria_id):
     """Retorna urgências permitidas para uma categoria (AJAX)"""
     try:
         categoria = Categoria.objects.get(pk=categoria_id)
-
-        # Busca urgências permitidas
         urgencias_ids = categoria.urgencias_permitidas.values_list('urgencia_id', flat=True)
 
         if urgencias_ids:
             urgencias = Urgencia.objects.filter(id__in=urgencias_ids, ativo=True)
+            restrito = True
         else:
-            # Se não há restrição, retorna todas
             urgencias = Urgencia.objects.filter(cliente=categoria.cliente, ativo=True)
+            restrito = False
 
         data = [
             {'id': u.id, 'nome': u.nome, 'nivel': u.nivel, 'cor': u.cor}
             for u in urgencias
         ]
 
-        return JsonResponse({'success': True, 'urgencias': data})
+        return JsonResponse({
+            'success': True,
+            'urgencias': data,
+            'restrito': restrito  # NOVO: informa se há restrição
+        })
 
     except Categoria.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Categoria não encontrada'}, status=404)

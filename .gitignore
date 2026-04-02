@@ -12,6 +12,10 @@ apps/*/migrations/
 teste.py
 *.exe
 *.zip
-.claude/
+*/.claude/
 .env
 *.log
+apps/inventory/agents/
+**/agents/
+**/logs/
+apps/inventory/*/logs/

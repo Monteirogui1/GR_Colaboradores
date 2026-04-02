@@ -159,6 +159,13 @@ class Justificativa(models.Model):
     """Justificativas para status (ex: motivos para status Parado)"""
     nome = models.CharField("Nome", max_length=100)
     descricao = models.TextField("Descrição", blank=True)
+    status_vinculados = models.ManyToManyField(
+        'Status',
+        blank=True,
+        related_name='justificativas_vinculadas',
+        verbose_name="Status vinculados",
+        help_text="Status que podem usar esta justificativa. Deixe vazio para todos."
+    )
     ativo = models.BooleanField("Ativo", default=True)
     cliente = models.ForeignKey(
         'authentication.User',
