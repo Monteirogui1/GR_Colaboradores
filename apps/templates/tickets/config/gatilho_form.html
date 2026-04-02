@@ -1,56 +1,767 @@
 {% extends 'layouts/base.html' %}
-
 {% block title %}{% if object.pk %}Editar Gatilho{% else %}Novo Gatilho{% endif %}{% endblock %}
 
 {% block conteudo %}
-<div class="content">
-    <div class="page-header">
-        <h1>{% if object.pk %}Editar Gatilho{% else %}Novo Gatilho{% endif %}</h1>
-        <a href="{% url 'tickets:gatilho_list' %}" class="btn btn-secondary">Voltar</a>
+<style>
+/* ── Reset e base ── */
+.gtl-wrap { max-width: 960px; margin: 0 auto; padding: 0 0 60px; }
+.gtl-page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+.gtl-page-header h1 { font-size: 22px; font-weight: 600; color: #1e293b; margin: 0; flex: 1; }
+
+/* ── Tabs ── */
+.gtl-tabs { display: flex; border-bottom: 2px solid #e2e8f0; margin-bottom: 28px; gap: 0; }
+.gtl-tab { padding: 12px 24px; font-size: 14px; font-weight: 500; color: #64748b; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; user-select: none; }
+.gtl-tab:hover { color: #1e293b; }
+.gtl-tab.active { color: #1a73e8; border-bottom-color: #1a73e8; }
+
+/* ── Painel ── */
+.gtl-panel { display: none; } .gtl-panel.active { display: block; }
+
+/* ── Card ── */
+.gtl-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 24px; margin-bottom: 20px; }
+.gtl-card-title { font-size: 15px; font-weight: 600; color: #1e293b; margin-bottom: 6px; }
+.gtl-card-desc { font-size: 13px; color: #64748b; margin-bottom: 20px; line-height: 1.5; }
+.gtl-card-desc a { color: #1a73e8; text-decoration: none; }
+
+/* ── Campo principal ── */
+.gtl-field-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.gtl-field-row label { font-size: 13px; font-weight: 600; color: #374151; }
+.gtl-field-row input[type=text],
+.gtl-field-row select { width: 100%; padding: 9px 12px; border: 1px solid #d1d5db;
+  border-radius: 7px; font-size: 14px; color: #1e293b; background: #fff;
+  transition: border .15s, box-shadow .15s; }
+.gtl-field-row input[type=text]:focus,
+.gtl-field-row select:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,.1); }
+.gtl-field-hint { font-size: 12px; color: #94a3b8; margin-top: 2px; display: flex; align-items: center; gap: 4px; }
+.gtl-field-hint i { font-size: 13px; color: #94a3b8; }
+
+/* ── Radio ativo/inativo ── */
+.gtl-radio-group { display: flex; align-items: center; gap: 24px; margin-top: 4px; }
+.gtl-radio-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; color: #374151; }
+.gtl-radio-opt input[type=radio] { accent-color: #1a73e8; width: 16px; height: 16px; cursor: pointer; }
+
+/* ── Seção de condições ── */
+.gtl-section-label { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
+.gtl-section-desc { font-size: 13px; color: #64748b; margin-bottom: 14px; }
+
+/* ── Linha de condição ── */
+.gtl-cond-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.gtl-cond-prefix { font-size: 12px; font-weight: 700; color: #64748b; min-width: 24px; text-align: center;
+  background: #f1f5f9; border-radius: 4px; padding: 3px 6px; flex-shrink: 0; }
+.gtl-cond-prefix.e { color: #1a73e8; background: #eff6ff; }
+.gtl-cond-select { padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 13px;
+  color: #1e293b; background: #fff; cursor: pointer; flex: 1; min-width: 160px;
+  transition: border .15s; }
+.gtl-cond-select:focus { outline: none; border-color: #1a73e8; }
+.gtl-cond-select.wide { flex: 1.5; }
+.gtl-cond-value-wrap { flex: 1; min-width: 140px; display: flex; align-items: center; gap: 6px; }
+.gtl-cond-value { padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 13px;
+  color: #1e293b; background: #fff; width: 100%; transition: border .15s; }
+.gtl-cond-value:focus { outline: none; border-color: #1a73e8; }
+.gtl-badge-disparo { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600;
+  color: #16a34a; white-space: nowrap; }
+.gtl-badge-disparo::before { content: '✓'; }
+.gtl-cond-horas { display: flex; align-items: center; gap: 6px; }
+.gtl-cond-horas input { width: 70px; padding: 7px 8px; border: 1px solid #d1d5db; border-radius: 7px;
+  font-size: 13px; text-align: right; }
+.gtl-cond-horas span { font-size: 13px; color: #374151; white-space: nowrap; }
+.gtl-btn-icon { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px;
+  border: none; background: none; cursor: pointer; color: #94a3b8; border-radius: 6px;
+  transition: color .15s, background .15s; flex-shrink: 0; }
+.gtl-btn-icon:hover.del { color: #ef4444; background: #fef2f2; }
+.gtl-btn-icon:hover.add { color: #1a73e8; background: #eff6ff; }
+.gtl-btn-add-cond { display: flex; align-items: center; gap: 6px; color: #1a73e8; font-size: 13px;
+  cursor: pointer; padding: 6px 4px; border: none; background: none; font-weight: 500;
+  transition: opacity .15s; margin-top: 4px; }
+.gtl-btn-add-cond:hover { opacity: .75; }
+.gtl-divider { height: 1px; background: #f1f5f9; margin: 20px 0; }
+
+/* ── Seção de ações ── */
+.gtl-action-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+.gtl-action-main { flex: 1; min-width: 200px; }
+.gtl-action-main select { width: 100%; padding: 9px 10px; border: 1px solid #d1d5db;
+  border-radius: 7px; font-size: 13px; color: #1e293b; background: #fff; }
+.gtl-action-main select:focus { outline: none; border-color: #1a73e8; }
+.gtl-action-context { flex: 1.2; }
+.gtl-action-context select { width: 100%; padding: 9px 10px; border: 1px solid #d1d5db;
+  border-radius: 7px; font-size: 13px; color: #1e293b; background: #fff; }
+.gtl-action-context select:focus { outline: none; border-color: #1a73e8; }
+.gtl-action-sub { margin-top: 8px; }
+.gtl-action-sub label { font-size: 12px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; }
+.gtl-action-sub select, .gtl-action-sub input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db;
+  border-radius: 7px; font-size: 13px; color: #1e293b; background: #fff; }
+.gtl-action-sub textarea { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db;
+  border-radius: 7px; font-size: 13px; color: #1e293b; background: #fff;
+  min-height: 90px; resize: vertical; font-family: inherit; }
+.gtl-action-sub textarea:focus, .gtl-action-sub select:focus, .gtl-action-sub input:focus {
+  outline: none; border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,.1); }
+.gtl-check-row { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; }
+.gtl-check-row input[type=checkbox] { width: 15px; height: 15px; accent-color: #1a73e8; margin-top: 2px; flex-shrink: 0; }
+.gtl-check-row label { font-size: 12px; color: #374151; cursor: pointer; line-height: 1.4; }
+.gtl-check-row .gtl-check-hint { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.words-count { font-size: 11px; color: #94a3b8; text-align: right; margin-top: 2px; }
+.gtl-editor-toolbar { display: flex; gap: 2px; padding: 6px 8px; background: #f8fafc;
+  border: 1px solid #d1d5db; border-radius: 7px 7px 0 0; border-bottom: none; flex-wrap: wrap; }
+.gtl-editor-btn { padding: 4px 7px; border: none; background: none; cursor: pointer;
+  color: #374151; border-radius: 4px; font-size: 13px; transition: background .1s; }
+.gtl-editor-btn:hover { background: #e2e8f0; }
+.gtl-editor-btn.sep { width: 1px; background: #d1d5db; margin: 0 4px; padding: 0; cursor: default; }
+.gtl-textarea-editor { border-radius: 0 0 7px 7px; }
+
+/* ── Form actions ── */
+.gtl-form-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 20px 0 0;
+  border-top: 1px solid #e2e8f0; margin-top: 8px; }
+
+/* ── JSON hidden (real Django field) ── */
+.gtl-json-hidden { display: none; }
+</style>
+
+<div class="gtl-wrap">
+  <div class="gtl-page-header">
+    <h1>{% if object.pk %}Editar Gatilho{% else %}Novo Gatilho{% endif %}</h1>
+    <a href="{% url 'tickets:gatilho_list' %}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+
+  <form method="post" id="gtl-form">
+    {% csrf_token %}
+
+    {# Campos JSON reais que serão submetidos ao Django #}
+    <textarea name="condicoes" id="gtl-condicoes-json" class="gtl-json-hidden">{{ form.condicoes.value|default:'{"todas":[],"qualquer":[]}' }}</textarea>
+    <textarea name="acoes"     id="gtl-acoes-json"     class="gtl-json-hidden">{{ form.acoes.value|default:'[]' }}</textarea>
+    {{ form.nome.as_hidden }}
+
+    {# Tabs #}
+    <div class="gtl-tabs">
+      <div class="gtl-tab active" data-tab="principal">Principal</div>
+      <div class="gtl-tab" data-tab="condicoes">Condições</div>
+      <div class="gtl-tab" data-tab="acoes">Ações</div>
     </div>
 
-    <form method="post">
-        {% csrf_token %}
-
-        <div class="detail-card">
-            <h2>Informações</h2>
-            <div class="form-grid">
-                {% for field in form %}
-                    {% if field.name != 'descricao' and field.name != 'condicoes' and field.name != 'acoes' and field.name != 'opcoes' and field.name != 'condicoes_obrigatoriedade' %}
-                        <div class="form-group">
-                            {{ field.label_tag }}
-                            {{ field }}
-                            {% if field.errors %}
-                                <div class="text-danger">{{ field.errors }}</div>
-                            {% endif %}
-                            {% if field.help_text %}
-                                <small>{{ field.help_text }}</small>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            </div>
-            {% for field in form %}
-                {% if field.name == 'descricao' or field.name == 'condicoes' or field.name == 'acoes' or field.name == 'opcoes' or field.name == 'condicoes_obrigatoriedade' %}
-                    <div class="form-grid">
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            {{ field.label_tag }}
-                            {{ field }}
-                            {% if field.errors %}
-                                <div class="text-danger">{{ field.errors }}</div>
-                            {% endif %}
-                            {% if field.help_text %}
-                                <small>{{ field.help_text }}</small>
-                            {% endif %}
-                        </div>
-                    </div>
-                {% endif %}
-            {% endfor %}
+    {# ========================= PRINCIPAL ========================= #}
+    <div class="gtl-panel active" id="tab-principal">
+      <div class="gtl-card">
+        <div class="gtl-card-title">Principal</div>
+        <div class="gtl-card-desc">
+          Os gatilhos permitem que você execute ações quando determinadas condições são cumpridas.
+          Essas condições podem ser acionadas por ações de usuários ou por limites de tempo dentro de um status.
         </div>
 
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Salvar</button>
+        <div class="gtl-field-row">
+          <label for="id_nome_vis">Nome</label>
+          <input type="text" id="id_nome_vis" name="_nome_vis"
+            value="{{ form.nome.value|default:'' }}"
+            placeholder="Ex: Fechar ticket após 48h sem resposta">
+          {% if form.nome.errors %}<div style="color:#ef4444;font-size:12px">{{ form.nome.errors }}</div>{% endif %}
         </div>
-    </form>
+
+        <div class="gtl-field-row">
+          <label>Gatilho para</label>
+          <select name="gatilho_para_vis" id="id_gatilho_para_vis">
+            <option value="tickets" selected>Tickets</option>
+          </select>
+          <div class="gtl-field-hint">
+            <i class="bi bi-info-circle"></i>
+            A seleção do tipo de gatilho determina quais condições e ações estão disponíveis para uso.
+          </div>
+        </div>
+
+        <div class="gtl-field-row">
+          <label>Status</label>
+          <div class="gtl-radio-group">
+            <label class="gtl-radio-opt">
+              <input type="radio" name="ativo_vis" value="1" {% if form.ativo.value != False %}checked{% endif %} onchange="syncAtivo(this)">
+              Habilitado
+            </label>
+            <label class="gtl-radio-opt">
+              <input type="radio" name="ativo_vis" value="0" {% if form.ativo.value == False %}checked{% endif %} onchange="syncAtivo(this)">
+              Desabilitado
+            </label>
+          </div>
+          <input type="hidden" name="ativo" id="id_ativo" value="{{ form.ativo.value|default:'True' }}">
+          <div class="gtl-field-hint">
+            <i class="bi bi-info-circle"></i>
+            Defina se o gatilho está habilitado para uso. Gatilhos desabilitados não são executados quando as condições são atendidas.
+          </div>
+        </div>
+
+        <div class="gtl-field-row">
+          <label for="id_ordem_vis">Ordem de execução</label>
+          <input type="number" id="id_ordem_vis" name="ordem"
+            value="{{ form.ordem.value|default:'0' }}"
+            style="width:120px" min="0" class="form-control">
+        </div>
+      </div>
+    </div>
+
+    {# ========================= CONDIÇÕES ========================= #}
+    <div class="gtl-panel" id="tab-condicoes">
+      <div class="gtl-card">
+        <div class="gtl-card-title">Condições</div>
+        <div class="gtl-card-desc">
+          Defina as condições para o gatilho ser executado. O gatilho precisa de pelo menos uma condição de disparo para funcionar.
+        </div>
+
+        {# Bloco TODAS #}
+        <div class="gtl-section-label">Atende TODAS as condições a seguir</div>
+        <div class="gtl-section-desc">O gatilho será executado somente se todas as seguintes condições forem atendidas.</div>
+        <div id="bloco-todas"></div>
+        <button type="button" class="gtl-btn-add-cond" onclick="addCondicao('todas')">
+          <i class="bi bi-plus-circle"></i> Adicionar condição
+        </button>
+
+        <div class="gtl-divider"></div>
+
+        {# Bloco QUALQUER #}
+        <div class="gtl-section-label">Atende QUALQUER condição a seguir</div>
+        <div class="gtl-section-desc">O gatilho será executado se uma ou mais das seguintes condições forem atendidas.</div>
+        <div id="bloco-qualquer"></div>
+        <button type="button" class="gtl-btn-add-cond" onclick="addCondicao('qualquer')">
+          <i class="bi bi-plus-circle"></i> Adicionar condição
+        </button>
+      </div>
+    </div>
+
+    {# ========================= AÇÕES ========================= #}
+    <div class="gtl-panel" id="tab-acoes">
+      <div class="gtl-card">
+        <div class="gtl-card-title">Ações</div>
+        <div class="gtl-card-desc">
+          Configure as ações que serão executadas quando as condições forem atendidas.
+        </div>
+        <div id="bloco-acoes"></div>
+        <button type="button" class="gtl-btn-add-cond" onclick="addAcao()">
+          <i class="bi bi-plus-circle"></i> Adicionar ação
+        </button>
+      </div>
+    </div>
+
+    {# ========================= BOTÕES ========================= #}
+    <div class="gtl-form-actions">
+      <a href="{% url 'tickets:gatilho_list' %}" class="btn btn-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary" onclick="serializarTudo()">
+        <i class="bi bi-check-lg"></i> Salvar Gatilho
+      </button>
+    </div>
+  </form>
 </div>
+
+<script>
+// ─── Dados de opções ───────────────────────────────────────────────────────────
+const CAMPOS_CONDICAO = [
+  { v: 'ticket.assunto',              l: 'Ticket: Assunto' },
+  { v: 'ticket.status',               l: 'Ticket: Status' },
+  { v: 'ticket.status_base',          l: 'Ticket: Status: Base' },
+  { v: 'ticket.justificativa',        l: 'Ticket: Justificativa' },
+  { v: 'ticket.solicitante',          l: 'Ticket: Solicitante' },
+  { v: 'ticket.solicitante.tipo',     l: 'Ticket: Solicitante: Cliente/Agente' },
+  { v: 'ticket.solicitante.perfil',   l: 'Ticket: Solicitante: Perfil de acesso' },
+  { v: 'ticket.responsavel',          l: 'Ticket: Responsável' },
+  { v: 'ticket.categoria',            l: 'Ticket: Categoria' },
+  { v: 'ticket.urgencia',             l: 'Ticket: Urgência' },
+  { v: 'ticket.servico',              l: 'Ticket: Serviço' },
+  { v: 'ticket.canal',                l: 'Ticket: Canal de abertura' },
+  { v: 'ticket.tipo',                 l: 'Ticket: Tipo' },
+  { v: 'ticket.tags',                 l: 'Ticket: Tags' },
+  { v: 'acao.ultima.tipo',            l: 'Ação - Somente a última: é...' },
+  { v: 'acao.ultima.autor',           l: 'Ação - Somente a última: autor' },
+  { v: 'tempo.status.corrido',        l: 'Ticket: Tempo no status atual (corrido)' },
+  { v: 'tempo.status.uteis',          l: 'Ticket: Tempo no status atual (úteis)' },
+  { v: 'tempo.total.corrido',         l: 'Ticket: Tempo total aberto (corrido)' },
+];
+
+const OPERADORES = {
+  default:  [
+    { v: 'igual',          l: 'Igual a' },
+    { v: 'diferente',      l: 'Diferente de' },
+    { v: 'alterado',       l: 'Alterado' },
+    { v: 'alterado_de',    l: 'Alterado de' },
+    { v: 'alterado_para',  l: 'Alterado para' },
+    { v: 'vazio',          l: 'Está vazio' },
+    { v: 'nao_vazio',      l: 'Não está vazio' },
+  ],
+  texto: [
+    { v: 'igual',          l: 'Igual a' },
+    { v: 'diferente',      l: 'Diferente de' },
+    { v: 'contem',         l: 'Contém' },
+    { v: 'nao_contem',     l: 'Não contém' },
+    { v: 'comeca',         l: 'Começa com' },
+    { v: 'vazio',          l: 'Está vazio' },
+    { v: 'nao_vazio',      l: 'Não está vazio' },
+  ],
+  tempo: [
+    { v: 'nao_registrada', l: 'Não registrada a (Horas corridas)' },
+    { v: 'maior_que',      l: 'Tempo de permanência (Horas corridas) maior que' },
+    { v: 'menor_que',      l: 'Tempo de permanência (Horas corridas) menor que' },
+    { v: 'entre',          l: 'Tempo de permanência entre' },
+  ],
+  acao: [
+    { v: 'publica',        l: 'É pública' },
+    { v: 'interna',        l: 'É interna' },
+    { v: 'cliente',        l: 'Do cliente' },
+    { v: 'agente',         l: 'Do agente' },
+  ],
+};
+
+const VALORES_STATUS_BASE = [
+  { v: 'novo',           l: 'Novo' },
+  { v: 'em_atendimento', l: 'Em Atendimento' },
+  { v: 'parado',         l: 'Parado' },
+  { v: 'resolvido',      l: 'Resolvido' },
+  { v: 'fechado',        l: 'Fechado' },
+  { v: 'cancelado',      l: 'Cancelado' },
+];
+
+const VALORES_STATUS = {{ status_list_json|default:'[]'|safe }};
+const VALORES_CATEGORIA = {{ categoria_list_json|default:'[]'|safe }};
+const VALORES_URGENCIA  = {{ urgencia_list_json|default:'[]'|safe }};
+const VALORES_SERVICO   = {{ servico_list_json|default:'[]'|safe }};
+const VALORES_JUSTIFIC  = {{ justificativa_list_json|default:'[]'|safe }};
+
+const ACOES_TIPOS = [
+  { v: 'enviar_email',        l: 'Enviar e-mail' },
+  { v: 'alterar_status',      l: 'Alterar status do ticket' },
+  { v: 'alterar_responsavel', l: 'Alterar responsável' },
+  { v: 'alterar_urgencia',    l: 'Alterar urgência' },
+  { v: 'alterar_categoria',   l: 'Alterar categoria' },
+  { v: 'adicionar_nota',      l: 'Adicionar nota interna' },
+  { v: 'adicionar_tag',       l: 'Adicionar tag' },
+];
+
+const DESTINATARIOS = [
+  { v: 'gerador',      l: 'Gerador do ticket' },
+  { v: 'solicitante',  l: 'Solicitante' },
+  { v: 'responsavel',  l: 'Responsável' },
+  { v: 'todos_agentes',l: 'Todos os agentes' },
+  { v: 'especifico',   l: 'Usuário específico' },
+];
+
+// ─── Estado ───────────────────────────────────────────────────────────────────
+let state = { todas: [], qualquer: [], acoes: [] };
+
+// ─── Inicialização ────────────────────────────────────────────────────────────
+function init() {
+  // Carregar JSON existente
+  try {
+    const raw = document.getElementById('gtl-condicoes-json').value.trim();
+    if (raw && raw !== '') {
+      const parsed = JSON.parse(raw);
+      state.todas   = parsed.todas   || [];
+      state.qualquer = parsed.qualquer || [];
+    }
+  } catch(e) {}
+  try {
+    const raw2 = document.getElementById('gtl-acoes-json').value.trim();
+    if (raw2 && raw2 !== '') {
+      const parsed2 = JSON.parse(raw2);
+      state.acoes = Array.isArray(parsed2) ? parsed2 : [];
+    }
+  } catch(e) {}
+
+  renderTodas(); renderQualquer(); renderAcoes();
+
+  // Tabs
+  document.querySelectorAll('.gtl-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.gtl-tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.gtl-panel').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById('tab-' + t.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Sync nome
+  document.getElementById('id_nome_vis').addEventListener('input', function() {
+    document.querySelector('[name="_nome_vis"]').value = this.value;
+  });
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function makeSelect(opts, val, cls, onchange) {
+  let s = `<select class="${cls}" onchange="${onchange}">`;
+  s += `<option value="">- Selecione -</option>`;
+  opts.forEach(o => s += `<option value="${o.v}"${o.v===val?' selected':''}>${o.l}</option>`);
+  s += `</select>`;
+  return s;
+}
+
+function getTipo(campo) {
+  if (!campo) return 'default';
+  if (campo.includes('assunto') || campo.includes('tags')) return 'texto';
+  if (campo.includes('tempo') || campo.includes('acao.ultima.tipo')) return 'tempo';
+  if (campo.includes('acao.ultima')) return 'acao';
+  return 'default';
+}
+
+function getValoresOpts(campo) {
+  if (campo === 'ticket.status_base') return VALORES_STATUS_BASE;
+  if (campo === 'ticket.status')      return VALORES_STATUS;
+  if (campo === 'ticket.categoria')   return VALORES_CATEGORIA;
+  if (campo === 'ticket.urgencia')    return VALORES_URGENCIA;
+  if (campo === 'ticket.servico')     return VALORES_SERVICO;
+  if (campo === 'ticket.justificativa') return VALORES_JUSTIFIC;
+  if (campo === 'ticket.tipo') return [{v:'publico',l:'Público'},{v:'interno',l:'Interno'}];
+  if (campo === 'ticket.canal') return [{v:'web',l:'Web'},{v:'email',l:'E-mail'},{v:'whatsapp',l:'WhatsApp'},{v:'api',l:'API'}];
+  if (campo === 'ticket.solicitante.tipo') return [{v:'cliente',l:'Cliente'},{v:'agente',l:'Agente'}];
+  return [];
+}
+
+function isTempo(campo, op) {
+  return campo && (campo.includes('tempo') || (campo.includes('acao') && op === 'nao_registrada'));
+}
+
+function isValorLivre(campo, op) {
+  const semValor = ['vazio', 'nao_vazio', 'alterado'];
+  if (semValor.includes(op)) return false;
+  const valoresOpts = getValoresOpts(campo);
+  return valoresOpts.length === 0;
+}
+
+// ─── Renderizar condição ───────────────────────────────────────────────────────
+function renderCondicaoRow(cond, bloco, idx) {
+  const div = document.createElement('div');
+  div.className = 'gtl-cond-row';
+  div.dataset.idx = idx;
+
+  const prefix = idx === 0
+    ? `<span class="gtl-cond-prefix">Se</span>`
+    : `<span class="gtl-cond-prefix e">E</span>`;
+
+  // Select campo
+  let optsCampo = CAMPOS_CONDICAO.map(o =>
+    `<option value="${o.v}"${o.v===cond.campo?' selected':''}>${o.l}</option>`
+  ).join('');
+  const selCampo = `<select class="gtl-cond-select wide" onchange="onChangeCampo('${bloco}',${idx},this.value)">
+    <option value="">- Selecione -</option>${optsCampo}</select>`;
+
+  // Select operador
+  const tipo = getTipo(cond.campo);
+  const ops = OPERADORES[tipo] || OPERADORES.default;
+  let optsOp = ops.map(o =>
+    `<option value="${o.v}"${o.v===cond.operador?' selected':''}>${o.l}</option>`
+  ).join('');
+  const selOp = `<select class="gtl-cond-select" onchange="onChangeOp('${bloco}',${idx},this.value)">
+    <option value="">- Selecione -</option>${optsOp}</select>`;
+
+  // Valor
+  let valorHtml = '';
+  const semValor = ['vazio','nao_vazio','alterado'];
+  if (!semValor.includes(cond.operador)) {
+    if (isTempo(cond.campo, cond.operador)) {
+      valorHtml = `
+        <span class="gtl-badge-disparo">Condição de disparo</span>
+        <div class="gtl-cond-horas">
+          <input type="number" class="gtl-cond-value" value="${cond.valor||48}" min="1"
+            oninput="onChangeValor('${bloco}',${idx},this.value)"
+            style="width:70px;padding:7px 8px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;text-align:right;">
+          <span>Horas</span>
+        </div>`;
+    } else {
+      const vopts = getValoresOpts(cond.campo);
+      if (vopts.length > 0) {
+        let voptHtml = vopts.map(o =>
+          `<option value="${o.v}"${o.v===cond.valor?' selected':''}>${o.l}</option>`
+        ).join('');
+        valorHtml = `<select class="gtl-cond-value"
+          onchange="onChangeValor('${bloco}',${idx},this.value)">
+          <option value="">- Selecione -</option>${voptHtml}</select>`;
+      } else {
+        valorHtml = `<input type="text" class="gtl-cond-value"
+          value="${cond.valor||''}" placeholder="Valor..."
+          oninput="onChangeValor('${bloco}',${idx},this.value)">`;
+      }
+    }
+  }
+
+  div.innerHTML = `
+    ${prefix}
+    ${selCampo}
+    ${selOp}
+    <div class="gtl-cond-value-wrap">${valorHtml}</div>
+    <button type="button" class="gtl-btn-icon del" onclick="removerCondicao('${bloco}',${idx})" title="Remover">
+      <i class="bi bi-trash"></i>
+    </button>
+    <button type="button" class="gtl-btn-icon add" onclick="addCondicao('${bloco}')" title="Adicionar">
+      <i class="bi bi-plus-circle"></i>
+    </button>
+  `;
+  return div;
+}
+
+function renderTodas() {
+  const el = document.getElementById('bloco-todas');
+  el.innerHTML = '';
+  if (state.todas.length === 0) {
+    const div = document.createElement('div');
+    div.className = 'gtl-cond-row';
+    div.innerHTML = `
+      <span class="gtl-cond-prefix">Se</span>
+      <select class="gtl-cond-select wide" onchange="onChangeCampo('todas',0,this.value)">
+        <option value="">- Selecione -</option>
+        ${CAMPOS_CONDICAO.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
+      </select>
+      <select class="gtl-cond-select"><option value="">- Selecione -</option></select>
+      <div class="gtl-cond-value-wrap"></div>
+      <button type="button" class="gtl-btn-icon del" onclick="removerCondicao('todas',0)"><i class="bi bi-trash"></i></button>
+      <button type="button" class="gtl-btn-icon add" onclick="addCondicao('todas')"><i class="bi bi-plus-circle"></i></button>`;
+    el.appendChild(div);
+    return;
+  }
+  state.todas.forEach((c, i) => el.appendChild(renderCondicaoRow(c, 'todas', i)));
+}
+
+function renderQualquer() {
+  const el = document.getElementById('bloco-qualquer');
+  el.innerHTML = '';
+  if (state.qualquer.length === 0) {
+    const div = document.createElement('div');
+    div.className = 'gtl-cond-row';
+    div.innerHTML = `
+      <span class="gtl-cond-prefix">Se</span>
+      <select class="gtl-cond-select wide" onchange="onChangeCampo('qualquer',0,this.value)">
+        <option value="">- Selecione -</option>
+        ${CAMPOS_CONDICAO.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
+      </select>
+      <select class="gtl-cond-select"><option value="">- Selecione -</option></select>
+      <div class="gtl-cond-value-wrap"></div>
+      <button type="button" class="gtl-btn-icon del" onclick="removerCondicao('qualquer',0)"><i class="bi bi-trash"></i></button>
+      <button type="button" class="gtl-btn-icon add" onclick="addCondicao('qualquer')"><i class="bi bi-plus-circle"></i></button>`;
+    el.appendChild(div);
+    return;
+  }
+  state.qualquer.forEach((c, i) => el.appendChild(renderCondicaoRow(c, 'qualquer', i)));
+}
+
+// ─── Handlers condições ───────────────────────────────────────────────────────
+function onChangeCampo(bloco, idx, val) {
+  ensureEntry(bloco, idx);
+  state[bloco][idx].campo = val;
+  state[bloco][idx].operador = '';
+  state[bloco][idx].valor = '';
+  renderBloco(bloco);
+}
+function onChangeOp(bloco, idx, val) {
+  ensureEntry(bloco, idx);
+  state[bloco][idx].operador = val;
+  renderBloco(bloco);
+}
+function onChangeValor(bloco, idx, val) {
+  ensureEntry(bloco, idx);
+  state[bloco][idx].valor = val;
+}
+function ensureEntry(bloco, idx) {
+  while (state[bloco].length <= idx) state[bloco].push({campo:'',operador:'',valor:''});
+}
+function addCondicao(bloco) {
+  state[bloco].push({campo:'',operador:'',valor:''});
+  renderBloco(bloco);
+}
+function removerCondicao(bloco, idx) {
+  state[bloco].splice(idx, 1);
+  renderBloco(bloco);
+}
+function renderBloco(bloco) {
+  if (bloco === 'todas') renderTodas();
+  else renderQualquer();
+}
+
+// ─── Renderizar ações ─────────────────────────────────────────────────────────
+function renderAcaoRow(acao, idx) {
+  const div = document.createElement('div');
+  div.className = 'gtl-action-row';
+
+  // Select tipo ação
+  let optsAcao = ACOES_TIPOS.map(o =>
+    `<option value="${o.v}"${o.v===acao.tipo?' selected':''}>${o.l}</option>`
+  ).join('');
+
+  // Contexto (ex: remetente do e-mail para enviar_email)
+  let contextoHtml = '';
+  if (acao.tipo === 'enviar_email') {
+    contextoHtml = `<div class="gtl-action-context">
+      <select onchange="onChangeAcaoCtx(${idx},this.value)">
+        <option value="">- Selecione o remetente -</option>
+        <option value="suporte" ${acao.ctx==='suporte'?'selected':''}>Suporte</option>
+      </select>
+    </div>`;
+  }
+
+  // Sub-campos baseados no tipo
+  let subHtml = '';
+  if (acao.tipo === 'enviar_email') {
+    subHtml = `
+      <div class="gtl-action-sub">
+        <label>Destinatário</label>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <select style="flex:1;padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px"
+            onchange="onChangeAcaoSub(${idx},'destinatario',this.value)">
+            ${DESTINATARIOS.map(o=>`<option value="${o.v}"${o.v===acao.destinatario?'selected':''}>${o.l}</option>`).join('')}
+          </select>
+          <button type="button" class="gtl-btn-icon del" onclick=""><i class="bi bi-trash"></i></button>
+          <button type="button" style="font-size:12px;color:#1a73e8;background:none;border:none;cursor:pointer;white-space:nowrap">
+            <i class="bi bi-plus-circle"></i> Adicionar destinatário
+          </button>
+        </div>
+        <div class="gtl-check-row">
+          <input type="checkbox" id="nao_enviar_${idx}" ${acao.nao_enviar_disparo?'checked':''}
+            onchange="onChangeAcaoSub(${idx},'nao_enviar_disparo',this.checked)">
+          <div>
+            <label for="nao_enviar_${idx}">Não enviar e-mail se o destinatário for o próprio usuário que disparou o gatilho</label>
+            <div class="gtl-check-hint">Se este parâmetro estiver marcado, o sistema não irá enviar e-mail para o destinatário que tenha disparado o gatilho.</div>
+          </div>
+        </div>
+        <div class="gtl-action-sub" style="margin-top:12px">
+          <label>Assunto</label>
+          <input type="text" value="${acao.assunto||''}" placeholder="Assunto do e-mail..."
+            oninput="onChangeAcaoSub(${idx},'assunto',this.value)">
+        </div>
+        <div class="gtl-action-sub" style="margin-top:10px">
+          <label>Descrição</label>
+          <div class="gtl-editor-toolbar">
+            <button type="button" class="gtl-editor-btn" onclick="fmtDoc('bold')"><b>B</b></button>
+            <button type="button" class="gtl-editor-btn" onclick="fmtDoc('italic')"><i>i</i></button>
+            <button type="button" class="gtl-editor-btn" onclick="fmtDoc('underline')"><u>U</u></button>
+            <span class="gtl-editor-btn sep"></span>
+            <button type="button" class="gtl-editor-btn" title="Link"><i class="bi bi-link-45deg"></i></button>
+            <button type="button" class="gtl-editor-btn" title="Imagem"><i class="bi bi-image"></i></button>
+          </div>
+          <textarea class="gtl-textarea-editor" placeholder="Olá {ticket.creator.name},&#10;&#10;Mensagem automática sobre o chamado {ticket.id}..."
+            oninput="onChangeAcaoSub(${idx},'corpo',this.value);atualizarWords(this)">${acao.corpo||''}</textarea>
+          <div class="words-count" id="words_${idx}">Words: ${contarWords(acao.corpo||'')}</div>
+        </div>
+      </div>`;
+  } else if (acao.tipo === 'alterar_status') {
+    subHtml = `<div class="gtl-action-sub">
+      <label>Novo status</label>
+      <select onchange="onChangeAcaoSub(${idx},'valor',this.value)">
+        <option value="">- Selecione -</option>
+        ${VALORES_STATUS.map(o=>`<option value="${o.v}"${o.v===acao.valor?'selected':''}>${o.l}</option>`).join('')}
+      </select></div>`;
+  } else if (acao.tipo === 'alterar_responsavel') {
+    subHtml = `<div class="gtl-action-sub">
+      <label>Responsável</label>
+      <select onchange="onChangeAcaoSub(${idx},'valor',this.value)">
+        <option value="">- Selecione -</option>
+      </select></div>`;
+  } else if (acao.tipo === 'alterar_urgencia') {
+    subHtml = `<div class="gtl-action-sub">
+      <label>Nova urgência</label>
+      <select onchange="onChangeAcaoSub(${idx},'valor',this.value)">
+        <option value="">- Selecione -</option>
+        ${VALORES_URGENCIA.map(o=>`<option value="${o.v}"${o.v===acao.valor?'selected':''}>${o.l}</option>`).join('')}
+      </select></div>`;
+  } else if (acao.tipo === 'alterar_categoria') {
+    subHtml = `<div class="gtl-action-sub">
+      <label>Nova categoria</label>
+      <select onchange="onChangeAcaoSub(${idx},'valor',this.value)">
+        <option value="">- Selecione -</option>
+        ${VALORES_CATEGORIA.map(o=>`<option value="${o.v}"${o.v===acao.valor?'selected':''}>${o.l}</option>`).join('')}
+      </select></div>`;
+  } else if (acao.tipo === 'adicionar_nota') {
+    subHtml = `<div class="gtl-action-sub">
+      <label>Texto da nota</label>
+      <textarea placeholder="Texto da nota interna..."
+        oninput="onChangeAcaoSub(${idx},'valor',this.value)">${acao.valor||''}</textarea>
+    </div>`;
+  } else if (acao.tipo === 'adicionar_tag') {
+    subHtml = `<div class="gtl-action-sub">
+      <label>Tag</label>
+      <input type="text" value="${acao.valor||''}" placeholder="nome-da-tag"
+        oninput="onChangeAcaoSub(${idx},'valor',this.value)">
+    </div>`;
+  }
+
+  div.innerHTML = `
+    <div style="flex:1">
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="gtl-action-main">
+          <select onchange="onChangeAcaoTipo(${idx},this.value)">
+            <option value="">- Selecione uma ação -</option>
+            ${optsAcao}
+          </select>
+        </div>
+        ${contextoHtml}
+        <button type="button" class="gtl-btn-icon del" onclick="removerAcao(${idx})"><i class="bi bi-trash"></i></button>
+        <button type="button" class="gtl-btn-icon add" onclick="addAcao()"><i class="bi bi-plus-circle"></i></button>
+      </div>
+      ${subHtml}
+    </div>`;
+  return div;
+}
+
+function renderAcoes() {
+  const el = document.getElementById('bloco-acoes');
+  el.innerHTML = '';
+  if (state.acoes.length === 0) {
+    const div = document.createElement('div');
+    div.className = 'gtl-action-row';
+    div.innerHTML = `
+      <div class="gtl-action-main">
+        <select onchange="onChangeAcaoTipo(0,this.value)">
+          <option value="">- Selecione uma ação -</option>
+          ${ACOES_TIPOS.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
+        </select>
+      </div>
+      <button type="button" class="gtl-btn-icon del" onclick="removerAcao(0)"><i class="bi bi-trash"></i></button>
+      <button type="button" class="gtl-btn-icon add" onclick="addAcao()"><i class="bi bi-plus-circle"></i></button>`;
+    el.appendChild(div);
+    return;
+  }
+  state.acoes.forEach((a, i) => el.appendChild(renderAcaoRow(a, i)));
+}
+
+function addAcao() {
+  state.acoes.push({tipo:'', valor:'', destinatario:'gerador', assunto:'', corpo:'', nao_enviar_disparo: true});
+  renderAcoes();
+}
+function removerAcao(idx) {
+  state.acoes.splice(idx, 1);
+  renderAcoes();
+}
+function onChangeAcaoTipo(idx, val) {
+  if (!state.acoes[idx]) state.acoes[idx] = {};
+  state.acoes[idx].tipo = val;
+  renderAcoes();
+}
+function onChangeAcaoCtx(idx, val) {
+  if (!state.acoes[idx]) state.acoes[idx] = {};
+  state.acoes[idx].ctx = val;
+}
+function onChangeAcaoSub(idx, key, val) {
+  if (!state.acoes[idx]) state.acoes[idx] = {};
+  state.acoes[idx][key] = val;
+}
+
+// ─── Utilidades ───────────────────────────────────────────────────────────────
+function contarWords(s) { return s.trim() ? s.trim().split(/\s+/).length : 0; }
+function atualizarWords(el) {
+  const idx = el.closest('.gtl-action-row') ? [...document.querySelectorAll('.gtl-action-row')].indexOf(el.closest('.gtl-action-row')) : 0;
+  const wc = document.getElementById('words_'+idx);
+  if (wc) wc.textContent = 'Words: ' + contarWords(el.value);
+}
+function fmtDoc(cmd) { document.execCommand(cmd, false, null); }
+function syncAtivo(el) {
+  document.getElementById('id_ativo').value = el.value === '1' ? 'True' : 'False';
+}
+
+// ─── Serializar antes de submeter ─────────────────────────────────────────────
+function serializarTudo() {
+  // Sync nome
+  const nomeVis = document.getElementById('id_nome_vis');
+  const nomeHidden = document.querySelector('[name="nome"]');
+  if (nomeHidden && nomeVis) nomeHidden.value = nomeVis.value;
+
+  // Condições JSON
+  const condJson = { todas: state.todas.filter(c => c.campo), qualquer: state.qualquer.filter(c => c.campo) };
+  document.getElementById('gtl-condicoes-json').value = JSON.stringify(condJson);
+
+  // Ações JSON
+  document.getElementById('gtl-acoes-json').value = JSON.stringify(state.acoes.filter(a => a.tipo));
+}
+
+document.addEventListener('DOMContentLoaded', init);
+document.getElementById('gtl-form').addEventListener('submit', serializarTudo);
+</script>
 {% endblock %}

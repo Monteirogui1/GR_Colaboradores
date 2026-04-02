@@ -35,6 +35,7 @@ from .forms import (
     ContratoSLAForm, RegraSLAForm, CampoAdicionalForm, RegraExibicaoCampoForm,
     GatilhoForm, MacroForm, ConfiguracaoEmailForm
 )
+from apps.inventory.models import AgentTokenUsage
 
 
 # ==================== MIXINS ====================
@@ -80,6 +81,24 @@ class ClienteCreateMixin:
         return super().form_valid(form)
 
 
+# ─── Helper: listas de opções para o template do gatilho ──────────────────────
+def _gatilho_context(user):
+    """
+    Retorna dicionário com listas JSON usadas pelo template do gatilho
+    para popular os selects de condições e ações dinamicamente.
+    """
+    cliente = user
+
+    def to_json(qs, label_field='nome'):
+        return json.dumps([{'v': str(obj.pk), 'l': getattr(obj, label_field)} for obj in qs])
+
+    return {
+        'status_list_json': to_json(Status.objects.filter(ativo=True).order_by('ordem', 'nome')),
+        'categoria_list_json': to_json(Categoria.objects.filter(ativo=True).order_by('nome')),
+        'urgencia_list_json': to_json(Urgencia.objects.filter(ativo=True).order_by('nivel')),
+        'servico_list_json': to_json(Servico.objects.filter(ativo=True).order_by('nome')),
+        'justificativa_list_json': to_json(Justificativa.objects.filter(ativo=True).order_by('nome')),
+    }
 
 
 # ==================== DASHBOARD ====================
@@ -949,7 +968,7 @@ class CategoriaDeleteView(LoginRequiredMixin, ClienteObjectMixin, DeleteView):
 class UrgenciaListView(LoginRequiredMixin, ListView):
     model = Urgencia
     template_name = 'tickets/config/urgencia_list.html'
-    context_object_name = 'urgencias'
+    context_object_name = 'urgencia_list'
     ordering = ['nivel']
 
 
@@ -1357,6 +1376,11 @@ class GatilhoCreateView(LoginRequiredMixin, ClienteCreateMixin, CreateView):
     template_name = 'tickets/config/gatilho_form.html'
     success_url = reverse_lazy('tickets:gatilho_list')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_gatilho_context(self.request.user))
+        return context
+
     def form_valid(self, form):
         messages.success(self.request, 'Gatilho criado com sucesso!')
         return super().form_valid(form)
@@ -1367,6 +1391,11 @@ class GatilhoUpdateView(LoginRequiredMixin, ClienteObjectMixin, UpdateView):
     form_class = GatilhoForm
     template_name = 'tickets/config/gatilho_form.html'
     success_url = reverse_lazy('tickets:gatilho_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_gatilho_context(self.request.user))
+        return context
 
     def form_valid(self, form):
         messages.success(self.request, 'Gatilho atualizado com sucesso!')
