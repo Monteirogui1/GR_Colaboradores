@@ -28,7 +28,7 @@ from pathlib import Path
 #    CONFIGURAÇÕES — EDITE ANTES DE DISTRIBUIR
 # ═══════════════════════════════════════════════════════
 
-EMBEDDED_TOKEN   = "2Him@9$K"
+EMBEDDED_TOKEN   = ""
 SERVER_URL       = "http://192.168.100.247:5002"
 INSTALL_DIR      = r"C:\Program Files\InventoryAgent"
 AGENT_NAME       = "Inventory Agent"
