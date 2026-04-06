@@ -730,12 +730,16 @@
         </div>
         {% endif %}
 
-        <!-- Editor de ação -->
+        <!-- Editor de ação com Quill -->
         <div class="tk-editor-wrap">
             <form method="post" action="{% url 'tickets:adicionar_acao' ticket.pk %}"
                   enctype="multipart/form-data" id="form-acao">
                 {% csrf_token %}
                 <input type="hidden" name="tipo" id="tipo-acao" value="publica">
+                <!-- Campo hidden que recebe o HTML do Quill -->
+                <input type="hidden" name="conteudo_html" id="conteudo_html_input">
+                <!-- Conteudo texto plano (fallback) -->
+                <input type="hidden" name="conteudo" id="conteudo_plain_input">
 
                 <!-- Abas pública / interna -->
                 <div class="tk-editor-tabs">
@@ -747,13 +751,11 @@
                     {% endif %}
                 </div>
 
-                <!-- Textarea -->
-                <textarea name="conteudo" id="editor-acao"
-                          class="tk-editor-textarea"
-                          placeholder="Digite algo..."></textarea>
+                <!-- Container Quill -->
+                <div id="quill-editor" style="min-height:130px; font-size:14px; font-family:inherit;"></div>
                 <div class="tk-word-count">Words : <span id="word-count">0</span></div>
 
-                <!-- Toolbar -->
+                <!-- Toolbar inferior -->
                 <div class="tk-editor-toolbar">
                     <!-- Anexo -->
                     <label class="tk-toolbar-btn" title="Anexar arquivo">
@@ -764,11 +766,19 @@
 
                     {% if user.is_staff %}
                     <!-- Tempo trabalhado -->
+                    <i class="bi bi-clock" style="color:#888;font-size:15px;"></i>
                     <input type="text" name="tempo_trabalhado"
-                           placeholder="HH:MM:SS"
-                           title="Tempo trabalhado"
-                           style="width:90px; border:1px solid #ccc; border-radius:4px; padding:4px 8px; font-size:12px;">
+                           placeholder="HH:MM:SS" title="Tempo trabalhado"
+                           style="width:90px;border:1px solid #ccc;border-radius:4px;padding:4px 8px;font-size:12px;">
                     <div class="tk-toolbar-sep"></div>
+
+                    <!-- Templates de resposta rápida -->
+                    <select id="sel-template" class="tk-macro-select" onchange="aplicarTemplate(this.value)">
+                        <option value="">📋 Templates ▾</option>
+                        {% for tpl in templates_resposta %}
+                        <option value="{{ tpl.pk }}">{{ tpl.nome }}</option>
+                        {% endfor %}
+                    </select>
 
                     <!-- Macro -->
                     {% if acao_form.aplicar_macro.field.queryset.exists %}
@@ -792,7 +802,7 @@
                         {% endfor %}
                     </select>
 
-                    <button type="submit" class="tk-btn-add">
+                    <button type="submit" class="tk-btn-add" onclick="prepararEnvio()">
                         ADICIONAR AÇÃO
                     </button>
                 </div>
@@ -853,7 +863,13 @@
                         </span>
                         {% endif %}
                     </div>
-                    <div class="tk-action-content">{{ acao.conteudo }}</div>
+                    <div class="tk-action-content">
+                        {% if acao.conteudo_html %}
+                            {{ acao.conteudo_html|safe }}
+                        {% else %}
+                            {{ acao.conteudo|linebreaks }}
+                        {% endif %}
+                    </div>
                     {% with acao.anexos.all as acao_anexos %}
                     {% if acao_anexos %}
                     <div class="tk-action-attachments">
@@ -1008,6 +1024,84 @@ function filtrarTimeline() {
         form.submit();
     }
 })();
-</script>
 
+const TEMPLATES_DATA = {
+    {% for tpl in templates_resposta %}
+    "{{ tpl.pk }}": {{ tpl.conteudo_json }},
+    {% endfor %}
+};
+const ASSINATURA_AGENTE = {{ assinatura_json }};
+
+// ── Inicializa Quill ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+    const quill = new Quill('#quill-editor', {
+        theme: 'snow',
+        placeholder: 'Digite algo...',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link', 'image'],
+                ['clean']
+            ]
+        }
+    });
+
+    // Insere assinatura automaticamente se houver
+    if (ASSINATURA_AGENTE) {
+        quill.clipboard.dangerouslyPasteHTML('<p><br></p>' + ASSINATURA_AGENTE);
+        // Posiciona cursor no início
+        quill.setSelection(0, 0);
+    }
+
+    // Contador de palavras
+    quill.on('text-change', function() {
+        const text = quill.getText().trim();
+        const words = text ? text.split(/\\s+/).length : 0;
+        document.getElementById('word-count').textContent = words;
+    });
+
+    // Exposição global para prepararEnvio
+    window._quill = quill;
+});
+
+function prepararEnvio() {
+    if (!window._quill) return;
+    const html  = window._quill.root.innerHTML;
+    const texto = window._quill.getText().trim();
+    document.getElementById('conteudo_html_input').value = html;
+    document.getElementById('conteudo_plain_input').value = texto;
+}
+
+function aplicarTemplate(templateId) {
+    if (!templateId || !window._quill) return;
+    const tpl = TEMPLATES_DATA[templateId];
+    if (!tpl) return;
+    // Insere o template no início, mantendo a assinatura
+    window._quill.clipboard.dangerouslyPasteHTML(0, tpl.conteudo);
+    document.getElementById('sel-template').value = '';
+}
+
+function setEditorTab(tab) {
+    const isPub = tab === 'pub';
+    document.getElementById('etab-pub').classList.toggle('active', isPub);
+    const intTab = document.getElementById('etab-int');
+    if (intTab) intTab.classList.toggle('active', !isPub);
+    document.getElementById('tipo-acao').value = isPub ? 'publica' : 'interna';
+
+    // Muda visual do editor para ação interna
+    const editorEl = document.getElementById('quill-editor');
+    if (!isPub) {
+        editorEl.style.background = '#fffbeb';
+        editorEl.style.borderTop = '2px solid #f59e0b';
+    } else {
+        editorEl.style.background = '';
+        editorEl.style.borderTop = '';
+    }
+}
+</script>
+<!-- Quill JS (carregar antes do script acima) -->
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 {% endblock %}

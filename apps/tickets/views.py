@@ -1,3 +1,6 @@
+import csv
+
+from django.db.models.functions import TruncDate
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
@@ -5,7 +8,7 @@ from django.views import View
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse, HttpResponse, FileResponse
-from django.db.models import Q, Count, Avg, F
+from django.db.models import Q, Count, Avg, F, ExpressionWrapper, DurationField
 from django.utils import timezone
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
@@ -25,7 +28,8 @@ from .models import (
     Categoria, Urgencia, Status, Justificativa, Servico,
     ContratoSLA, RegraSLA, StatusBase, PesquisaSatisfacao,
     CampoAdicional, RegraExibicaoCampo,
-    Gatilho, Macro, CategoriaUrgencia, ConfiguracaoEmail
+    Gatilho, Macro, CategoriaUrgencia, ConfiguracaoEmail, Feriado, HorarioAtendimento, TemplateResposta,
+    NotificacaoTicket, Equipe
 )
 from .forms import (
     TicketForm, TicketFiltroForm, AcaoTicketForm, AnexoTicketForm,
@@ -33,7 +37,7 @@ from .forms import (
     ReabrirTicketForm, AlterarPrevisaoSLAForm, CategoriaForm,
     UrgenciaForm, StatusForm, JustificativaForm, ServicoForm,
     ContratoSLAForm, RegraSLAForm, CampoAdicionalForm, RegraExibicaoCampoForm,
-    GatilhoForm, MacroForm, ConfiguracaoEmailForm
+    GatilhoForm, MacroForm, ConfiguracaoEmailForm, FeriadoForm, HorarioAtendimentoForm, TemplateRespostaForm, EquipeForm
 )
 from apps.inventory.models import AgentTokenUsage
 
@@ -312,6 +316,18 @@ class TicketDetailView(LoginRequiredMixin, ClienteObjectMixin, DetailView):
         # Histórico
         context['historico'] = self.object.historico.all().order_by('-criado_em')[:20]
 
+        # Assinatura do agente (para o editor Quill)
+        assinatura = ''
+        if self.request.user.is_staff:
+            assinatura = getattr(self.request.user, 'assinatura', '') or ''
+        context['assinatura_json'] = json.dumps(assinatura)
+
+        # Templates de resposta rápida
+        from apps.tickets.models import TemplateResposta
+        context['templates_resposta'] = TemplateResposta.objects.filter(
+            cliente=self.object.cliente, ativo=True
+        ).order_by('nome')
+
         # Ativos vinculados
         try:
             context['ativos_vinculados'] = self.object.ativos.select_related(
@@ -374,12 +390,12 @@ class TicketCreateView(LoginRequiredMixin, CreateView):
         form.instance.cliente = cliente
         form.instance.canal_abertura = 'web'
 
-        # Se não especificou responsável, tenta distribuir automaticamente
-        if not form.instance.responsavel:
-            # TODO: Implementar lógica de distribuição automática
-            pass
-
         response = super().form_valid(form)
+
+        # Distribuição automática por equipe (substitui o TODO)
+        from apps.tickets.views import distribuir_ticket_para_equipe
+        if self.object.equipe and not self.object.responsavel:
+            distribuir_ticket_para_equipe(self.object)
 
         # Registra histórico
         HistoricoTicket.objects.create(
@@ -453,6 +469,56 @@ class TicketDeleteView(LoginRequiredMixin, ClienteObjectMixin, DeleteView):
             return redirect('tickets:ticket_detail', pk=self.object.pk)
 
         messages.success(request, f'Ticket #{self.object.numero} excluído com sucesso')
+        return super().delete(request, *args, **kwargs)
+
+
+# ==================== TEMPLATES DE RESPOSTA ====================
+
+class TemplateRespostaListView(LoginRequiredMixin, ListView):
+    model = TemplateResposta
+    template_name = 'tickets/config/template_resposta_list.html'
+    context_object_name = 'templates'
+    ordering = ['ordem', 'nome']
+
+    def get_queryset(self):
+        return TemplateResposta.objects.filter(cliente=self.request.user)
+
+
+class TemplateRespostaCreateView(LoginRequiredMixin, ClienteCreateMixin, CreateView):
+    model = TemplateResposta
+    form_class = TemplateRespostaForm
+    template_name = 'tickets/config/template_resposta_form.html'
+    success_url = reverse_lazy('tickets:template_resposta_list')
+
+    def form_valid(self, form):
+        # Captura HTML do Quill se enviado
+        html = self.request.POST.get('conteudo_html', '').strip()
+        if html and html != '<p><br></p>':
+            form.instance.conteudo = html
+        messages.success(self.request, 'Template criado com sucesso!')
+        return super().form_valid(form)
+
+
+class TemplateRespostaUpdateView(LoginRequiredMixin, ClienteObjectMixin, UpdateView):
+    model = TemplateResposta
+    form_class = TemplateRespostaForm
+    template_name = 'tickets/config/template_resposta_form.html'
+    success_url = reverse_lazy('tickets:template_resposta_list')
+
+    def form_valid(self, form):
+        html = self.request.POST.get('conteudo_html', '').strip()
+        if html and html != '<p><br></p>':
+            form.instance.conteudo = html
+        messages.success(self.request, 'Template atualizado com sucesso!')
+        return super().form_valid(form)
+
+
+class TemplateRespostaDeleteView(LoginRequiredMixin, ClienteObjectMixin, DeleteView):
+    model = TemplateResposta
+    success_url = reverse_lazy('tickets:template_resposta_list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, 'Template excluído com sucesso!')
         return super().delete(request, *args, **kwargs)
 
 
@@ -645,10 +711,9 @@ def aplicar_macro_ao_ticket(ticket, macro, usuario):
 
 @login_required
 def adicionar_acao(request, pk):
-    """Adiciona ação (resposta) ao ticket"""
+    """Adiciona ação (resposta) ao ticket — com suporte a rich text"""
     ticket = get_object_or_404(Ticket, pk=pk)
 
-    # Verifica acesso
     if not request.user.is_superuser:
         cliente = request.user if request.user.is_staff else request.user
         if ticket.cliente != cliente:
@@ -661,9 +726,18 @@ def adicionar_acao(request, pk):
             acao = form.save(commit=False)
             acao.ticket = ticket
             acao.autor = request.user
+
+            # NOVO: salva HTML do Quill em conteudo_html
+            conteudo_html = request.POST.get('conteudo_html', '').strip()
+            if conteudo_html and conteudo_html != '<p><br></p>':
+                acao.conteudo_html = conteudo_html
+                # Extrai texto plano para conteudo (fallback e busca)
+                import re
+                texto_plano = re.sub(r'<[^>]+>', '', conteudo_html).strip()
+                acao.conteudo = texto_plano or acao.conteudo
+
             acao.save()
 
-            # Aplica macro se selecionada
             if form.cleaned_data.get('aplicar_macro'):
                 aplicar_macro_ao_ticket(ticket, form.cleaned_data['aplicar_macro'], request.user)
 
@@ -671,6 +745,7 @@ def adicionar_acao(request, pk):
             return redirect('tickets:ticket_detail', pk=ticket.pk)
 
     return redirect('tickets:ticket_detail', pk=ticket.pk)
+
 
 
 @login_required
@@ -932,8 +1007,7 @@ class CategoriaCreateView(LoginRequiredMixin, ClienteCreateMixin, CreateView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
-        # Salvar urgências após criar (precisa do pk)
-        form._salvar_urgencias(self.object)
+        form._salvar_urgencias(self.object)  # Salva vínculos após criação (tem pk agora)
         messages.success(self.request, 'Categoria criada com sucesso!')
         return response
 
@@ -1451,43 +1525,128 @@ class MacroDeleteView(LoginRequiredMixin, ClienteObjectMixin, DeleteView):
         return super().delete(request, *args, **kwargs)
 
 
+# ==================== HORÁRIO DE ATENDIMENTO ====================
+
+class HorarioAtendimentoListView(LoginRequiredMixin, ListView):
+    model = HorarioAtendimento
+    template_name = 'tickets/config/horario_list.html'
+    context_object_name = 'horarios'
+    ordering = ['dia_semana', 'hora_inicio']
+
+    def get_queryset(self):
+        return super().get_queryset().filter(cliente=self.request.user)
+
+
+class HorarioAtendimentoCreateView(LoginRequiredMixin, ClienteCreateMixin, CreateView):
+    model = HorarioAtendimento
+    form_class = HorarioAtendimentoForm
+    template_name = 'tickets/config/horario_form.html'
+    success_url = reverse_lazy('tickets:horario_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Horário criado com sucesso!')
+        return super().form_valid(form)
+
+
+class HorarioAtendimentoUpdateView(LoginRequiredMixin, ClienteObjectMixin, UpdateView):
+    model = HorarioAtendimento
+    form_class = HorarioAtendimentoForm
+    template_name = 'tickets/config/horario_form.html'
+    success_url = reverse_lazy('tickets:horario_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Horário atualizado com sucesso!')
+        return super().form_valid(form)
+
+
+class HorarioAtendimentoDeleteView(LoginRequiredMixin, ClienteObjectMixin, DeleteView):
+    model = HorarioAtendimento
+    success_url = reverse_lazy('tickets:horario_list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, 'Horário excluído com sucesso!')
+        return super().delete(request, *args, **kwargs)
+
+
+# ==================== FERIADOS ====================
+
+class FeriadoListView(LoginRequiredMixin, ListView):
+    model = Feriado
+    template_name = 'tickets/config/feriado_list.html'
+    context_object_name = 'feriados'
+    ordering = ['data']
+
+    def get_queryset(self):
+        return super().get_queryset().filter(cliente=self.request.user)
+
+
+class FeriadoCreateView(LoginRequiredMixin, ClienteCreateMixin, CreateView):
+    model = Feriado
+    form_class = FeriadoForm
+    template_name = 'tickets/config/feriado_form.html'
+    success_url = reverse_lazy('tickets:feriado_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Feriado criado com sucesso!')
+        return super().form_valid(form)
+
+
+class FeriadoUpdateView(LoginRequiredMixin, ClienteObjectMixin, UpdateView):
+    model = Feriado
+    form_class = FeriadoForm
+    template_name = 'tickets/config/feriado_form.html'
+    success_url = reverse_lazy('tickets:feriado_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Feriado atualizado com sucesso!')
+        return super().form_valid(form)
+
+
+class FeriadoDeleteView(LoginRequiredMixin, ClienteObjectMixin, DeleteView):
+    model = Feriado
+    success_url = reverse_lazy('tickets:feriado_list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, 'Feriado excluído com sucesso!')
+        return super().delete(request, *args, **kwargs)
+
+
+
 # ==================== AJAX / API ====================
 
 @login_required
 def justificativas_por_status(request, status_id):
-    """Retorna justificativas válidas para um status (AJAX)"""
+    """
+    BUG 1 FIX: Retorna justificativas válidas para o status selecionado (AJAX).
+    Também retorna se o status exige justificativa obrigatória.
+    """
     try:
         status = Status.objects.get(pk=status_id, cliente=request.user)
-
-        # Busca justificativas vinculadas ao status
         vinculadas = status.justificativas_vinculadas.filter(ativo=True)
 
         if vinculadas.exists():
             justificativas = vinculadas
         else:
-            # Se não há vínculo específico, retorna todas ativas do cliente
             justificativas = Justificativa.objects.filter(
                 cliente=request.user, ativo=True
             )
 
-        data = [
-            {'id': j.id, 'nome': j.nome}
-            for j in justificativas
-        ]
-        requer = status.requer_justificativa
-
+        data = [{'id': j.id, 'nome': j.nome} for j in justificativas]
         return JsonResponse({
             'success': True,
             'justificativas': data,
-            'requer_justificativa': requer
+            'requer_justificativa': status.requer_justificativa,
         })
-
     except Status.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Status não encontrado'}, status=404)
 
+
 @login_required
 def urgencias_por_categoria(request, categoria_id):
-    """Retorna urgências permitidas para uma categoria (AJAX)"""
+    """
+    BUG 2 + BUG 3 FIX: Retorna urgências permitidas para a categoria selecionada (AJAX).
+    Inclui flag 'restrito' para o front-end exibir hint adequado.
+    """
     try:
         categoria = Categoria.objects.get(pk=categoria_id)
         urgencias_ids = categoria.urgencias_permitidas.values_list('urgencia_id', flat=True)
@@ -1503,12 +1662,7 @@ def urgencias_por_categoria(request, categoria_id):
             {'id': u.id, 'nome': u.nome, 'nivel': u.nivel, 'cor': u.cor}
             for u in urgencias
         ]
-
-        return JsonResponse({
-            'success': True,
-            'urgencias': data,
-            'restrito': restrito  # NOVO: informa se há restrição
-        })
+        return JsonResponse({'success': True, 'urgencias': data, 'restrito': restrito})
 
     except Categoria.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Categoria não encontrada'}, status=404)
@@ -1603,6 +1757,24 @@ class ConfiguracaoEmailView(LoginRequiredMixin, View):
             'instance': instance,
             'presets': ConfiguracaoEmail.PRESETS,
         })
+
+
+@login_required
+def template_resposta_preview(request, pk):
+    """Retorna o conteúdo do template com variáveis substituídas (AJAX)."""
+    tpl = get_object_or_404(TemplateResposta, pk=pk, cliente=request.user)
+    ticket_id = request.GET.get('ticket_id')
+
+    if ticket_id:
+        try:
+            ticket = Ticket.objects.get(pk=ticket_id, cliente=request.user)
+            conteudo = tpl.substituir_variaveis(ticket)
+        except Ticket.DoesNotExist:
+            conteudo = tpl.conteudo
+    else:
+        conteudo = tpl.conteudo
+
+    return JsonResponse({'success': True, 'conteudo': conteudo, 'nome': tpl.nome})
 
 
 class ConfiguracaoEmailTesteView(LoginRequiredMixin, View):
@@ -1898,3 +2070,399 @@ class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
 
         return Response({'ok': True, 'numero': ticket.numero, 'id': ticket.pk})
 
+
+# ==================== EQUIPES ====================
+
+class EquipeListView(LoginRequiredMixin, ListView):
+    model = Equipe
+    template_name = 'tickets/config/equipe_list.html'
+    context_object_name = 'equipes'
+    ordering = ['ordem', 'nome']
+
+    def get_queryset(self):
+        return Equipe.objects.filter(cliente=self.request.user).prefetch_related('agentes')
+
+
+class EquipeCreateView(LoginRequiredMixin, ClienteCreateMixin, CreateView):
+    model = Equipe
+    form_class = EquipeForm
+    template_name = 'tickets/config/equipe_form.html'
+    success_url = reverse_lazy('tickets:equipe_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['usuario'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Equipe criada com sucesso!')
+        return super().form_valid(form)
+
+
+class EquipeUpdateView(LoginRequiredMixin, ClienteObjectMixin, UpdateView):
+    model = Equipe
+    form_class = EquipeForm
+    template_name = 'tickets/config/equipe_form.html'
+    success_url = reverse_lazy('tickets:equipe_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['usuario'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Equipe atualizada com sucesso!')
+        return super().form_valid(form)
+
+
+class EquipeDeleteView(LoginRequiredMixin, ClienteObjectMixin, DeleteView):
+    model = Equipe
+    success_url = reverse_lazy('tickets:equipe_list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, 'Equipe excluída com sucesso!')
+        return super().delete(request, *args, **kwargs)
+
+
+def distribuir_ticket_para_equipe(ticket):
+    """
+    Distribui um ticket automaticamente para o agente com menor carga
+    dentro da equipe atribuída ao ticket.
+    Chamado em TicketCreateView.form_valid e pelo sistema de gatilhos.
+    """
+    if not ticket.equipe:
+        return None
+    if ticket.responsavel:
+        return ticket.responsavel  # Já tem responsável, não redistribui
+
+    agente = ticket.equipe.agente_com_menor_carga()
+    if agente:
+        ticket.responsavel = agente
+        ticket.save(update_fields=['responsavel'])
+
+        HistoricoTicket.objects.create(
+            ticket=ticket,
+            usuario=ticket.cliente,
+            campo='responsavel',
+            valor_anterior='',
+            valor_novo=f'{agente.get_full_name() or agente.username} (auto-distribuído via equipe {ticket.equipe.nome})'
+        )
+    return agente
+
+
+# ==================== NOTIFICAÇÕES ====================
+
+class NotificacaoListView(LoginRequiredMixin, ListView):
+    """Lista todas as notificações do usuário logado."""
+    model = NotificacaoTicket
+    template_name = 'tickets/notificacoes.html'
+    context_object_name = 'notificacoes'
+    paginate_by = 30
+
+    def get_queryset(self):
+        qs = NotificacaoTicket.objects.filter(
+            usuario=self.request.user
+        ).select_related('ticket').order_by('-criado_em')
+
+        filtro = self.request.GET.get('filtro', 'todas')
+        if filtro == 'nao_lidas':
+            qs = qs.filter(lida=False)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['total_nao_lidas'] = NotificacaoTicket.objects.filter(
+            usuario=self.request.user, lida=False
+        ).count()
+        ctx['filtro'] = self.request.GET.get('filtro', 'todas')
+        return ctx
+
+
+@login_required
+def marcar_notificacao_lida(request, pk):
+    """Marca uma notificação como lida (AJAX ou redirect)."""
+    notif = get_object_or_404(NotificacaoTicket, pk=pk, usuario=request.user)
+    notif.marcar_lida()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': True})
+
+    if notif.ticket:
+        return redirect('tickets:ticket_detail', pk=notif.ticket.pk)
+    return redirect('tickets:notificacoes')
+
+
+@login_required
+def marcar_todas_lidas(request):
+    """Marca todas as notificações do usuário como lidas."""
+    NotificacaoTicket.objects.filter(
+        usuario=request.user, lida=False
+    ).update(lida=True, lida_em=timezone.now())
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': True})
+    return redirect('tickets:notificacoes')
+
+
+@login_required
+def notificacoes_count(request):
+    """
+    Retorna contagem de notificações não lidas (polling AJAX).
+    Chamado a cada 30s pelo header da aplicação.
+    """
+    count = NotificacaoTicket.objects.filter(
+        usuario=request.user, lida=False
+    ).count()
+
+    # Retorna as últimas 5 notificações não lidas para o dropdown
+    recentes = NotificacaoTicket.objects.filter(
+        usuario=request.user, lida=False
+    ).select_related('ticket').order_by('-criado_em')[:5]
+
+    return JsonResponse({
+        'count': count,
+        'notificacoes': [
+            {
+                'id': n.pk,
+                'titulo': n.titulo,
+                'mensagem': n.mensagem,
+                'tipo': n.tipo,
+                'icone': n.icone,
+                'cor': n.cor,
+                'ticket_id': n.ticket_id,
+                'ticket_numero': n.ticket.numero if n.ticket else None,
+                'criado_em': n.criado_em.strftime('%d/%m %H:%M'),
+                'url': f'/tickets/tickets/{n.ticket_id}/' if n.ticket_id else '/tickets/notificacoes/',
+            }
+            for n in recentes
+        ]
+    })
+
+
+# ==================== RELATÓRIOS ====================
+
+class RelatorioTicketsView(LoginRequiredMixin, View):
+    """
+    Relatório de desempenho do helpdesk com métricas:
+    TMR, TMA, FCR, CSAT, tickets por status/categoria/agente.
+    """
+    template_name = 'tickets/relatorio.html'
+
+    def get(self, request):
+        from datetime import date, timedelta
+
+        # ── Filtros de período ──
+        data_inicio_str = request.GET.get('data_inicio', '')
+        data_fim_str = request.GET.get('data_fim', '')
+        agente_id = request.GET.get('agente', '')
+        categoria_id = request.GET.get('categoria', '')
+
+        hoje = date.today()
+        try:
+            data_inicio = date.fromisoformat(data_inicio_str) if data_inicio_str else hoje.replace(day=1)
+            data_fim = date.fromisoformat(data_fim_str) if data_fim_str else hoje
+        except ValueError:
+            data_inicio = hoje.replace(day=1)
+            data_fim = hoje
+
+        user = request.user
+        cliente = user if user.is_staff else user
+
+        qs = Ticket.objects.filter(
+            cliente=cliente,
+            criado_em__date__gte=data_inicio,
+            criado_em__date__lte=data_fim,
+        )
+
+        if agente_id:
+            qs = qs.filter(responsavel_id=agente_id)
+        if categoria_id:
+            qs = qs.filter(categoria_id=categoria_id)
+
+        # ── Métricas gerais ──
+        total = qs.count()
+        total_fechados = qs.filter(status__status_base__in=['resolvido', 'fechado']).count()
+        total_vencidos = qs.filter(
+            previsao_solucao__lt=timezone.now()
+        ).exclude(status__status_base__in=['resolvido', 'fechado', 'cancelado']).count()
+
+        # TMR — Tempo Médio de Resposta (criado_em → primeira_resposta_em)
+        tmr_qs = qs.filter(
+            primeira_resposta_em__isnull=False
+        ).annotate(
+            duracao_resposta=ExpressionWrapper(
+                F('primeira_resposta_em') - F('criado_em'),
+                output_field=DurationField()
+            )
+        ).aggregate(tmr=Avg('duracao_resposta'))
+        tmr = tmr_qs['tmr']
+        tmr_horas = round(tmr.total_seconds() / 3600, 1) if tmr else None
+
+        # TMA — Tempo Médio de Atendimento (criado_em → resolvido_em)
+        tma_qs = qs.filter(
+            resolvido_em__isnull=False
+        ).annotate(
+            duracao_atendimento=ExpressionWrapper(
+                F('resolvido_em') - F('criado_em'),
+                output_field=DurationField()
+            )
+        ).aggregate(tma=Avg('duracao_atendimento'))
+        tma = tma_qs['tma']
+        tma_horas = round(tma.total_seconds() / 3600, 1) if tma else None
+
+        # FCR — First Contact Resolution
+        # Considera FCR tickets resolvidos com apenas 1 ação pública do agente
+        fcr_total = qs.filter(
+            status__status_base__in=['resolvido', 'fechado']
+        ).annotate(
+            acoes_pub=Count('acoes', filter=Q(acoes__tipo='publica', acoes__autor__is_staff=True))
+        ).filter(acoes_pub__lte=1).count()
+        fcr_pct = round((fcr_total / total_fechados * 100), 1) if total_fechados else None
+
+        # CSAT — média das avaliações de satisfação
+        from apps.tickets.models import PesquisaSatisfacao
+        csat_qs = PesquisaSatisfacao.objects.filter(
+            ticket__cliente=cliente,
+            ticket__criado_em__date__gte=data_inicio,
+            ticket__criado_em__date__lte=data_fim,
+            nota__isnull=False,
+        ).aggregate(media=Avg('nota'), total=Count('id'))
+        csat_media = round(csat_qs['media'], 1) if csat_qs['media'] else None
+
+        # ── Por status ──
+        por_status = qs.values(
+            'status__nome', 'status__cor'
+        ).annotate(total=Count('id')).order_by('-total')
+
+        # ── Por categoria ──
+        por_categoria = qs.values(
+            'categoria__nome'
+        ).annotate(total=Count('id')).order_by('-total')[:10]
+
+        # ── Por agente ──
+        por_agente = qs.filter(responsavel__isnull=False).values(
+            'responsavel__first_name', 'responsavel__last_name', 'responsavel__username'
+        ).annotate(total=Count('id')).order_by('-total')[:10]
+
+        # ── Por dia (últimos 30 dias) ──
+        por_dia = qs.annotate(
+            dia=TruncDate('criado_em')
+        ).values('dia').annotate(total=Count('id')).order_by('dia')
+
+        # ── Contexto ──
+        from apps.authentication.models import User
+        agentes_qs = User.objects.filter(is_staff=True, is_active=True)
+        categorias_qs = Categoria.objects.filter(cliente=cliente, ativo=True)
+
+        return render(request, self.template_name, {
+            'data_inicio': data_inicio,
+            'data_fim': data_fim,
+            'agente_id': agente_id,
+            'categoria_id': categoria_id,
+            'agentes': agentes_qs,
+            'categorias': categorias_qs,
+            # Métricas
+            'total': total,
+            'total_fechados': total_fechados,
+            'total_vencidos': total_vencidos,
+            'tmr_horas': tmr_horas,
+            'tma_horas': tma_horas,
+            'fcr_pct': fcr_pct,
+            'csat_media': csat_media,
+            'csat_total': csat_qs['total'],
+            # Distribuições
+            'por_status': list(por_status),
+            'por_categoria': list(por_categoria),
+            'por_agente': list(por_agente),
+            'por_dia': list(por_dia),
+        })
+
+
+@login_required
+def exportar_tickets_csv(request):
+    """
+    Exporta tickets filtrados como CSV.
+    Aceita os mesmos parâmetros GET da RelatorioTicketsView.
+    """
+    from datetime import date
+
+    user = request.user
+    cliente = user if user.is_staff else user
+
+    data_inicio_str = request.GET.get('data_inicio', '')
+    data_fim_str = request.GET.get('data_fim', '')
+    agente_id = request.GET.get('agente', '')
+    categoria_id = request.GET.get('categoria', '')
+
+    hoje = date.today()
+    try:
+        data_inicio = date.fromisoformat(data_inicio_str) if data_inicio_str else hoje.replace(day=1)
+        data_fim = date.fromisoformat(data_fim_str) if data_fim_str else hoje
+    except ValueError:
+        data_inicio = hoje.replace(day=1)
+        data_fim = hoje
+
+    qs = Ticket.objects.filter(
+        cliente=cliente,
+        criado_em__date__gte=data_inicio,
+        criado_em__date__lte=data_fim,
+    ).select_related(
+        'solicitante', 'responsavel', 'status',
+        'categoria', 'urgencia', 'servico'
+    ).order_by('-criado_em')
+
+    if agente_id:
+        qs = qs.filter(responsavel_id=agente_id)
+    if categoria_id:
+        qs = qs.filter(categoria_id=categoria_id)
+
+    # Cria o arquivo CSV
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    filename = f"tickets_{data_inicio}_{data_fim}.csv"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'Número', 'Assunto', 'Status', 'Status Base',
+        'Categoria', 'Urgência', 'Serviço',
+        'Solicitante', 'Responsável', 'Equipe',
+        'Canal', 'Tipo',
+        'Criado em', '1ª Resposta em', 'Resolvido em', 'Fechado em',
+        'Previsão SLA', 'Vencido?',
+        'TMR (horas)', 'TMA (horas)',
+        'Tags',
+    ])
+
+    for t in qs:
+        tmr = None
+        if t.primeira_resposta_em and t.criado_em:
+            tmr = round((t.primeira_resposta_em - t.criado_em).total_seconds() / 3600, 2)
+        tma = None
+        if t.resolvido_em and t.criado_em:
+            tma = round((t.resolvido_em - t.criado_em).total_seconds() / 3600, 2)
+
+        writer.writerow([
+            t.numero,
+            t.assunto,
+            t.status.nome if t.status else '',
+            t.status.status_base if t.status else '',
+            t.categoria.nome if t.categoria else '',
+            t.urgencia.nome if t.urgencia else '',
+            t.servico.nome if t.servico else '',
+            t.solicitante.get_full_name() or t.solicitante.username if t.solicitante else '',
+            t.responsavel.get_full_name() or t.responsavel.username if t.responsavel else '',
+            t.equipe.nome if hasattr(t, 'equipe') and t.equipe else '',
+            t.canal_abertura,
+            t.tipo_ticket,
+            t.criado_em.strftime('%d/%m/%Y %H:%M') if t.criado_em else '',
+            t.primeira_resposta_em.strftime('%d/%m/%Y %H:%M') if t.primeira_resposta_em else '',
+            t.resolvido_em.strftime('%d/%m/%Y %H:%M') if t.resolvido_em else '',
+            t.fechado_em.strftime('%d/%m/%Y %H:%M') if t.fechado_em else '',
+            t.previsao_solucao.strftime('%d/%m/%Y %H:%M') if t.previsao_solucao else '',
+            'Sim' if t.esta_vencido else 'Não',
+            tmr,
+            tma,
+            ', '.join(t.tags) if t.tags else '',
+        ])
+
+    return response

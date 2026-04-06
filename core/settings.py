@@ -309,3 +309,63 @@ RDP_ALLOWED_ORIGINS = [
     'http://192.168.100.247:5002',
     'http://192.168.100.247',
 ]
+
+# ==================== CELERY ====================
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'America/Sao_Paulo'
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    # Gatilhos por tempo — a cada 5 minutos
+    'tickets-gatilhos-tempo': {
+        'task': 'tickets.avaliar_gatilhos_tempo',
+        'schedule': 300.0,  # 5 min
+    },
+    # Alertas de SLA — a cada 15 minutos
+    'tickets-verificar-sla': {
+        'task': 'tickets.verificar_sla',
+        'schedule': 900.0,  # 15 min
+    },
+    # Processar e-mails — a cada 5 minutos
+    'tickets-processar-emails': {
+        'task': 'tickets.processar_emails',
+        'schedule': 300.0,
+    },
+    # Fechar tickets resolvidos — todo dia às 02:00
+    'tickets-fechar-resolvidos': {
+        'task': 'tickets.fechar_tickets_resolvidos',
+        'schedule': crontab(hour=2, minute=0),
+        'kwargs': {'dias': 7},
+    },
+    # Pesquisa de satisfação — a cada hora
+    'tickets-pesquisa-satisfacao': {
+        'task': 'tickets.enviar_pesquisa_satisfacao',
+        'schedule': crontab(minute=0),  # início de cada hora
+        'kwargs': {'horas_apos_fechamento': 24},
+    },
+    # Limpar notificações antigas — domingo às 03:00
+    'tickets-limpar-notificacoes': {
+        'task': 'tickets.limpar_notificacoes',
+        'schedule': crontab(hour=3, minute=0, day_of_week=0),
+        'kwargs': {'dias': 30},
+    },
+    # Machines status (já existia)
+    'check-machines-status': {
+        'task': 'apps.inventory.tasks.check_machines_status',
+        'schedule': 300.0,
+    },
+}
+
+CRON_ALTERNATIVA = """
+# crontab -e
+# Avaliar gatilhos e SLA a cada 5 min:
+*/5 * * * * cd /path/to/project && python manage.py avaliar_gatilhos_tempo >> logs/gatilhos.log 2>&1
+*/15 * * * * cd /path/to/project && python manage.py verificar_sla >> logs/sla.log 2>&1
+*/5 * * * * cd /path/to/project && python manage.py process_ticket_emails --mark-read >> logs/emails.log 2>&1
+0 2 * * * cd /path/to/project && python manage.py fechar_tickets_resolvidos >> logs/fechamento.log 2>&1
+"""

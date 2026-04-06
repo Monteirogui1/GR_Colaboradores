@@ -1,0 +1,44 @@
+{% extends 'layouts/base.html' %}
+{% block title %}{% if object.pk %}Editar Equipe{% else %}Nova Equipe{% endif %}{% endblock %}
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>{% if object.pk %}Editar Equipe{% else %}Nova Equipe{% endif %}</h1>
+        <a href="{% url 'tickets:equipe_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="detail-card">
+            <h2>Informações</h2>
+            <div class="form-grid">
+                <div class="form-group">{{ form.nome.label_tag }}{{ form.nome }}{% if form.nome.errors %}<div class="text-danger">{{ form.nome.errors }}</div>{% endif %}</div>
+                <div class="form-group">{{ form.email.label_tag }}{{ form.email }}</div>
+                <div class="form-group">{{ form.ordem.label_tag }}{{ form.ordem }}</div>
+                <div class="form-group"><label>{{ form.ativo }} Ativo</label></div>
+                <div class="form-group full-width">{{ form.descricao.label_tag }}{{ form.descricao }}</div>
+            </div>
+        </div>
+        <div class="detail-card">
+            <h2>Agentes da equipe</h2>
+            <p style="font-size:13px;color:#64748b;margin-bottom:12px;">
+                Selecione os agentes que fazem parte desta equipe.
+                O ticket será distribuído automaticamente ao agente com menor carga.
+            </p>
+            <div class="form-group">
+                <div style="display:flex;flex-wrap:wrap;gap:10px;">
+                    {% for checkbox in form.agentes %}
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 12px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;">
+                        {{ checkbox.tag }} {{ checkbox.choice_label }}
+                    </label>
+                    {% endfor %}
+                </div>
+                {% if form.agentes.errors %}<div class="text-danger">{{ form.agentes.errors }}</div>{% endif %}
+            </div>
+        </div>
+        <div class="form-actions">
+            <a href="{% url 'tickets:equipe_list' %}" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

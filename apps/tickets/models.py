@@ -38,6 +38,27 @@ class TipoHorario(models.TextChoices):
     HORAS_UTEIS = 'uteis', 'Horas Úteis'
     HORAS_CORRIDAS = 'corridas', 'Horas Corridas'
 
+class DiaSemana(models.IntegerChoices):
+    """Dias da semana (0=Segunda ... 6=Domingo)"""
+    SEGUNDA  = 0, 'Segunda-feira'
+    TERCA    = 1, 'Terça-feira'
+    QUARTA   = 2, 'Quarta-feira'
+    QUINTA   = 3, 'Quinta-feira'
+    SEXTA    = 4, 'Sexta-feira'
+    SABADO   = 5, 'Sábado'
+    DOMINGO  = 6, 'Domingo'
+
+
+class TipoNotificacao(models.TextChoices):
+    TICKET_CRIADO    = 'ticket_criado',    'Novo ticket'
+    NOVA_ACAO        = 'nova_acao',        'Nova ação no ticket'
+    STATUS_ALTERADO  = 'status_alterado',  'Status alterado'
+    SLA_PROXIMO      = 'sla_proximo',      'SLA próximo do vencimento'
+    SLA_VENCIDO      = 'sla_vencido',      'SLA vencido'
+    ATRIBUIDO        = 'atribuido',        'Ticket atribuído a você'
+    MENCIONADO       = 'mencionado',       'Você foi mencionado'
+
+
 # ==================== CLASSIFICAÇÕES ====================
 
 class Categoria(models.Model):
@@ -695,6 +716,16 @@ class Ticket(models.Model):
         default=dict
     )
 
+    # Equipe responsável
+    equipe = models.ForeignKey(
+        'Equipe',
+        on_delete=models.SET_NULL,
+        related_name='tickets',
+        verbose_name="Equipe",
+        null=True,
+        blank=True
+    )
+
 
     class Meta:
         verbose_name = "Ticket"
@@ -756,43 +787,137 @@ class Ticket(models.Model):
 
         # Calcula SLA após salvar
         if not self.previsao_manual:
-            self.calcular_sla()
+            self.calcular_prazo_uteis()
 
-    def calcular_sla(self):
-        """Calcula a previsão de solução baseada no SLA"""
-        if self.previsao_manual:
-            return
+    def calcular_prazo_uteis(dt_inicio, horas_prazo, horarios, feriados_qs):
+        """
+        Calcula dt_inicio + horas_prazo em horas úteis reais.
 
-        # Busca contrato SLA
-        contrato = self.contrato_sla or ContratoSLA.objects.filter(
-            cliente=self.cliente,
-            is_padrao=True,
-            ativo=True
-        ).first()
+        Args:
+            dt_inicio    : datetime — início do prazo
+            horas_prazo  : int     — horas de SLA
+            horarios     : QuerySet[HorarioAtendimento]
+            feriados_qs  : QuerySet[Feriado]
 
-        if not contrato:
-            return
+        Returns:
+            datetime — previsão de solução em horas úteis
+        """
+        from datetime import timedelta, datetime, time as dtime
+        from django.utils import timezone
 
-        # Busca regra aplicável
-        for regra in contrato.regras.filter(ativo=True).order_by('ordem'):
-            if regra.aplica_ao_ticket(self):
-                self.regra_sla_aplicada = regra
-                self.contrato_sla = contrato
+        if not horarios.exists():
+            # Sem horário configurado: usa horas corridas
+            return dt_inicio + timedelta(hours=horas_prazo)
 
-                # Calcula previsão
-                from datetime import timedelta
-                prazo = timedelta(hours=regra.prazo_solucao)
+        # Mapa dia_semana → lista de janelas (hora_inicio, hora_fim)
+        janelas_por_dia = {}
+        for h in horarios.filter(ativo=True):
+            janelas_por_dia.setdefault(h.dia_semana, []).append(
+                (h.hora_inicio, h.hora_fim)
+            )
 
-                # TODO: Considerar horas úteis vs corridas
-                # TODO: Subtrair tempo pausado
-                self.previsao_solucao = self.criado_em + prazo
+        # Cache de feriados (data → True)
+        feriados_set = set()
+        for f in feriados_qs:
+            if f.recorrente:
+                # Adiciona para vários anos ao redor do período
+                for ano in range(dt_inicio.year, dt_inicio.year + 5):
+                    try:
+                        feriados_set.add(f.data.replace(year=ano))
+                    except ValueError:
+                        pass  # 29/fev em ano não bissexto
+            else:
+                feriados_set.add(f.data)
 
-                Ticket.objects.filter(pk=self.pk).update(
-                    regra_sla_aplicada=self.regra_sla_aplicada,
-                    contrato_sla=self.contrato_sla,
-                    previsao_solucao=self.previsao_solucao
-                )
-                break
+        def is_uteis(dt):
+            """Verifica se dt está dentro de um horário útil."""
+            if dt.date() in feriados_set:
+                return False
+            dia = dt.weekday()  # 0=segunda … 6=domingo
+            janelas = janelas_por_dia.get(dia, [])
+            hora_atual = dt.time()
+            return any(inicio <= hora_atual < fim for inicio, fim in janelas)
+
+        def proxima_janela_inicio(dt):
+            """Retorna o próximo início de janela útil a partir de dt."""
+            # Tenta o mesmo dia
+            dia = dt.weekday()
+            janelas_hoje = sorted(janelas_por_dia.get(dia, []))
+            hora_atual = dt.time()
+
+            for inicio, _ in janelas_hoje:
+                if inicio > hora_atual and dt.date() not in feriados_set:
+                    return dt.replace(hour=inicio.hour, minute=inicio.minute,
+                                      second=0, microsecond=0)
+
+            # Próximos dias
+            for dias_a_frente in range(1, 8):
+                prox_dt = dt + timedelta(days=dias_a_frente)
+                if prox_dt.date() in feriados_set:
+                    continue
+                dia_prox = prox_dt.weekday()
+                janelas_prox = sorted(janelas_por_dia.get(dia_prox, []))
+                if janelas_prox:
+                    inicio = janelas_prox[0][0]
+                    return prox_dt.replace(hour=inicio.hour, minute=inicio.minute,
+                                           second=0, microsecond=0)
+
+            return dt + timedelta(days=1)  # Fallback
+
+        # Se não está em horário útil, avança para o próximo início
+        atual = dt_inicio
+        if not is_uteis(atual):
+            atual = proxima_janela_inicio(atual)
+
+        horas_restantes = horas_prazo
+
+        MAX_ITER = horas_prazo * 10 + 1000  # Proteção contra loop infinito
+        iteracoes = 0
+
+        while horas_restantes > 0 and iteracoes < MAX_ITER:
+            iteracoes += 1
+            dia = atual.weekday()
+
+            if atual.date() in feriados_set:
+                atual = proxima_janela_inicio(atual)
+                continue
+
+            janelas_hoje = sorted(janelas_por_dia.get(dia, []))
+            if not janelas_hoje:
+                atual = proxima_janela_inicio(atual)
+                continue
+
+            # Encontrar janela atual
+            hora_atual = atual.time()
+            janela_corrente = None
+            for inicio, fim in janelas_hoje:
+                if inicio <= hora_atual < fim:
+                    janela_corrente = (inicio, fim)
+                    break
+
+            if janela_corrente is None:
+                # Fora de janela — avança para próxima
+                atual = proxima_janela_inicio(atual)
+                continue
+
+            # Horas disponíveis até o fim desta janela
+            fim_janela = atual.replace(
+                hour=janela_corrente[1].hour,
+                minute=janela_corrente[1].minute,
+                second=0, microsecond=0
+            )
+            horas_na_janela = (fim_janela - atual).total_seconds() / 3600
+
+            if horas_restantes <= horas_na_janela:
+                # Prazo termina nesta janela
+                atual = atual + timedelta(hours=horas_restantes)
+                horas_restantes = 0
+            else:
+                # Consome toda a janela e vai para a próxima
+                horas_restantes -= horas_na_janela
+                atual = proxima_janela_inicio(fim_janela)
+
+        return atual
 
     @property
     def esta_vencido(self):
@@ -1159,3 +1284,255 @@ class ConfiguracaoEmail(models.Model):
             'imap_server': 'imap.mail.yahoo.com', 'imap_port': 993,
         },
     }
+
+
+class HorarioAtendimento(models.Model):
+    """
+    Janela de horário de atendimento por dia da semana.
+    Usada para calcular SLA em horas úteis.
+    Um cliente pode ter múltiplas janelas (uma por dia ativo).
+    """
+    nome = models.CharField("Nome", max_length=100,
+                            help_text="Ex: Horário Padrão, Horário Estendido")
+    cliente = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.CASCADE,
+        related_name='horarios_atendimento'
+    )
+    dia_semana = models.IntegerField(
+        "Dia da Semana",
+        choices=DiaSemana.choices
+    )
+    hora_inicio = models.TimeField("Hora de Início")
+    hora_fim = models.TimeField("Hora de Fim")
+    ativo = models.BooleanField("Ativo", default=True)
+
+    class Meta:
+        verbose_name = "Horário de Atendimento"
+        verbose_name_plural = "Horários de Atendimento"
+        ordering = ['dia_semana', 'hora_inicio']
+        unique_together = ['cliente', 'nome', 'dia_semana']
+
+    def __str__(self):
+        return (
+            f"{self.nome} — {self.get_dia_semana_display()} "
+            f"{self.hora_inicio:%H:%M}–{self.hora_fim:%H:%M}"
+        )
+
+
+class Feriado(models.Model):
+    """Feriados que suspendem o atendimento (para cálculo SLA em horas úteis)."""
+    nome = models.CharField("Nome", max_length=100)
+    data = models.DateField("Data")
+    recorrente = models.BooleanField(
+        "Recorrente anualmente",
+        default=False,
+        help_text="Se marcado, repete todo ano na mesma data"
+    )
+    cliente = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.CASCADE,
+        related_name='feriados'
+    )
+
+    class Meta:
+        verbose_name = "Feriado"
+        verbose_name_plural = "Feriados"
+        ordering = ['data']
+        unique_together = ['cliente', 'data', 'nome']
+
+    def __str__(self):
+        return f"{self.nome} ({self.data:%d/%m/%Y})"
+
+    def eh_feriado_hoje(self, data_verificar):
+        """Verifica se esta data é feriado (considerando recorrência)."""
+        if self.recorrente:
+            return (self.data.month == data_verificar.month and
+                    self.data.day == data_verificar.day)
+        return self.data == data_verificar
+
+
+class TemplateResposta(models.Model):
+    """
+    Templates de resposta rápida para agentes.
+    Suporta variáveis como {ticket.numero}, {ticket.solicitante}, etc.
+    """
+    nome = models.CharField("Nome", max_length=100)
+    descricao = models.TextField("Descrição", blank=True)
+
+    # Conteúdo HTML (gerado pelo editor Quill)
+    conteudo = models.TextField(
+        "Conteúdo",
+        help_text="HTML da resposta. Suporta variáveis: {ticket.numero}, "
+                  "{ticket.assunto}, {ticket.solicitante}, {ticket.responsavel}"
+    )
+
+    ativo = models.BooleanField("Ativo", default=True)
+    ordem = models.IntegerField("Ordem", default=0)
+    cliente = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.CASCADE,
+        related_name='templates_resposta'
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Template de Resposta"
+        verbose_name_plural = "Templates de Resposta"
+        ordering = ['ordem', 'nome']
+        unique_together = ['nome', 'cliente']
+
+    def __str__(self):
+        return self.nome
+
+    @property
+    def conteudo_json(self):
+        """Retorna JSON seguro para uso inline no template HTML."""
+        import json
+        return json.dumps({'conteudo': self.conteudo, 'nome': self.nome})
+
+    def substituir_variaveis(self, ticket):
+        """Substitui variáveis no conteúdo pelo contexto do ticket."""
+        conteudo = self.conteudo
+        variaveis = {
+            '{ticket.numero}': ticket.numero,
+            '{ticket.assunto}': ticket.assunto or '',
+            '{ticket.solicitante}': ticket.solicitante.get_full_name() or ticket.solicitante.username if ticket.solicitante else '',
+            '{ticket.responsavel}': ticket.responsavel.get_full_name() or ticket.responsavel.username if ticket.responsavel else '',
+            '{ticket.status}': ticket.status.nome if ticket.status else '',
+            '{ticket.categoria}': ticket.categoria.nome if ticket.categoria else '',
+            '{ticket.urgencia}': ticket.urgencia.nome if ticket.urgencia else '',
+        }
+        for var, val in variaveis.items():
+            conteudo = conteudo.replace(var, str(val))
+        return conteudo
+
+
+class Equipe(models.Model):
+    """Equipe de agentes — agrupa agentes para roteamento de tickets."""
+    nome = models.CharField("Nome", max_length=100)
+    descricao = models.TextField("Descrição", blank=True)
+    email = models.EmailField("E-mail da equipe", blank=True,
+                              help_text="E-mail de contato/notificação da equipe")
+    ativo = models.BooleanField("Ativo", default=True)
+    ordem = models.IntegerField("Ordem", default=0)
+
+    cliente = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.CASCADE,
+        related_name='equipes'
+    )
+    agentes = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='equipes_membro',
+        limit_choices_to={'is_staff': True},
+        verbose_name="Agentes"
+    )
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Equipe"
+        verbose_name_plural = "Equipes"
+        ordering = ['ordem', 'nome']
+        unique_together = ['nome', 'cliente']
+
+    def __str__(self):
+        return self.nome
+
+    def agente_com_menor_carga(self):
+        """
+        Retorna o agente da equipe com menos tickets abertos.
+        Usado para distribuição automática de tickets.
+        """
+        from django.db.models import Count, Q
+        return (
+            self.agentes
+            .filter(is_active=True)
+            .annotate(
+                tickets_abertos=Count(
+                    'tickets_responsavel',
+                    filter=Q(
+                        tickets_responsavel__status__status_base__in=[
+                            'novo', 'em_atendimento', 'parado'
+                        ]
+                    )
+                )
+            )
+            .order_by('tickets_abertos')
+            .first()
+        )
+
+
+class NotificacaoTicket(models.Model):
+    """
+    Notificação in-app para agentes e solicitantes.
+    Exibida como badge no header e lista de notificações.
+    """
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notificacoes_tickets'
+    )
+    ticket = models.ForeignKey(
+        Ticket,
+        on_delete=models.CASCADE,
+        related_name='notificacoes',
+        null=True, blank=True
+    )
+    tipo = models.CharField(
+        "Tipo",
+        max_length=30,
+        choices=TipoNotificacao.choices
+    )
+    titulo = models.CharField("Título", max_length=200)
+    mensagem = models.TextField("Mensagem", blank=True)
+    lida = models.BooleanField("Lida", default=False)
+    lida_em = models.DateTimeField("Lida em", null=True, blank=True)
+    criado_em = models.DateTimeField("Criado em", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Notificação"
+        verbose_name_plural = "Notificações"
+        ordering = ['-criado_em']
+        indexes = [
+            models.Index(fields=['usuario', 'lida', '-criado_em']),
+        ]
+
+    def __str__(self):
+        return f"{self.usuario.username} — {self.titulo}"
+
+    def marcar_lida(self):
+        if not self.lida:
+            self.lida = True
+            self.lida_em = timezone.now()
+            self.save(update_fields=['lida', 'lida_em'])
+
+    @property
+    def icone(self):
+        icones = {
+            'ticket_criado': 'bi-ticket-detailed',
+            'nova_acao': 'bi-chat-left-text',
+            'status_alterado': 'bi-arrow-repeat',
+            'sla_proximo': 'bi-exclamation-triangle',
+            'sla_vencido': 'bi-x-octagon',
+            'atribuido': 'bi-person-check',
+            'mencionado': 'bi-at',
+        }
+        return icones.get(self.tipo, 'bi-bell')
+
+    @property
+    def cor(self):
+        cores = {
+            'ticket_criado': '#1a73e8',
+            'nova_acao': '#7c3aed',
+            'status_alterado': '#0891b2',
+            'sla_proximo': '#d97706',
+            'sla_vencido': '#ef4444',
+            'atribuido': '#16a34a',
+            'mencionado': '#db2777',
+        }
+        return cores.get(self.tipo, '#6b7280')

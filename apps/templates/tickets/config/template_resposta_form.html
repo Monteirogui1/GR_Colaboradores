@@ -1,0 +1,77 @@
+{% extends 'layouts/base.html' %}
+{% block title %}{% if object.pk %}Editar Template{% else %}Novo Template de Resposta{% endif %}{% endblock %}
+{% block conteudo %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css">
+<div class="content">
+    <div class="page-header">
+        <h1>{% if object.pk %}Editar{% else %}Novo{% endif %} Template de Resposta</h1>
+        <a href="{% url 'tickets:template_resposta_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+ 
+    <form method="post" id="form-template">
+        {% csrf_token %}
+        <input type="hidden" name="conteudo_html" id="conteudo_html_hidden">
+ 
+        <div class="detail-card">
+            <h2>Informações</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    {{ form.nome.label_tag }}{{ form.nome }}
+                    {% if form.nome.errors %}<div class="text-danger">{{ form.nome.errors }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.ordem.label_tag }}{{ form.ordem }}
+                </div>
+                <div class="form-group full-width">
+                    {{ form.descricao.label_tag }}{{ form.descricao }}
+                </div>
+                <div class="form-group" style="align-items:center">
+                    <label>{{ form.ativo }} Ativo</label>
+                </div>
+            </div>
+        </div>
+ 
+        <div class="detail-card">
+            <h2>Conteúdo do Template</h2>
+            <p style="font-size:13px;color:#64748b;margin-bottom:12px;">
+                Variáveis disponíveis:
+                <code>{ticket.numero}</code> <code>{ticket.assunto}</code>
+                <code>{ticket.solicitante}</code> <code>{ticket.responsavel}</code>
+                <code>{ticket.status}</code> <code>{ticket.categoria}</code>
+            </p>
+            <div id="quill-template" style="min-height:200px;font-size:14px;"></div>
+        </div>
+ 
+        <div class="form-actions">
+            <a href="{% url 'tickets:template_resposta_list' %}" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary" onclick="prepEnvio()">Salvar Template</button>
+        </div>
+    </form>
+</div>
+ 
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<script>
+const quill = new Quill('#quill-template', {
+    theme: 'snow',
+    modules: {
+        toolbar: [
+            [{ 'header': [1,2,3,false] }],
+            ['bold','italic','underline'],
+            [{'color':[]},{'background':[]}],
+            [{'list':'ordered'},{'list':'bullet'}],
+            ['link'],['clean']
+        ]
+    }
+});
+ 
+// Pré-popular se editando
+const conteudoAtual = `{{ object.conteudo|default:''|escapejs }}`;
+if (conteudoAtual) {
+    quill.clipboard.dangerouslyPasteHTML(conteudoAtual);
+}
+ 
+function prepEnvio() {
+    document.getElementById('conteudo_html_hidden').value = quill.root.innerHTML;
+}
+</script>
+{% endblock %}

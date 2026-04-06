@@ -297,6 +297,44 @@
            class="">
             <i class="bi bi-sliders"></i> Configurações E-mail
         </a>
+        <div style="position:relative;margin-right:8px;">
+        <a href="{% url 'tickets:notificacoes' %}" id="notif-btn"
+           style="display:flex;align-items:center;justify-content:center;
+                  width:36px;height:36px;border-radius:50%;
+                  background:var(--color-background-secondary);
+                  border:1px solid var(--color-border-tertiary);
+                  color:var(--color-text-secondary);
+                  text-decoration:none;position:relative;"
+           title="Notificações">
+            <i class="bi bi-bell" style="font-size:16px;"></i>
+            <span id="notif-badge"
+                  style="display:none;position:absolute;top:-3px;right:-3px;
+                         background:#ef4444;color:#fff;font-size:10px;
+                         font-weight:700;padding:1px 5px;border-radius:10px;
+                         min-width:16px;text-align:center;">0</span>
+        </a>
+
+        <!-- Dropdown de notificações rápidas -->
+        <div id="notif-dropdown" style="
+            display:none;position:absolute;top:44px;right:0;z-index:1000;
+            width:320px;background:#fff;border:1px solid #e2e8f0;
+            border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);overflow:hidden;">
+            <div style="display:flex;align-items:center;justify-content:space-between;
+                        padding:12px 14px;border-bottom:1px solid #f1f5f9;">
+                <span style="font-size:13px;font-weight:600;color:#1e293b;">Notificações</span>
+                <button onclick="marcarTodasLidas()" style="font-size:12px;color:#1a73e8;background:none;border:none;cursor:pointer;">
+                    Marcar todas como lidas
+                </button>
+            </div>
+            <div id="notif-list" style="max-height:300px;overflow-y:auto;"></div>
+            <div style="padding:10px;text-align:center;border-top:1px solid #f1f5f9;">
+                <a href="{% url 'tickets:notificacoes' %}" style="font-size:13px;color:#1a73e8;text-decoration:none;">
+                    Ver todas as notificações
+                </a>
+                </div>
+            </div>
+        </div>
+
         {% endif %}
     </nav>
 
@@ -328,6 +366,78 @@
     {% block conteudo %}{% endblock %}
 </main>
 
-<script src="{% static 'assets/js/script.js' %}"></script>
+<script src="{% static 'assets/js/script.js' %}">
+// Polling de notificações a cada 30s
+let notifAberto = false;
+
+document.getElementById('notif-btn').addEventListener('click', function(e) {
+    e.preventDefault();
+    notifAberto = !notifAberto;
+    document.getElementById('notif-dropdown').style.display = notifAberto ? 'block' : 'none';
+});
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#notif-btn') && !e.target.closest('#notif-dropdown')) {
+        notifAberto = false;
+        document.getElementById('notif-dropdown').style.display = 'none';
+    }
+});
+
+function carregarNotificacoes() {
+    fetch('/tickets/api/notificacoes/count/')
+        .then(r => r.json())
+        .then(data => {
+            const badge = document.getElementById('notif-badge');
+            if (data.count > 0) {
+                badge.textContent = data.count > 99 ? '99+' : data.count;
+                badge.style.display = 'block';
+            } else {
+                badge.style.display = 'none';
+            }
+
+            const list = document.getElementById('notif-list');
+            if (data.notificacoes.length === 0) {
+                list.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">Sem notificações não lidas</div>';
+            } else {
+                list.innerHTML = data.notificacoes.map(n => `
+                    <a href="${n.url}" onclick="marcarLida(${n.id})"
+                       style="display:flex;gap:10px;padding:12px 14px;border-bottom:1px solid #f8fafc;
+                              text-decoration:none;color:inherit;transition:background .1s;">
+                        <div style="width:32px;height:32px;border-radius:50%;
+                                    background:${n.cor}22;display:flex;align-items:center;
+                                    justify-content:center;flex-shrink:0;">
+                            <i class="bi ${n.icone}" style="color:${n.cor};font-size:14px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-size:13px;font-weight:500;color:#1e293b;">${n.titulo}</div>
+                            ${n.mensagem ? `<div style="font-size:12px;color:#64748b;">${n.mensagem}</div>` : ''}
+                            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${n.criado_em}</div>
+                        </div>
+                    </a>
+                `).join('');
+            }
+        })
+        .catch(() => {});
+}
+
+function marcarLida(id) {
+    fetch('/tickets/notificacoes/' + id + '/ler/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '', 'X-Requested-With': 'XMLHttpRequest'}
+    }).then(() => carregarNotificacoes());
+}
+
+function marcarTodasLidas() {
+    fetch('/tickets/notificacoes/ler-todas/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '', 'X-Requested-With': 'XMLHttpRequest'}
+    }).then(() => { carregarNotificacoes(); document.getElementById('notif-list').innerHTML = ''; });
+}
+
+// Inicia polling
+carregarNotificacoes();
+setInterval(carregarNotificacoes, 30000);
+
+</script>
 </body>
 </html>

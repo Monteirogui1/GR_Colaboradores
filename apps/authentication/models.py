@@ -3,4 +3,14 @@ from django.contrib.auth.models import AbstractUser
 from apps.shared.models import Cliente
 
 class User(AbstractUser):
-    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, null=True, blank=True)
+    assinatura = models.TextField(
+        "Assinatura",
+        blank=True,
+        help_text="HTML da assinatura exibida automaticamente no editor de resposta"
+    )
+    cliente = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='usuarios'
+    )

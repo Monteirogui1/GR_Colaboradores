@@ -1,0 +1,48 @@
+{% extends "layouts/base.html" %}
+{% block title %}Templates de Resposta{% endblock %}
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1><i class="bi bi-chat-square-text"></i> Templates de Resposta</h1>
+        <a href="{% url 'tickets:template_resposta_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Novo Template
+        </a>
+    </div>
+    <div class="detail-card">
+        {% if templates %}
+        <table class="table">
+            <thead>
+                <tr><th>Ordem</th><th>Nome</th><th>Descrição</th><th>Status</th><th>Ações</th></tr>
+            </thead>
+            <tbody>
+                {% for tpl in templates %}
+                <tr>
+                    <td>{{ tpl.ordem }}</td>
+                    <td><strong>{{ tpl.nome }}</strong></td>
+                    <td>{{ tpl.descricao|truncatewords:10|default:"—" }}</td>
+                    <td>
+                        <span class="badge" style="background:{% if tpl.ativo %}#16a34a{% else %}#6c757d{% endif %};color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">
+                            {% if tpl.ativo %}Ativo{% else %}Inativo{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{% url 'tickets:template_resposta_update' tpl.pk %}" class="btn btn-sm btn-edit"><i class="bi bi-pencil"></i></a>
+                        <form method="post" action="{% url 'tickets:template_resposta_delete' tpl.pk %}" style="display:inline;" onsubmit="return confirm('Excluir template?')">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-delete"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="text-align:center;padding:60px;color:#999;">
+            <i class="bi bi-chat-square-text" style="font-size:48px;display:block;margin-bottom:16px;opacity:.4;"></i>
+            <p>Nenhum template cadastrado</p>
+            <a href="{% url 'tickets:template_resposta_create' %}" class="btn btn-primary">Criar Primeiro</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
