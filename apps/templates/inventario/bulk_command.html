@@ -1,0 +1,600 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Comando em Massa — TI Manager{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+
+  <!-- CABEÇALHO -->
+  <div class="page-header">
+    <h1><i class="bi bi-terminal-fill"></i> Comando em Massa</h1>
+    <a href="{% url 'inventario:machine_list' %}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+
+  <div style="display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start;">
+
+    <!-- ═══════════════════════════════════
+         COLUNA ESQUERDA — Configuração
+    ════════════════════════════════════ -->
+    <div>
+
+      <!-- Seleção de alvos -->
+      <div class="detail-card" style="margin-bottom:16px;">
+        <h2 style="margin-bottom:14px;"><i class="bi bi-pc-display"></i> Alvos</h2>
+
+        <!-- Abas de seleção -->
+        <div style="display:flex; gap:4px; margin-bottom:14px; background:#f1f5f9; border-radius:8px; padding:4px;">
+          <button type="button" class="bc-tab bc-tab-active" onclick="switchTab('machines')" id="tab-machines">
+            Máquinas
+          </button>
+          <button type="button" class="bc-tab" onclick="switchTab('groups')" id="tab-groups">
+            Grupos
+          </button>
+          <button type="button" class="bc-tab" onclick="switchTab('all')" id="tab-all">
+            Todas
+          </button>
+        </div>
+
+        <!-- Aba: Máquinas individuais -->
+        <div id="pane-machines">
+          <input type="text" id="searchMachine" placeholder="Filtrar por hostname…"
+                 class="form-control" style="margin-bottom:8px; font-size:13px;"
+                 oninput="filterMachines(this.value)">
+          <div style="display:flex; gap:6px; margin-bottom:8px;">
+            <button type="button" class="btn btn-secondary" style="font-size:12px; padding:4px 10px;"
+                    onclick="toggleAll(true)">Marcar todas</button>
+            <button type="button" class="btn btn-secondary" style="font-size:12px; padding:4px 10px;"
+                    onclick="toggleAll(false)">Desmarcar</button>
+          </div>
+          <div id="machineList" style="max-height:280px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px;">
+            {% for m in machines %}
+            <label class="bc-machine-item" data-name="{{ m.hostname|lower }}" data-id="{{ m.id }}">
+              <input type="checkbox" class="bc-machine-cb" value="{{ m.id }}"
+                     style="accent-color:#1a73e8; width:15px; height:15px; flex-shrink:0;">
+              <span class="bc-status-dot {% if m.is_currently_online %}bc-online{% else %}bc-offline{% endif %}"></span>
+              <div style="min-width:0;">
+                <div style="font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                  {{ m.hostname }}
+                </div>
+                <div style="font-size:11px; color:#94a3b8;">{{ m.ip_address }} · {{ m.group.name|default:"Sem grupo" }}</div>
+              </div>
+            </label>
+            {% empty %}
+            <p style="padding:14px; text-align:center; color:#94a3b8; font-size:13px;">Nenhuma máquina com IP cadastrado.</p>
+            {% endfor %}
+          </div>
+          <div style="margin-top:6px; font-size:12px; color:#64748b;">
+            <span id="selectedCount">0</span> selecionada(s) de {{ machines|length }}
+          </div>
+        </div>
+
+        <!-- Aba: Grupos -->
+        <div id="pane-groups" style="display:none;">
+          <div style="max-height:320px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+            {% for g in groups %}
+            <label class="bc-group-item">
+              <input type="checkbox" class="bc-group-cb" value="{{ g.id }}"
+                     style="accent-color:#1a73e8; width:15px; height:15px; flex-shrink:0;">
+              <div>
+                <div style="font-size:13px; font-weight:500;">{{ g.name }}</div>
+                <div style="font-size:11px; color:#94a3b8;">{{ g.machine_set.count }} máquina(s)</div>
+              </div>
+            </label>
+            {% empty %}
+            <p style="color:#94a3b8; font-size:13px;">Nenhum grupo cadastrado.</p>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Aba: Todas -->
+        <div id="pane-all" style="display:none;">
+          <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:14px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <i class="bi bi-exclamation-triangle-fill" style="color:#d97706;"></i>
+              <span style="font-weight:600; font-size:13px; color:#92400e;">Atenção</span>
+            </div>
+            <p style="font-size:13px; color:#78350f; margin:0;">
+              O comando será executado em <strong>todas as {{ machines|length }} máquinas</strong> com IP cadastrado simultaneamente.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Configurações do comando -->
+      <div class="detail-card">
+        <h2 style="margin-bottom:14px;"><i class="bi bi-gear"></i> Configuração</h2>
+
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; display:block;">Tipo</label>
+          <select id="cmdType" class="form-control" style="font-size:13px;">
+            <option value="powershell">PowerShell</option>
+            <option value="cmd">CMD</option>
+          </select>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="form-group">
+            <label style="font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; display:block;">
+              Timeout (s)
+            </label>
+            <input type="number" id="timeout" value="60" min="5" max="120"
+                   class="form-control" style="font-size:13px;">
+          </div>
+          <div class="form-group">
+            <label style="font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; display:block;">
+              Paralelo
+            </label>
+            <input type="number" id="maxWorkers" value="10" min="1" max="30"
+                   class="form-control" style="font-size:13px;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         COLUNA DIREITA — Editor + Resultados
+    ════════════════════════════════════ -->
+    <div>
+
+      <!-- Editor de comando -->
+      <div class="detail-card" style="margin-bottom:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+          <h2 style="margin:0;"><i class="bi bi-code-slash"></i> Comando</h2>
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="btn btn-secondary" style="font-size:12px; padding:5px 12px;"
+                    onclick="clearCommand()">
+              <i class="bi bi-trash"></i> Limpar
+            </button>
+            <button type="button" id="btnRun" onclick="runBulk()"
+                    style="background:#16a34a; color:#fff; border:none; border-radius:6px;
+                           padding:7px 20px; font-size:13px; cursor:pointer; font-weight:600;
+                           display:flex; align-items:center; gap:6px;">
+              <i class="bi bi-play-fill"></i> Executar
+            </button>
+          </div>
+        </div>
+
+        <!-- Comandos rápidos -->
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+          {% for label, cmd in quick_commands %}
+          <button type="button" class="bc-quick-btn" onclick="setCommand(this.dataset.cmd)"
+                  data-cmd="{{ cmd }}">{{ label }}</button>
+          {% endfor %}
+        </div>
+
+        <textarea id="commandInput"
+                  placeholder="Get-ComputerInfo | Select-Object CsName, OsName, OsVersion"
+                  spellcheck="false"
+                  style="width:100%; height:120px; font-family:'Consolas',monospace;
+                         font-size:13px; background:#0d1117; color:#e6edf3;
+                         border:1px solid #30363d; border-radius:8px;
+                         padding:12px 14px; resize:vertical; outline:none;
+                         line-height:1.55;"></textarea>
+      </div>
+
+      <!-- Barra de progresso -->
+      <div id="progressBar" style="display:none; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:13px; font-weight:600; color:#374151;" id="progressLabel">Executando…</span>
+          <span style="font-size:12px; color:#64748b;" id="progressTime"></span>
+        </div>
+        <div style="background:#e2e8f0; border-radius:99px; height:6px; overflow:hidden;">
+          <div id="progressFill" style="height:100%; background:#1a73e8; width:0%; transition:width .3s;"></div>
+        </div>
+      </div>
+
+      <!-- Sumário -->
+      <div id="summaryBar" style="display:none; margin-bottom:16px;">
+        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px;">
+          <div class="bc-summary-card" style="border-color:#e2e8f0;">
+            <div class="bc-summary-num" id="sTotal" style="color:#374151;">0</div>
+            <div class="bc-summary-lbl">Total</div>
+          </div>
+          <div class="bc-summary-card" style="border-color:#bbf7d0;">
+            <div class="bc-summary-num" id="sSuccess" style="color:#16a34a;">0</div>
+            <div class="bc-summary-lbl">Sucesso</div>
+          </div>
+          <div class="bc-summary-card" style="border-color:#fecaca;">
+            <div class="bc-summary-num" id="sFailed" style="color:#dc2626;">0</div>
+            <div class="bc-summary-lbl">Erro</div>
+          </div>
+          <div class="bc-summary-card" style="border-color:#fed7aa;">
+            <div class="bc-summary-num" id="sOffline" style="color:#ea580c;">0</div>
+            <div class="bc-summary-lbl">Offline</div>
+          </div>
+          <div class="bc-summary-card" style="border-color:#e2e8f0;">
+            <div class="bc-summary-num" id="sSkipped" style="color:#64748b;">0</div>
+            <div class="bc-summary-lbl">Ignorado</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filtro de resultados -->
+      <div id="resultFilters" style="display:none; margin-bottom:10px; display:none; gap:6px; flex-wrap:wrap;">
+        <button class="bc-filter-btn bc-filter-active" onclick="filterResults('all', this)">Todos</button>
+        <button class="bc-filter-btn" onclick="filterResults('ok', this)" style="color:#16a34a; border-color:#bbf7d0;">✓ Sucesso</button>
+        <button class="bc-filter-btn" onclick="filterResults('error', this)" style="color:#dc2626; border-color:#fecaca;">✗ Erro</button>
+        <button class="bc-filter-btn" onclick="filterResults('offline', this)" style="color:#ea580c; border-color:#fed7aa;">⚡ Offline</button>
+        <div style="margin-left:auto;">
+          <button class="btn btn-secondary" style="font-size:12px; padding:4px 10px;" onclick="exportCSV()">
+            <i class="bi bi-download"></i> Exportar CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Resultados -->
+      <div id="resultsContainer"></div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     ESTILOS
+════════════════════════════════════════════ -->
+<style>
+.bc-tab {
+  flex: 1; padding: 7px 0; border: none; border-radius: 6px;
+  background: transparent; font-size: 13px; font-weight: 500;
+  color: #64748b; cursor: pointer; transition: all .15s;
+}
+.bc-tab-active {
+  background: #fff; color: #1e293b;
+  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+}
+.bc-machine-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; cursor: pointer;
+  border-bottom: 1px solid #f1f5f9; transition: background .1s;
+}
+.bc-machine-item:last-child { border-bottom: none; }
+.bc-machine-item:hover { background: #f8fafc; }
+.bc-group-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 1px solid #e2e8f0;
+  border-radius: 8px; cursor: pointer; transition: background .1s;
+}
+.bc-group-item:hover { background: #f8fafc; }
+.bc-status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.bc-online  { background: #22c55e; }
+.bc-offline { background: #94a3b8; }
+.bc-quick-btn {
+  padding: 4px 10px; font-size: 12px; border-radius: 6px;
+  border: 1px solid #e2e8f0; background: #f8fafc;
+  color: #374151; cursor: pointer; transition: all .15s;
+  font-family: 'Consolas', monospace;
+}
+.bc-quick-btn:hover { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
+.bc-summary-card {
+  background: #fff; border: 1px solid; border-radius: 10px;
+  padding: 12px; text-align: center;
+}
+.bc-summary-num { font-size: 24px; font-weight: 700; line-height: 1; }
+.bc-summary-lbl { font-size: 11px; color: #94a3b8; margin-top: 4px; font-weight: 500; }
+.bc-filter-btn {
+  padding: 5px 12px; font-size: 12px; border-radius: 20px;
+  border: 1px solid #e2e8f0; background: #fff;
+  color: #374151; cursor: pointer; transition: all .15s; font-weight: 500;
+}
+.bc-filter-active { background: #1e293b; color: #fff; border-color: #1e293b; }
+.bc-result-card {
+  border: 1px solid #e2e8f0; border-radius: 10px;
+  margin-bottom: 8px; overflow: hidden; background: #fff;
+  transition: box-shadow .15s;
+}
+.bc-result-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.bc-result-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; cursor: pointer; user-select: none;
+}
+.bc-result-body {
+  display: none; padding: 0 14px 12px;
+  border-top: 1px solid #f1f5f9;
+}
+.bc-result-body.open { display: block; }
+.bc-result-pre {
+  background: #0d1117; color: #e6edf3;
+  font-family: 'Consolas', monospace; font-size: 12px;
+  border-radius: 6px; padding: 10px 12px;
+  max-height: 260px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-all;
+  margin-top: 8px; line-height: 1.5;
+}
+.bc-badge {
+  font-size: 11px; font-weight: 600; padding: 2px 9px;
+  border-radius: 20px; white-space: nowrap;
+}
+.bc-badge-ok      { background:#dcfce7; color:#16a34a; }
+.bc-badge-error   { background:#fee2e2; color:#dc2626; }
+.bc-badge-offline { background:#ffedd5; color:#ea580c; }
+.bc-badge-skipped { background:#f1f5f9; color:#64748b; }
+</style>
+
+<!-- ═══════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════ -->
+<script>
+var CSRF_TOKEN  = "{{ csrf_token }}";
+var BULK_URL    = "{% url 'inventario:bulk_run_command' %}";
+var _allResults = [];
+var _timer      = null;
+var _startTime  = 0;
+
+/* ── Dados dos grupos para JS ───────────────── */
+var GROUP_DATA = {
+  {% for g in groups %}
+  {{ g.id }}: { name: "{{ g.name }}", count: {{ g.machine_set.count }} },
+  {% endfor %}
+};
+
+/* ── Comandos rápidos definidos em JS (sem depender do contexto Django) ── */
+var QUICK_CMDS = [
+  { label: "Hostname",       cmd: "hostname" },
+  { label: "IP Config",      cmd: "ipconfig" },
+  { label: "Uptime",         cmd: "(Get-Date) - (gcim Win32_OperatingSystem).LastBootUpTime" },
+  { label: "Usuário logado", cmd: "(Get-CimInstance Win32_ComputerSystem).UserName" },
+  { label: "Disco C:",       cmd: "Get-PSDrive C | Select-Object Used,Free" },
+  { label: "Processos",      cmd: "Get-Process | Sort-Object CPU -Desc | Select-Object -First 10 Name,CPU,WorkingSet" },
+  { label: "Serviços parados", cmd: "Get-Service | Where-Object {$_.Status -eq 'Stopped'} | Select-Object Name,DisplayName" },
+  { label: "Windows Update", cmd: "Get-HotFix | Sort-Object InstalledOn -Desc | Select-Object -First 5" },
+];
+
+/* Renderiza botões de atalho */
+(function(){
+  var wrap = document.querySelector('[data-quick-wrap]') || (function(){
+    var d = document.createElement('div');
+    d.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;';
+    d.setAttribute('data-quick-wrap','');
+    document.getElementById('commandInput').before(d);
+    return d;
+  })();
+  QUICK_CMDS.forEach(function(q){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'bc-quick-btn';
+    b.textContent = q.label;
+    b.onclick = function(){ setCommand(q.cmd); };
+    wrap.appendChild(b);
+  });
+})();
+
+function setCommand(cmd){ document.getElementById('commandInput').value = cmd; }
+function clearCommand(){ document.getElementById('commandInput').value = ''; }
+
+/* ── Abas de seleção ────────────────────────── */
+function switchTab(tab) {
+  ['machines','groups','all'].forEach(function(t){
+    document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
+    var btn = document.getElementById('tab-' + t);
+    btn.classList.toggle('bc-tab-active', t === tab);
+  });
+}
+
+/* ── Filtro de máquinas ─────────────────────── */
+function filterMachines(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.bc-machine-item').forEach(function(el){
+    el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+  });
+}
+
+function toggleAll(checked) {
+  document.querySelectorAll('.bc-machine-cb').forEach(function(cb){
+    var item = cb.closest('.bc-machine-item');
+    if (item.style.display !== 'none') cb.checked = checked;
+  });
+  updateCount();
+}
+
+function updateCount() {
+  var n = document.querySelectorAll('.bc-machine-cb:checked').length;
+  document.getElementById('selectedCount').textContent = n;
+}
+document.addEventListener('change', function(e){
+  if (e.target.classList.contains('bc-machine-cb')) updateCount();
+});
+
+/* ── Coleta payload ─────────────────────────── */
+function buildPayload() {
+  var activeTab = ['machines','groups','all'].find(function(t){
+    return document.getElementById('pane-' + t).style.display !== 'none';
+  }) || 'machines';
+
+  var payload = {
+    command:     document.getElementById('commandInput').value.trim(),
+    cmd_type:    document.getElementById('cmdType').value,
+    timeout:     parseInt(document.getElementById('timeout').value) || 60,
+    max_workers: parseInt(document.getElementById('maxWorkers').value) || 10,
+  };
+
+  if (activeTab === 'all') {
+    payload.all_machines = true;
+  } else if (activeTab === 'groups') {
+    payload.group_ids = Array.from(
+      document.querySelectorAll('.bc-group-cb:checked')
+    ).map(function(cb){ return parseInt(cb.value); });
+  } else {
+    payload.machine_ids = Array.from(
+      document.querySelectorAll('.bc-machine-cb:checked')
+    ).map(function(cb){ return parseInt(cb.value); });
+  }
+  return payload;
+}
+
+/* ── Execução principal ─────────────────────── */
+function runBulk() {
+  var payload = buildPayload();
+
+  if (!payload.command) {
+    alert('Digite um comando antes de executar.');
+    return;
+  }
+  var targetCount = payload.all_machines
+    ? {{ machines|length }}
+    : (payload.group_ids || payload.machine_ids || []).length;
+
+  if (targetCount === 0) {
+    alert('Selecione ao menos uma máquina ou grupo.');
+    return;
+  }
+
+  /* UI: estado de loading */
+  var btn = document.getElementById('btnRun');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Executando…';
+  document.getElementById('resultsContainer').innerHTML = '';
+  document.getElementById('summaryBar').style.display   = 'none';
+  document.getElementById('resultFilters').style.display = 'none';
+
+  /* Barra de progresso animada (indeterminada enquanto aguarda) */
+  var pb    = document.getElementById('progressBar');
+  var pfill = document.getElementById('progressFill');
+  var plabel= document.getElementById('progressLabel');
+  var ptime = document.getElementById('progressTime');
+  pb.style.display = '';
+  pfill.style.width = '0%';
+  plabel.textContent = 'Enviando comando para ' + targetCount + ' máquina(s)…';
+  _startTime = Date.now();
+  clearInterval(_timer);
+  _timer = setInterval(function(){
+    ptime.textContent = ((Date.now() - _startTime) / 1000).toFixed(1) + 's';
+    /* Progresso fake até 90% enquanto aguarda resposta */
+    var fake = Math.min(90, (Date.now() - _startTime) / (payload.timeout * 10));
+    pfill.style.width = fake + '%';
+  }, 200);
+
+  fetch(BULK_URL, {
+    method:  'POST',
+    headers: { 'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    clearInterval(_timer);
+    pfill.style.width  = '100%';
+    pfill.style.background = '#16a34a';
+    plabel.textContent = 'Concluído em ' + data.elapsed_seconds + 's';
+
+    /* Sumário */
+    document.getElementById('sTotal').textContent   = data.total;
+    document.getElementById('sSuccess').textContent = data.success;
+    document.getElementById('sFailed').textContent  = data.failed;
+    document.getElementById('sOffline').textContent = data.offline;
+    document.getElementById('sSkipped').textContent = data.skipped;
+    document.getElementById('summaryBar').style.display = '';
+    document.getElementById('resultFilters').style.display = 'flex';
+
+    _allResults = data.results || [];
+    renderResults(_allResults);
+  })
+  .catch(function(err){
+    clearInterval(_timer);
+    pfill.style.background = '#dc2626';
+    plabel.textContent = 'Erro na requisição: ' + err;
+  })
+  .finally(function(){
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-play-fill"></i> Executar';
+  });
+}
+
+/* ── Renderização dos resultados ────────────── */
+function renderResults(results) {
+  var container = document.getElementById('resultsContainer');
+  container.innerHTML = '';
+
+  if (!results.length) {
+    container.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px;">Nenhum resultado.</p>';
+    return;
+  }
+
+  results.forEach(function(r, idx){
+    var badgeClass = {ok:'bc-badge-ok', error:'bc-badge-error',
+                      offline:'bc-badge-offline', skipped:'bc-badge-skipped'}[r.status] || 'bc-badge-skipped';
+    var badgeText  = {ok:'✓ OK', error:'✗ Erro', offline:'⚡ Offline', skipped:'— Ignorado'}[r.status] || r.status;
+    var exitColor  = r.exit_code === 0 ? '#16a34a' : '#dc2626';
+
+    var hasOutput = (r.stdout && r.stdout.trim()) || (r.stderr && r.stderr.trim()) || r.error;
+
+    var card = document.createElement('div');
+    card.className     = 'bc-result-card';
+    card.dataset.status = r.status;
+
+    card.innerHTML =
+      '<div class="bc-result-head" onclick="toggleResult(this)">' +
+        '<i class="bi bi-chevron-right" style="font-size:11px;color:#94a3b8;transition:transform .2s;" id="chev-'+idx+'"></i>' +
+        '<span style="font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+          r.hostname +
+        '</span>' +
+        '<span style="font-size:11px;color:#94a3b8;margin-right:8px;">' + r.ip_address + '</span>' +
+        (r.elapsed_ms ? '<span style="font-size:11px;color:#94a3b8;margin-right:8px;">' + r.elapsed_ms + 'ms</span>' : '') +
+        (r.status === 'ok' ? '<span style="font-size:11px;color:'+exitColor+';margin-right:8px;">exit:'+r.exit_code+'</span>' : '') +
+        '<span class="bc-badge ' + badgeClass + '">' + badgeText + '</span>' +
+      '</div>' +
+      '<div class="bc-result-body" id="body-'+idx+'">' +
+        (r.stdout && r.stdout.trim()
+          ? '<div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;">stdout</div>' +
+            '<pre class="bc-result-pre">' + escHtml(r.stdout.trim()) + '</pre>'
+          : '') +
+        (r.stderr && r.stderr.trim()
+          ? '<div style="font-size:11px;font-weight:600;color:#dc2626;margin:8px 0 4px;">stderr</div>' +
+            '<pre class="bc-result-pre" style="color:#f97316;">' + escHtml(r.stderr.trim()) + '</pre>'
+          : '') +
+        (r.error
+          ? '<div style="font-size:11px;font-weight:600;color:#dc2626;margin:8px 0 4px;">erro</div>' +
+            '<pre class="bc-result-pre" style="color:#f87171;">' + escHtml(r.error) + '</pre>'
+          : '') +
+        (!hasOutput ? '<p style="color:#94a3b8;font-size:12px;margin:8px 0 0;">(sem saída)</p>' : '') +
+      '</div>';
+
+    container.appendChild(card);
+  });
+}
+
+function toggleResult(head) {
+  var body  = head.nextElementSibling;
+  var chevs = head.querySelectorAll('[id^="chev-"]');
+  var open  = body.classList.toggle('open');
+  if (chevs.length) chevs[0].style.transform = open ? 'rotate(90deg)' : '';
+}
+
+/* ── Filtro de resultados ───────────────────── */
+function filterResults(status, btn) {
+  document.querySelectorAll('.bc-filter-btn').forEach(function(b){ b.classList.remove('bc-filter-active'); });
+  btn.classList.add('bc-filter-active');
+  var filtered = status === 'all' ? _allResults : _allResults.filter(function(r){ return r.status === status; });
+  renderResults(filtered);
+}
+
+/* ── Exportar CSV ───────────────────────────── */
+function exportCSV() {
+  if (!_allResults.length) return;
+  var rows = [['Hostname','IP','Status','Exit Code','Elapsed (ms)','Stdout','Stderr','Error']];
+  _allResults.forEach(function(r){
+    rows.push([
+      r.hostname, r.ip_address, r.status, r.exit_code, r.elapsed_ms,
+      (r.stdout || '').replace(/\n/g,' '),
+      (r.stderr || '').replace(/\n/g,' '),
+      (r.error  || '').replace(/\n/g,' '),
+    ]);
+  });
+  var csv = rows.map(function(row){
+    return row.map(function(v){ return '"' + String(v).replace(/"/g,'""') + '"'; }).join(',');
+  }).join('\r\n');
+  var blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
+  var a    = document.createElement('a');
+  a.href   = URL.createObjectURL(blob);
+  a.download = 'bulk_command_' + new Date().toISOString().slice(0,19).replace(/[T:]/g,'-') + '.csv';
+  a.click();
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

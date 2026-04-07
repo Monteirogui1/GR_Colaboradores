@@ -103,6 +103,7 @@
                         <li><a href="{% url 'inventario:machine_list' %}"><span class="icon"><i class="bi bi-pc-display"></i></span> Máquinas</a></li>
                         <li><a href="{% url 'inventario:group_list' %}"><span class="icon"><i class="bi bi-collection"></i></span> Grupos</a></li>
                         <li><a href="{% url 'inventario:token_list' %}"><span class="icon"><i class="bi bi-collection"></i></span> Tokens</a></li>
+                        <li {% if request.resolver_match.url_name == 'bulk_run_command' %}class="active"{% endif %}><a href="{% url 'inventario:bulk_run_command' %}"><span class="icon"><i class="bi bi-terminal-fill"></i></span>Comando em Massa</a></li>
                         <li><a href="{% url 'inventario:version_list' %}"><span class="icon"><i class="bi bi-cloud-arrow-up"></i></span> Versões do Agente</a></li>
                         <li><a href="{% url 'remote_desktop' %}" target="_blank"><span class="icon"><i class="bi bi-display"></i></span>Remote Desktop</a></li>
                     </ul>

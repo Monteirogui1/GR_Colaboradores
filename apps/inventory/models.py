@@ -425,24 +425,28 @@ class AgentTokenUsage(models.Model):
 
 
 class AgentVersion(models.Model):
-    """Versões do agente disponíveis"""
+    """
+    Versão publicada de um agente (service ou tray).
+
+    Constraints:
+        - unique_together('version', 'agent_type') — permite mesma versão
+          numérica para tipos distintos (ex: 3.2.0/service e 3.2.0/tray).
+        - SHA-256 calculado automaticamente no save() quando o arquivo muda.
+    """
 
     AGENT_TYPE_CHOICES = [
-        ('service', 'Agent Service (agent_service.exe)'),
-        ('tray', 'Agent Tray (agent_tray.exe)'),
+        ("service", "Agent Service (agent_service.exe)"),
+        ("tray",    "Agent Tray (agent_tray.exe)"),
     ]
 
-    version = models.CharField(max_length=20, unique=True, verbose_name="Versão")
+    version = models.CharField(max_length=20, verbose_name="Versão")
     agent_type = models.CharField(
         max_length=10,
         choices=AGENT_TYPE_CHOICES,
-        default='service',
+        default="service",
         verbose_name="Tipo de Agente",
     )
-    file_path = models.FileField(
-        upload_to='agent_versions/',
-        verbose_name="Arquivo"
-    )
+    file_path = models.FileField(upload_to="agent_versions/", verbose_name="Arquivo")
     sha256 = models.CharField(
         max_length=64,
         blank=True,
@@ -451,41 +455,80 @@ class AgentVersion(models.Model):
     )
     release_notes = models.TextField(verbose_name="Notas de Lançamento")
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
-    is_mandatory = models.BooleanField(
-        default=False,
-        verbose_name="Atualização Obrigatória"
-    )
+    is_mandatory = models.BooleanField(default=False, verbose_name="Atualização Obrigatória")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        verbose_name="Criado por"
+        verbose_name="Criado por",
     )
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
         verbose_name = "Versão do Agente"
         verbose_name_plural = "Versões do Agente"
-        
+        unique_together = (("version", "agent_type"),)  # FIX: era unique=True só em version
 
-    def __str__(self):
-        return f"Versão {self.version}"
+    def __str__(self) -> str:
+        return f"{self.get_agent_type_display()} v{self.version}"
 
-    def save(self, *args, **kwargs):
-        """Calcula SHA-256 automaticamente ao salvar se o arquivo mudou."""
-        if self.file_path and not self.sha256:
-            import hashlib
-            try:
-                self.file_path.seek(0)
-                self.sha256 = hashlib.sha256(self.file_path.read()).hexdigest()
-            except Exception:
-                pass
+    def save(self, *args, **kwargs) -> None:
+        """Recalcula SHA-256 sempre que o arquivo for substituído."""
+        if self.file_path and hasattr(self.file_path, "file"):
+            self.file_path.seek(0)
+            self.sha256 = hashlib.sha256(self.file_path.read()).hexdigest()
+            self.file_path.seek(0)
         super().save(*args, **kwargs)
 
-    def get_status_display(self):
-        """Retorna o status da versão para exibição"""
-        if self.is_active:
-            if self.is_mandatory:
-                return {'text': 'Ativa (Obrigatória)', 'class': 'danger'}
-            return {'text': 'Ativa', 'class': 'success'}
-        return {'text': 'Inativa', 'class': 'secondary'}
+    @staticmethod
+    def version_tuple(v: str) -> tuple:
+        """Converte string semântica em tupla comparável."""
+        try:
+            return tuple(int(x) for x in str(v).split("."))
+        except (ValueError, AttributeError):
+            return (0, 0, 0)
+
+    @classmethod
+    def latest_active(cls, agent_type: str) -> "AgentVersion | None":
+        """
+        Retorna a versão ativa mais recente semanticamente para o tipo.
+
+        Busca todas as ativas e ordena em Python — necessário porque
+        ordenação semântica não é suportada nativamente em SQL para strings
+        no formato MAJOR.MINOR.PATCH.
+        """
+        candidates = list(
+            cls.objects.filter(is_active=True, agent_type=agent_type)
+        )
+        if not candidates:
+            return None
+        return max(candidates, key=lambda v: cls.version_tuple(v.version))
+
+
+class AgentDownloadLog(models.Model):
+    """
+    Registro de cada download de binário do agente.
+
+    Permite auditoria de qual máquina baixou qual versão e quando,
+    sem expor dados sensíveis (não armazena token).
+    """
+
+    agent_version = models.ForeignKey(
+        AgentVersion,
+        on_delete=models.CASCADE,
+        related_name="download_logs",
+        verbose_name="Versão",
+    )
+    machine_name = models.CharField(max_length=255, verbose_name="Máquina")
+    ip_address = models.GenericIPAddressField(
+        null=True, blank=True, verbose_name="IP"
+    )
+    downloaded_at = models.DateTimeField(auto_now_add=True, verbose_name="Baixado em")
+
+    class Meta:
+        ordering = ["-downloaded_at"]
+        verbose_name = "Log de Download"
+        verbose_name_plural = "Logs de Download"
+
+    def __str__(self) -> str:
+        return f"{self.machine_name} → v{self.agent_version.version} em {self.downloaded_at:%d/%m/%Y %H:%M}"

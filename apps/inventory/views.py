@@ -1,3 +1,5 @@
+import concurrent.futures
+import mimetypes
 import os
 import re
 import json
@@ -19,7 +21,7 @@ from django.utils.decorators import method_decorator
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 from django.db import models as dj_models
-from django.views.generic import ListView, DetailView, UpdateView, CreateView, DeleteView
+from django.views.generic import ListView, DetailView, UpdateView, CreateView, DeleteView, TemplateView
 from django.urls import reverse_lazy
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -27,7 +29,8 @@ from rest_framework import status
 from rest_framework.views import APIView
 from django.db.models import Q
 from .forms import MachineForm, NotificationForm, BlockedSiteForm, MachineGroupForm, AgentTokenGenerateForm
-from .models import Machine, BlockedSite, Notification, MachineGroup, AgentToken, AgentVersion, AgentTokenUsage
+from .models import Machine, BlockedSite, Notification, MachineGroup, AgentToken, AgentVersion, AgentTokenUsage, \
+    AgentDownloadLog
 
 logger = logging.getLogger(__name__)
 
@@ -341,6 +344,245 @@ class RunCommandView(LoginRequiredMixin, View):
             )
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+
+
+class BulkRunCommandView(LoginRequiredMixin, TemplateView):
+    """
+    Executa um comando PowerShell ou CMD em múltiplas máquinas em paralelo.
+
+    GET  /run/bulk/  → renderiza o formulário visual
+    POST /run/bulk/  → executa o comando e retorna JSON com os resultados
+
+    Auth: LoginRequiredMixin + is_staff.
+    Reutiliza exatamente o mesmo endpoint 7071/command do agente — sem alterações.
+
+    Args (POST, JSON):
+        command     (str):       Comando a executar.
+        cmd_type    (str):       ``powershell`` ou ``cmd``.
+        timeout     (int):       Timeout por máquina em segundos (5–120).
+        max_workers (int):       Paralelismo (1–30).
+        machine_ids (list[int]): IDs de máquinas individuais.
+        group_ids   (list[int]): IDs de grupos (expande para todas as máquinas).
+        all_machines(bool):      Se true, seleciona todas as máquinas com IP.
+    """
+
+    template_name = "inventario/bulk_command.html"
+
+    def handle_no_permission(self):
+        return JsonResponse({"error": "Autenticação necessária."}, status=401)
+
+    def get_context_data(self, **kwargs):
+        """Popula contexto com grupos e máquinas para o formulário visual."""
+        context = super().get_context_data(**kwargs)
+        context["groups"]   = MachineGroup.objects.prefetch_related("machine_set").all()
+        context["machines"] = (
+            Machine.objects
+            .select_related("group")
+            .filter(ip_address__isnull=False)
+            .exclude(ip_address="")
+            .order_by("hostname")
+        )
+        return context
+
+    # ------------------------------------------------------------------
+    # POST — execução do comando (retorna JSON)
+    # ------------------------------------------------------------------
+
+    def post(self, request, *args, **kwargs):
+        """Valida payload, resolve máquinas e executa em paralelo."""
+        if not request.user.is_staff:
+            return JsonResponse({"error": "Acesso negado. Requer is_staff."}, status=403)
+
+        try:
+            payload = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "Body deve ser JSON válido."}, status=400)
+
+        command     = payload.get("command", "").strip()
+        cmd_type    = payload.get("cmd_type", "powershell").strip().lower()
+        timeout     = int(payload.get("timeout", 60))
+        max_workers = int(payload.get("max_workers", 10))
+        machine_ids = payload.get("machine_ids", [])
+        group_ids   = payload.get("group_ids", [])
+        all_machines = bool(payload.get("all_machines", False))
+
+        # Validações básicas
+        if not command:
+            return JsonResponse({"error": "Comando não pode estar vazio."}, status=400)
+        if cmd_type not in ("powershell", "cmd"):
+            return JsonResponse({"error": "cmd_type inválido. Use 'powershell' ou 'cmd'."}, status=400)
+        timeout     = max(5, min(timeout, 120))
+        max_workers = max(1, min(max_workers, 30))
+
+        machines = self._resolve_machines(machine_ids, group_ids, all_machines)
+        if not machines:
+            return JsonResponse({"error": "Nenhuma máquina encontrada com os critérios informados."}, status=404)
+
+        logger.info(
+            f"BulkCommand | user={request.user.username} type={cmd_type} "
+            f"machines={len(machines)} workers={max_workers} cmd={command[:80]!r}"
+        )
+
+        import time as _time
+        t0 = _time.monotonic()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(self._run_on_machine, m, command, cmd_type, timeout): m
+                for m in machines
+            }
+            results = []
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    m = futures[future]
+                    results.append({
+                        "machine_id": m.id,
+                        "hostname":   m.hostname,
+                        "ip_address": m.ip_address,
+                        "status":     "error",
+                        "exit_code":  -1,
+                        "stdout": "", "stderr": "",
+                        "error": str(exc),
+                        "elapsed_ms": 0,
+                    })
+
+        elapsed = round(_time.monotonic() - t0, 2)
+        results.sort(key=lambda r: r["hostname"].lower())
+
+        summary = {
+            "total":           len(results),
+            "success":         sum(1 for r in results if r["status"] == "ok"),
+            "failed":          sum(1 for r in results if r["status"] == "error"),
+            "offline":         sum(1 for r in results if r["status"] == "offline"),
+            "skipped":         sum(1 for r in results if r["status"] == "skipped"),
+            "elapsed_seconds": elapsed,
+            "results":         results,
+        }
+
+        logger.info(
+            f"BulkCommand | ok={summary['success']} error={summary['failed']} "
+            f"offline={summary['offline']} elapsed={elapsed}s"
+        )
+        return JsonResponse(summary)
+
+    # ------------------------------------------------------------------
+    # Helpers privados
+    # ------------------------------------------------------------------
+
+    def _resolve_machines(self, machine_ids, group_ids, all_machines):
+        """
+        Converte seleção do payload em lista de Machine com IP.
+
+        Args:
+            machine_ids:  Lista de IDs de máquinas individuais.
+            group_ids:    Lista de IDs de grupos.
+            all_machines: Se True, seleciona todas as máquinas com IP.
+
+        Returns:
+            Lista de objetos Machine.
+        """
+        base_qs = Machine.objects.filter(
+            ip_address__isnull=False
+        ).exclude(ip_address="").select_related("group")
+
+        if all_machines:
+            return list(base_qs)
+        if group_ids:
+            return list(base_qs.filter(group_id__in=group_ids))
+        if machine_ids:
+            return list(base_qs.filter(id__in=machine_ids))
+        return []
+
+    def _get_token_for_machine(self, machine):
+        """
+        Resolve token de autenticação para a máquina — mesma lógica do RunCommandView.
+
+        Args:
+            machine: Instância de Machine.
+
+        Returns:
+            AgentToken ativo ou None.
+        """
+        try:
+            usage = (
+                AgentTokenUsage.objects
+                .filter(machine_name__iexact=machine.hostname)
+                .select_related("agent_token")
+                .order_by("-last_used_at")
+                .first()
+            )
+            if usage and usage.agent_token.is_active and not usage.agent_token.is_expired():
+                return usage.agent_token
+        except Exception:
+            pass
+        return AgentToken.objects.filter(is_active=True).first()
+
+    def _run_on_machine(self, machine, command, cmd_type, timeout):
+        """
+        Executa o comando em uma máquina via HTTP 7071/command — mesmo protocolo do RunCommandView.
+
+        Args:
+            machine:  Instância de Machine.
+            command:  Comando a executar.
+            cmd_type: ``powershell`` ou ``cmd``.
+            timeout:  Timeout em segundos.
+
+        Returns:
+            Dicionário com status, exit_code, stdout, stderr, error e elapsed_ms.
+        """
+        import time as _time
+        import requests as req
+
+        base = {
+            "machine_id": machine.id,
+            "hostname":   machine.hostname,
+            "ip_address": machine.ip_address,
+        }
+        token_obj = self._get_token_for_machine(machine)
+        if not token_obj:
+            return {**base, "status": "skipped", "exit_code": -1,
+                    "stdout": "", "stderr": "",
+                    "error": "Nenhum token ativo disponível", "elapsed_ms": 0}
+
+        headers = {"Authorization": f"Bearer {token_obj.token_hash}"}
+        t0 = _time.monotonic()
+
+        try:
+            resp = req.post(
+                f"http://{machine.ip_address}:7071/command",
+                json={"type": cmd_type, "script": command, "timeout": timeout},
+                headers=headers,
+                timeout=timeout + 5,
+            )
+            elapsed = int((_time.monotonic() - t0) * 1000)
+            data    = resp.json()
+            return {
+                **base,
+                "status":     "ok" if resp.status_code == 200 else "error",
+                "exit_code":  data.get("exit_code", -1),
+                "stdout":     data.get("stdout", ""),
+                "stderr":     data.get("stderr", ""),
+                "error":      data.get("error", ""),
+                "elapsed_ms": elapsed,
+            }
+        except req.exceptions.ConnectionError:
+            elapsed = int((_time.monotonic() - t0) * 1000)
+            return {**base, "status": "offline", "exit_code": -1,
+                    "stdout": "", "stderr": "",
+                    "error": f"Agente inacessível ({machine.ip_address}:7071)",
+                    "elapsed_ms": elapsed}
+        except req.exceptions.Timeout:
+            elapsed = int((_time.monotonic() - t0) * 1000)
+            return {**base, "status": "error", "exit_code": -1,
+                    "stdout": "", "stderr": "",
+                    "error": f"Timeout após {timeout}s", "elapsed_ms": elapsed}
+        except Exception as exc:
+            elapsed = int((_time.monotonic() - t0) * 1000)
+            return {**base, "status": "error", "exit_code": -1,
+                    "stdout": "", "stderr": "", "error": str(exc),
+                    "elapsed_ms": elapsed}
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -900,113 +1142,211 @@ class AgentCheckUpdateAPIView(AgentTokenRequiredMixin, APIView):
     """
     Verifica se há atualização disponível para o agente.
 
-    POST /api/inventario/agent/update/
-    Headers: Authorization: Bearer <token_hash>
-    Body: {
-        "current_version": "3.2.0",
-        "machine_name":    "PC-NOME",
-        "agent_type":      "service"   # ou "tray"
-    }
+    Endpoint: POST /api/inventario/agent/update/
+    Auth: Authorization: Bearer <token_hash>
+    Headers extras: X-Machine-Name: <hostname>
+
+    Body::
+
+        {
+            "current_version": "3.2.0",
+            "machine_name":    "PC-NOME",
+            "agent_type":      "service"  # ou "tray"
+        }
+
+    Retorno quando há atualização::
+
+        {
+            "update_available": true,
+            "version":          "3.3.0",
+            "agent_type":       "service",
+            "download_url":     "https://…/api/inventario/agent/download/42/",
+            "sha256":           "abc123…",
+            "release_notes":    "…",
+            "is_mandatory":     false
+        }
+
+    Ordenação semântica via ``AgentVersion.latest_active()`` —
+    corrige o bug anterior onde ``-created_at`` podia retornar
+    uma versão menor em cenários de hotfix/revert.
     """
+
     authentication_classes = []
     permission_classes = []
 
     def post(self, request):
+        """Verifica atualização disponível para o agent_type informado."""
         agent_token, error_response = self._authenticate(request)
         if error_response:
             return error_response
 
-        try:
-            data = request.data
-            current_version = data.get("current_version", "0.0.0")
-            agent_type = data.get("agent_type", "service").strip().lower()
+        current_version = request.data.get("current_version", "0.0.0")
+        agent_type = request.data.get("agent_type", "service").strip().lower()
 
-            # Valida agent_type
-            if agent_type not in ("service", "tray"):
-                return Response(
-                    {"update_available": False, "error": "agent_type inválido"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Busca a versão mais recente ativa para este tipo
-            latest = (
-                AgentVersion.objects
-                .filter(is_active=True, agent_type=agent_type)
-                .order_by("-created_at")
-                .first()
+        if agent_type not in ("service", "tray"):
+            return Response(
+                {"update_available": False, "error": "agent_type inválido. Use 'service' ou 'tray'."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-            if not latest:
-                return Response({
-                    "update_available": False,
-                    "message": f"Nenhuma versão ativa disponível para agent_type={agent_type}",
-                })
+        latest = AgentVersion.latest_active(agent_type)
 
-            def version_tuple(v):
-                try:
-                    return tuple(map(int, str(v).split(".")))
-                except Exception:
-                    return (0, 0, 0)
-
-            is_newer = version_tuple(latest.version) > version_tuple(current_version)
-
-            if is_newer or latest.is_mandatory:
-                return Response({
-                    "update_available": True,
-                    "version": latest.version,
-                    "agent_type": agent_type,
-                    "download_url": request.build_absolute_uri(
-                        f"/api/inventario/agent/download/{latest.pk}/"
-                    ),
-                    "sha256": latest.sha256,  # ← NOVO: hash para verificação
-                    "release_notes": latest.release_notes,
-                    "is_mandatory": latest.is_mandatory,
-                })
-
+        if not latest:
             return Response({
                 "update_available": False,
-                "current_version": current_version,
-                "latest_version": latest.version,
-                "agent_type": agent_type,
+                "message": f"Nenhuma versão ativa disponível para agent_type={agent_type}",
             })
 
-        except Exception as e:
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        current_tuple = AgentVersion.version_tuple(current_version)
+        latest_tuple  = AgentVersion.version_tuple(latest.version)
+        is_newer      = latest_tuple > current_tuple
+
+        if is_newer or latest.is_mandatory:
+            return Response({
+                "update_available": True,
+                "version":          latest.version,
+                "agent_type":       agent_type,
+                "download_url":     request.build_absolute_uri(
+                    f"/api/inventario/agent/download/{latest.pk}/"
+                ),
+                "sha256":           latest.sha256,
+                "release_notes":    latest.release_notes,
+                "is_mandatory":     latest.is_mandatory,
+            })
+
+        return Response({
+            "update_available": False,
+            "current_version":  current_version,
+            "latest_version":   latest.version,
+            "agent_type":       agent_type,
+        })
 
 
-@method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(csrf_exempt, name="dispatch")
 class AgentDownloadAPIView(AgentTokenRequiredMixin, APIView):
     """
-    API para download da versão do agente.
-    PROTEGIDA — exige Authorization: Bearer <token_hash>
-    Antes estava completamente aberta (authentication_classes=[], permission_classes=[]).
+    Download autenticado do binário de uma versão do agente.
+
+    Endpoint: GET /api/inventario/agent/download/<pk>/
+    Auth: Authorization: Bearer <token_hash>
+    Headers extras: X-Machine-Name: <hostname>
+
+    Correções em relação à versão anterior:
+
+    - ``Content-Type`` determinado pela extensão real do arquivo
+      (``application/octet-stream`` para ``.exe``, ``text/x-python`` para ``.py``).
+    - ``Content-Disposition`` usa o nome original do arquivo em vez de
+      um nome fixo ``agent_<version>.py``.
+    - Registra ``AgentDownloadLog`` após servir o arquivo, permitindo
+      auditoria por máquina.
+    - Usa ``FileResponse`` com ``as_attachment=True`` — fecha o handle
+      automaticamente ao final do streaming.
     """
+
     authentication_classes = []
     permission_classes = []
 
-    def get(self, request, pk):
+    def get(self, request, pk: int):
+        """Serve o binário da versão solicitada e registra o download."""
         agent_token, error_response = self._authenticate(request)
         if error_response:
             return error_response
 
-        try:
-            version = get_object_or_404(AgentVersion, pk=pk, is_active=True)
+        version_obj = get_object_or_404(AgentVersion, pk=pk, is_active=True)
 
-            if not version.file_path:
-                return Response({'error': 'Arquivo não encontrado'}, status=status.HTTP_404_NOT_FOUND)
-
-            response = FileResponse(
-                version.file_path.open('rb'),
-                content_type='text/x-python'
+        if not version_obj.file_path:
+            return Response(
+                {"error": "Arquivo não encontrado para esta versão."},
+                status=status.HTTP_404_NOT_FOUND,
             )
-            response['Content-Disposition'] = f'attachment; filename="agent_{version.version}.py"'
-            return response
 
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Detecta content-type pela extensão real do arquivo
+        file_name = version_obj.file_path.name.split("/")[-1]
+        content_type, _ = mimetypes.guess_type(file_name)
+        if not content_type:
+            content_type = "application/octet-stream"
+
+        machine_name = (
+            request.META.get("HTTP_X_MACHINE_NAME", "").strip()
+            or request.data.get("machine_name", "unknown")
+        )
+        ip_address = (
+            request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+            or request.META.get("REMOTE_ADDR")
+        )
+
+        # Registra o log ANTES de servir — se o FileResponse falhar,
+        # não há double-log porque a exceção interrompe o fluxo.
+        AgentDownloadLog.objects.create(
+            agent_version=version_obj,
+            machine_name=machine_name or "unknown",
+            ip_address=ip_address or None,
+        )
+
+        logger.info(
+            f"Download | versão={version_obj.version} tipo={version_obj.agent_type} "
+            f"máquina={machine_name} ip={ip_address}"
+        )
+
+        response = FileResponse(
+            version_obj.file_path.open("rb"),
+            content_type=content_type,
+            as_attachment=True,
+            filename=file_name,
+        )
+        return response
+
+
+class AgentDownloadLogAPIView(APIView):
+    """
+    Lista logs de download de versões do agente.
+
+    Endpoint: GET /api/inventario/agent/download-logs/
+    Auth: Sessão Django (IsAuthenticated) — apenas administradores.
+
+    Query params opcionais:
+
+    - ``agent_type`` — filtra por ``service`` ou ``tray``
+    - ``version_id`` — filtra por ID da versão
+    - ``machine``    — filtra por nome de máquina (icontains)
+    - ``limit``      — número máximo de resultados (padrão 100, máx 500)
+    """
+
+    def get(self, request):
+        """Retorna logs de download com filtros opcionais."""
+        if not request.user.is_authenticated:
+            return Response({"error": "Autenticação necessária."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        qs = (
+            AgentDownloadLog.objects
+            .select_related("agent_version")
+            .order_by("-downloaded_at")
+        )
+
+        agent_type = request.query_params.get("agent_type", "").strip().lower()
+        if agent_type in ("service", "tray"):
+            qs = qs.filter(agent_version__agent_type=agent_type)
+
+        version_id = request.query_params.get("version_id", "").strip()
+        if version_id.isdigit():
+            qs = qs.filter(agent_version_id=int(version_id))
+
+        machine = request.query_params.get("machine", "").strip()
+        if machine:
+            qs = qs.filter(machine_name__icontains=machine)
+
+        try:
+            limit = min(int(request.query_params.get("limit", 100)), 500)
+        except (ValueError, TypeError):
+            limit = 100
+
+        from .serializers import AgentDownloadLogSerializer
+        serializer = AgentDownloadLogSerializer(qs[:limit], many=True)
+        return Response({
+            "count": qs.count(),
+            "limit": limit,
+            "results": serializer.data,
+        })
 
 
 @method_decorator(csrf_exempt, name='dispatch')

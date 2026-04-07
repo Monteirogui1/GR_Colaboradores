@@ -33,7 +33,7 @@ from .views import (
     NotificationDeleteView, AgentVersionListView, AgentVersionCreateView, AgentTokenDeleteView, AgentVersionToggleView,
     AgentValidateTokenAPIView, AgentCheckUpdateAPIView, AgentDownloadAPIView, AgentHealthCheckAPIView,
     AgentTokenDeactivateView, AgentTokenCreateView, AgentTokenListView, BulkNotificationCreateView,
-    AgentMachineInfoAPIView,
+    AgentMachineInfoAPIView, AgentDownloadLogAPIView, BulkRunCommandView,
 )
 
 app_name = 'inventario'
@@ -42,6 +42,7 @@ urlpatterns = [
     # ==================== API ENDPOINTS ====================
     path('inventario/checkin/', MachineCheckinView.as_view(), name='checkin'),
     path('run/<int:machine_id>/', RunCommandView.as_view(), name='run_command'),
+    path("run/bulk/", BulkRunCommandView.as_view(), name="bulk_run_command"),
     path('notifications/', MachineNotificationView.as_view(), name='machine-notifications'),
     path('agent/download/', AgentDownloadView.as_view(), name='agent_download'),
     path('agent/version/', AgentVersionView.as_view(), name='agent_version'),
@@ -153,5 +154,10 @@ urlpatterns = [
     'inventario/agent/machine/',
     AgentMachineInfoAPIView.as_view(),
     name='api_agent_machine',
-),
+    ),
+    path(
+        "inventario/agent/download-logs/",
+        AgentDownloadLogAPIView.as_view(),
+        name="api_download_logs",
+    ),
 ]
