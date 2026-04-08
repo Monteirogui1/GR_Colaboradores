@@ -4,8 +4,6 @@ from django.conf import settings
 import secrets
 import string
 import hashlib
-from datetime import datetime
-from django.contrib.postgres.fields import JSONField
 
 
 class MachineGroup(models.Model):

@@ -8,7 +8,7 @@ from datetime import timedelta
 import datetime
 import logging
 import hashlib
-
+import datetime as dt
 from django.conf import settings
 from django.views import View
 from django.shortcuts import render, redirect, get_object_or_404
@@ -29,8 +29,8 @@ from rest_framework import status
 from rest_framework.views import APIView
 from django.db.models import Q
 from .forms import MachineForm, NotificationForm, BlockedSiteForm, MachineGroupForm, AgentTokenGenerateForm
-from .models import Machine, BlockedSite, Notification, MachineGroup, AgentToken, AgentVersion, AgentTokenUsage, \
-    AgentDownloadLog
+from .models import (Machine, BlockedSite, Notification, MachineGroup, AgentToken, AgentVersion, AgentTokenUsage,
+                     AgentDownloadLog)
 
 logger = logging.getLogger(__name__)
 
@@ -141,36 +141,146 @@ class AgentTokenRequiredMixin:
             return None, JsonResponse(error, status=404)
 
 
-def parse_wmi_date(wmi_date_str):
+def _safe_str(v) -> str | None:
     """
-    Converte formato de data WMI/JSON do PowerShell/Python
-    Formato recebido: "/Date(1234567890000)/" (timestamp em milissegundos)
+    Converte valor para string segura para CharField.
+
+    Retorna None para: None, string vazia, string literal "None" (vinda do PowerShell).
+    Isso evita que o banco salve a string "None" onde deveria estar NULL.
+
+    Args:
+        v: Qualquer valor recebido do payload do agente.
+
+    Returns:
+        String limpa ou None.
+    """
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s if s and s.lower() != 'none' else None
+
+
+def _safe_float(v) -> float | None:
+    """
+    Converte valor para float seguro para FloatField.
+
+    PostgreSQL é estrito — rejeita strings não numéricas onde SQLite convertia.
+
+    Args:
+        v: Valor numérico ou string numérica do payload.
+
+    Returns:
+        Float ou None.
+    """
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_int(v) -> int | None:
+    """
+    Converte valor para int seguro para IntegerField.
+
+    Args:
+        v: Valor inteiro ou string inteira do payload.
+
+    Returns:
+        Int ou None.
+    """
+    if v is None:
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_json(v):
+    """
+    Garante que JSONField receba dict/list ou None — nunca string.
+
+    SQLite armazenava qualquer tipo no JSONField silenciosamente.
+    PostgreSQL jsonb rejeita strings com DataError: invalid input syntax for type json.
+
+    Cenários tratados:
+    - dict/list: retorna diretamente (caso normal do agente)
+    - string JSON válida: deserializa (dupla-serialização do PowerShell)
+    - string @{...} (formato PS nativo): retorna None
+    - None: retorna None
+
+    Args:
+        v: Valor recebido no campo JSON do payload.
+
+    Returns:
+        dict, list ou None.
+    """
+    if v is None:
+        return None
+    if isinstance(v, (dict, list)):
+        return v
+    if isinstance(v, str):
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, (dict, list)):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return None
+
+
+def parse_wmi_date(wmi_date_str) -> dt.datetime | None:
+    """
+    Converte data WMI/PowerShell para datetime timezone-aware.
+
+    Formatos suportados:
+    - ``/Date(1234567890000)/`` — timestamp em ms (ConvertTo-Json padrão)
+    - ISO 8601: ``2023-04-15T10:30:00``, ``2023-04-15T10:30:00Z``, etc.
+      (PowerShell 5+ com -Depth > 1 pode usar este formato)
+    - datetime Python: retorna diretamente
+
+    Args:
+        wmi_date_str: String de data do payload do agente.
+
+    Returns:
+        datetime timezone-aware (UTC) ou None se não reconhecido.
     """
     if not wmi_date_str:
         return None
-
     try:
-        # Remove /Date( e )/
+        # Formato /Date(ms)/ — timestamp em milissegundos
         if isinstance(wmi_date_str, str) and wmi_date_str.startswith('/Date('):
             ms = int(wmi_date_str.replace('/Date(', '').replace(')/', ''))
-            # Converte de milissegundos para datetime
-            return datetime.datetime.utcfromtimestamp(ms / 1000).replace(tzinfo=datetime.timezone.utc)
+            return dt.datetime.fromtimestamp(ms / 1000, tz=dt.timezone.utc)
 
-        # Se já for datetime, retorna
-        if isinstance(wmi_date_str, datetime.datetime):
+        # datetime passado diretamente
+        if isinstance(wmi_date_str, dt.datetime):
+            if wmi_date_str.tzinfo is None:
+                return wmi_date_str.replace(tzinfo=dt.timezone.utc)
             return wmi_date_str
 
-        return None
-    except (ValueError, AttributeError) as e:
-        logger.error(f"Erro ao parsear data WMI: {wmi_date_str} - {e}")
-        return None
+        # ISO 8601 — PowerShell 5+ com serialização de alto depth
+        if isinstance(wmi_date_str, str):
+            for fmt in (
+                '%Y-%m-%dT%H:%M:%S%z',
+                '%Y-%m-%dT%H:%M:%SZ',
+                '%Y-%m-%dT%H:%M:%S.%f%z',
+                '%Y-%m-%dT%H:%M:%S',
+                '%Y-%m-%dT%H:%M:%S.%f',
+            ):
+                try:
+                    parsed = dt.datetime.strptime(wmi_date_str.rstrip('Z'), fmt.rstrip('Z') if fmt.endswith('Z') else fmt)
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+                    return parsed
+                except ValueError:
+                    continue
 
-
-def mark_as_used(self, machine_name):
-    """Marca token como usado"""
-    self.used_at = timezone.now()
-    self.machine_name = machine_name
-    self.save(update_fields=['used_at', 'machine_name'])
+    except (ValueError, AttributeError, OverflowError) as e:
+        logger.error(f"parse_wmi_date: valor não reconhecido {wmi_date_str!r} — {e}")
+    return None
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -208,38 +318,47 @@ class MachineCheckinView(View):
                     'is_online': True,
                     'last_seen': timezone.now(),
 
-                    'loggedUser': hw.get('logged_user'),
+                    # Dados do usuário
+                    'loggedUser': _safe_str(hw.get('logged_user')),
 
-                    'tpm': hw.get('tpm'),
+                    # JSONFields — PostgreSQL jsonb exige dict/list, nunca string
+                    'tpm': _safe_json(hw.get('tpm')),
+                    'memory_modules': _safe_json(hw.get('memory_modules')),
+                    'network_info': _safe_json(hw.get('network_adapters')),
 
-                    'manufacturer': hw.get('manufacturer'),
-                    'model': hw.get('model'),
+                    # Hardware
+                    'manufacturer': _safe_str(hw.get('manufacturer')),
+                    'model': _safe_str(hw.get('model')),
+                    'serial_number': _safe_str(hw.get('serial_number')),
+                    'bios_version': _safe_str(hw.get('bios_version')),
+                    'mac_address': _safe_str(hw.get('mac_address')),
 
-                    'serial_number': hw.get('serial_number'),
-                    'bios_version': hw.get('bios_version'),
+                    # RAM slots — IntegerField estrito no PostgreSQL
+                    'total_memory_slots': _safe_int(hw.get('total_memory_slots')),
+                    'populated_memory_slots': _safe_int(hw.get('populated_memory_slots')),
 
-                    'mac_address': hw.get('mac_address'),
-                    'total_memory_slots': hw.get('total_memory_slots'),
-                    'populated_memory_slots': hw.get('populated_memory_slots'),
-                    'memory_modules': hw.get('memory_modules'),
-
-                    'os_caption': hw.get('os_caption'),
-                    'os_architecture': hw.get('os_architecture'),
-                    'os_build': hw.get('os_build'),
+                    # SO
+                    'os_caption': _safe_str(hw.get('os_caption')),
+                    'os_architecture': _safe_str(hw.get('os_architecture')),
+                    'os_build': _safe_str(hw.get('os_build')),
                     'install_date': install_date,
                     'last_boot': last_boot,
-                    'uptime_days': hw.get('uptime_days'),
 
-                    'cpu': hw.get('cpu'),
-                    'ram_gb': hw.get('ram_gb'),
-                    'disk_space_gb': hw.get('disk_space_gb'),
-                    'disk_free_gb': hw.get('disk_free_gb'),
+                    # Métricas — FloatField estrito no PostgreSQL
+                    'uptime_days': _safe_float(hw.get('uptime_days')),
+                    'cpu': _safe_str(hw.get('cpu')),
+                    'ram_gb': _safe_float(hw.get('ram_gb')),
+                    'disk_space_gb': _safe_float(hw.get('disk_space_gb')),
+                    'disk_free_gb': _safe_float(hw.get('disk_free_gb')),
 
-                    'network_info': hw.get('network_adapters'),
-                    'gpu_name': hw.get('gpu_name'),
-                    'gpu_driver': hw.get('gpu_driver'),
-                    'antivirus_name': hw.get('antivirus_name'),
-                    'av_state': str(hw.get('av_state')),
+                    # GPU
+                    'gpu_name': _safe_str(hw.get('gpu_name')),
+                    'gpu_driver': _safe_str(hw.get('gpu_driver')),
+
+                    # Segurança — av_state é int no PowerShell, str no model
+                    # str(None) = "None" era o bug — _safe_str retorna None
+                    'antivirus_name': _safe_str(hw.get('antivirus_name')),
+                    'av_state': _safe_str(hw.get('av_state')),
                 },
             )
             return JsonResponse({'status': 'ok', 'machine_id': machine.id})
@@ -374,14 +493,17 @@ class BulkRunCommandView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         """Popula contexto com grupos e máquinas para o formulário visual."""
         context = super().get_context_data(**kwargs)
-        context["groups"]   = MachineGroup.objects.prefetch_related("machine_set").all()
+        timeout = getattr(settings, 'MACHINE_OFFLINE_TIMEOUT', 15)
+        limite = timezone.now() - timedelta(minutes=timeout)
+
+        context["groups"] = MachineGroup.objects.prefetch_related("machine_set").all()
+
         context["machines"] = (
             Machine.objects
-            .select_related("group")
-            .filter(ip_address__isnull=False)
-            .exclude(ip_address="")
+            .filter(ip_address__isnull=False, last_seen__gte=limite)
             .order_by("hostname")
         )
+
         return context
 
     # ------------------------------------------------------------------
@@ -483,9 +605,12 @@ class BulkRunCommandView(LoginRequiredMixin, TemplateView):
         Returns:
             Lista de objetos Machine.
         """
+        timeout = getattr(settings, 'MACHINE_OFFLINE_TIMEOUT', 15)
+        limite = timezone.now() - timedelta(minutes=timeout)
+
         base_qs = Machine.objects.filter(
-            ip_address__isnull=False
-        ).exclude(ip_address="").select_related("group")
+            ip_address__isnull=False, last_seen__gte=limite
+        ).select_related("group")
 
         if all_machines:
             return list(base_qs)

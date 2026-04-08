@@ -37,7 +37,6 @@ from .views import (
 )
 
 app_name = 'inventario'
-
 urlpatterns = [
     # ==================== API ENDPOINTS ====================
     path('inventario/checkin/', MachineCheckinView.as_view(), name='checkin'),
