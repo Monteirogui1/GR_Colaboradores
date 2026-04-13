@@ -745,14 +745,15 @@ def _macro_opcoes_contexto(user):
     """Dicionário de listas para o construtor visual de ações de macro."""
     from django.contrib.auth import get_user_model
     User = get_user_model()
+    cliente = user.cliente  # Cliente (apps.shared), não User
     responsaveis = (
-        User.objects.filter(is_staff=True, cliente=user, is_active=True)
+        User.objects.filter(is_staff=True, cliente=cliente, is_active=True)
         .values('id', 'first_name', 'last_name', 'username')
     )
     return {
-        'macro_status_list':      list(Status.objects.filter(cliente=user, ativo=True).values('id', 'nome')),
-        'macro_categoria_list':   list(Categoria.objects.filter(cliente=user, ativo=True).values('id', 'nome')),
-        'macro_urgencia_list':    list(Urgencia.objects.filter(cliente=user, ativo=True).values('id', 'nome')),
+        'macro_status_list':      list(Status.objects.filter(cliente=cliente, ativo=True).values('id', 'nome')),
+        'macro_categoria_list':   list(Categoria.objects.filter(cliente=cliente, ativo=True).values('id', 'nome')),
+        'macro_urgencia_list':    list(Urgencia.objects.filter(cliente=cliente, ativo=True).values('id', 'nome')),
         'macro_responsavel_list': [
             {
                 'id': r['id'],
