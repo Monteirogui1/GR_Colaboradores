@@ -664,47 +664,103 @@ def alterar_responsavel_rapido(request, pk):
 # ==================== HELPER FUNCTIONS ====================
 
 def aplicar_macro_ao_ticket(ticket, macro, usuario):
-    """Aplica uma macro ao ticket"""
+    """
+    Aplica uma macro ao ticket.
+
+    Chaves suportadas em macro.acoes:
+        status        → int pk de Status
+        responsavel   → int pk de User (staff)
+        categoria     → int pk de Categoria
+        urgencia      → int pk de Urgencia
+        assunto       → str — substitui o assunto do ticket
+        nota_interna  → str — cria AcaoTicket interna
+        nota_publica  → str — cria AcaoTicket pública
+        adicionar_acao → alias legado de nota_interna (compat)
+    """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
     try:
         acoes = macro.acoes
-
-        # Altera campos conforme macro
         campos_alterados = []
 
         if 'status' in acoes:
-            status = Status.objects.get(pk=acoes['status'])
-            ticket.status = status
-            campos_alterados.append(f'Status alterado para {status}')
+            obj = Status.objects.get(pk=acoes['status'])
+            ticket.status = obj
+            campos_alterados.append(f'Status → {obj.nome}')
 
         if 'responsavel' in acoes:
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            responsavel = User.objects.get(pk=acoes['responsavel'])
-            ticket.responsavel = responsavel
-            campos_alterados.append(f'Responsável alterado para {responsavel}')
+            obj = User.objects.get(pk=acoes['responsavel'])
+            ticket.responsavel = obj
+            campos_alterados.append(f'Responsável → {obj.get_full_name() or obj.username}')
 
-        if 'adicionar_acao' in acoes:
+        if 'categoria' in acoes:
+            obj = Categoria.objects.get(pk=acoes['categoria'])
+            ticket.categoria = obj
+            campos_alterados.append(f'Categoria → {obj.nome}')
+
+        if 'urgencia' in acoes:
+            obj = Urgencia.objects.get(pk=acoes['urgencia'])
+            ticket.urgencia = obj
+            campos_alterados.append(f'Urgência → {obj.nome}')
+
+        if 'assunto' in acoes and acoes['assunto']:
+            ticket.assunto = acoes['assunto']
+            campos_alterados.append('Assunto alterado')
+
+        ticket.save()
+
+        texto_interna = acoes.get('nota_interna') or acoes.get('adicionar_acao')
+        if texto_interna:
             AcaoTicket.objects.create(
                 ticket=ticket,
                 tipo='interna',
                 autor=usuario,
-                conteudo=f"[MACRO: {macro.nome}] {acoes['adicionar_acao']}"
+                conteudo=f"[MACRO: {macro.nome}] {texto_interna}",
             )
 
-        ticket.save()
+        texto_publica = acoes.get('nota_publica')
+        if texto_publica:
+            AcaoTicket.objects.create(
+                ticket=ticket,
+                tipo='publica',
+                autor=usuario,
+                conteudo=texto_publica,
+            )
 
-        # Registra no histórico
         if campos_alterados:
             HistoricoTicket.objects.create(
                 ticket=ticket,
                 usuario=usuario,
                 campo='macro_aplicada',
-                valor_novo=f"Macro '{macro.nome}' aplicada: " + ', '.join(campos_alterados)
+                valor_novo=f"Macro '{macro.nome}': " + ', '.join(campos_alterados),
             )
 
         return True
     except Exception as e:
         return False
+
+
+def _macro_opcoes_contexto(user):
+    """Dicionário de listas para o construtor visual de ações de macro."""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    responsaveis = (
+        User.objects.filter(is_staff=True, cliente=user, is_active=True)
+        .values('id', 'first_name', 'last_name', 'username')
+    )
+    return {
+        'macro_status_list':      list(Status.objects.filter(cliente=user, ativo=True).values('id', 'nome')),
+        'macro_categoria_list':   list(Categoria.objects.filter(cliente=user, ativo=True).values('id', 'nome')),
+        'macro_urgencia_list':    list(Urgencia.objects.filter(cliente=user, ativo=True).values('id', 'nome')),
+        'macro_responsavel_list': [
+            {
+                'id': r['id'],
+                'nome': (r['first_name'] + ' ' + r['last_name']).strip() or r['username'],
+            }
+            for r in responsaveis
+        ],
+    }
 
 
 # ==================== AÇÕES NO TICKET ====================
