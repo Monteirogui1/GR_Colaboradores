@@ -571,3 +571,82 @@ class AgentUpdateReport(models.Model):
 
     def __str__(self) -> str:
         return f"{self.machine_name} | {self.agent_type} | {self.status} | {self.reported_at:%d/%m/%Y %H:%M}"
+
+
+class LogAtividade(models.Model):
+    """
+    Registro de atividade coletado pelo agente em cada máquina.
+
+    Tipos:
+        login        — usuário fez login interativo ou RDP
+        logoff       — usuário encerrou sessão
+        app_iniciado — aplicativo da watchlist foi aberto
+    """
+
+    TIPO_CHOICES = [
+        ("login",        "Login"),
+        ("logoff",       "Logoff"),
+        ("app_iniciado", "Aplicativo iniciado"),
+    ]
+
+    machine = models.ForeignKey(
+        "Machine",
+        on_delete=models.CASCADE,
+        related_name="logs_atividade",
+        verbose_name="Máquina",
+    )
+    tipo = models.CharField(
+        max_length=20,
+        choices=TIPO_CHOICES,
+        verbose_name="Tipo",
+        db_index=True,
+    )
+    usuario_windows = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Usuário Windows",
+        db_index=True,
+    )
+    app_nome = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Aplicativo",
+    )
+    app_exe = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Executável",
+    )
+    app_path = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="Caminho do executável",
+    )
+    detalhes = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Detalhes extras",
+    )
+    ocorrido_em = models.DateTimeField(
+        verbose_name="Ocorrido em",
+        db_index=True,
+    )
+    recebido_em = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Recebido em",
+    )
+
+    class Meta:
+        ordering = ["-ocorrido_em"]
+        verbose_name = "Log de Atividade"
+        verbose_name_plural = "Logs de Atividade"
+        indexes = [
+            models.Index(fields=["machine", "ocorrido_em"]),
+            models.Index(fields=["machine", "tipo", "ocorrido_em"]),
+        ]
+
+    def __str__(self) -> str:
+        ts = self.ocorrido_em.strftime("%d/%m/%Y %H:%M")
+        if self.tipo == "app_iniciado":
+            return f"{self.machine.hostname} | {self.app_nome} | {self.usuario_windows} | {ts}"
+        return f"{self.machine.hostname} | {self.get_tipo_display()} | {self.usuario_windows} | {ts}"

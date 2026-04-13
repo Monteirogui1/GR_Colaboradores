@@ -30,7 +30,7 @@ from rest_framework.views import APIView
 from django.db.models import Q
 from .forms import MachineForm, NotificationForm, BlockedSiteForm, MachineGroupForm, AgentTokenGenerateForm
 from .models import (Machine, BlockedSite, Notification, MachineGroup, AgentToken, AgentVersion, AgentTokenUsage,
-                     AgentDownloadLog, AgentUpdateReport)
+                     AgentDownloadLog, AgentUpdateReport, LogAtividade)
 
 logger = logging.getLogger(__name__)
 
@@ -1741,6 +1741,156 @@ class AgentUpdateReportAPIView(AgentTokenRequiredMixin, APIView):
         )
 
         return Response({"ok": True, "message": "Relatório registrado."})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AgentActivityAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    Recebe lote de eventos de atividade coletados pelo agente.
+
+    Endpoint: POST /api/inventario/agent/activity/
+    Auth: Authorization: Bearer <token_hash>
+
+    Body::
+
+        {
+            "events": [
+                {
+                    "tipo":            "login",
+                    "usuario_windows": "DOMINIO\\\\usuario",
+                    "ocorrido_em":     "2025-04-13T14:30:00",
+                    "detalhes":        {"logon_type": "Interactive", "ip_origem": ""}
+                },
+                {
+                    "tipo":        "app_iniciado",
+                    "app_nome":    "Google Chrome",
+                    "app_exe":     "chrome.exe",
+                    "app_path":    "C:\\\\...\\\\chrome.exe",
+                    "usuario_windows": "DOMINIO\\\\usuario",
+                    "ocorrido_em": "2025-04-13T14:31:00"
+                }
+            ]
+        }
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    TIPOS_VALIDOS = {"login", "logoff", "app_iniciado"}
+
+    def post(self, request):
+        agent_token, error_response = self._authenticate(request)
+        if error_response:
+            return error_response
+
+        machine_name = self._get_machine_name(request)
+        if not machine_name:
+            return Response({"error": "X-Machine-Name ausente."}, status=status.HTTP_400_BAD_REQUEST)
+
+        _, err = self._get_machine(request, agent_token)
+        if err:
+            return err
+
+        machine = Machine.objects.filter(hostname__iexact=machine_name).first()
+        if not machine:
+            return Response({"error": "Máquina não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+
+        events = request.data.get("events", [])
+        if not isinstance(events, list):
+            return Response({"error": "'events' deve ser uma lista."}, status=status.HTTP_400_BAD_REQUEST)
+
+        criados = 0
+        erros   = 0
+        for ev in events:
+            try:
+                tipo = ev.get("tipo", "").strip()
+                if tipo not in self.TIPOS_VALIDOS:
+                    erros += 1
+                    continue
+
+                ocorrido_em_raw = ev.get("ocorrido_em")
+                if not ocorrido_em_raw:
+                    erros += 1
+                    continue
+
+                from django.utils.dateparse import parse_datetime
+                ocorrido_em = parse_datetime(str(ocorrido_em_raw))
+                if not ocorrido_em:
+                    erros += 1
+                    continue
+
+                # Torna aware se vier sem timezone
+                from django.utils.timezone import is_naive, make_aware
+                if is_naive(ocorrido_em):
+                    ocorrido_em = make_aware(ocorrido_em)
+
+                # Ignora eventos de contas de sistema do Windows
+                usuario_windows = str(ev.get("usuario_windows", "")).strip()
+                _nome_usuario = usuario_windows.split("\\")[-1].upper()
+                if _nome_usuario in {"SYSTEM", "LOCAL SERVICE", "NETWORK SERVICE", ""}:
+                    continue
+
+                LogAtividade.objects.create(
+                    machine         = machine,
+                    tipo            = tipo,
+                    usuario_windows = usuario_windows[:200],
+                    app_nome        = str(ev.get("app_nome",  ""))[:255],
+                    app_exe         = str(ev.get("app_exe",   ""))[:255],
+                    app_path        = str(ev.get("app_path",  ""))[:500],
+                    detalhes        = ev.get("detalhes") if isinstance(ev.get("detalhes"), dict) else {},
+                    ocorrido_em     = ocorrido_em,
+                )
+                criados += 1
+            except Exception:
+                erros += 1
+
+        logger.info("ActivityLog | máquina=%s criados=%d erros=%d", machine_name, criados, erros)
+        return Response({"ok": True, "criados": criados, "erros": erros})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AgentActivityLogView(LoginRequiredMixin, ListView):
+    """
+    Lista os logs de atividade de uma máquina específica.
+    Endpoint: GET /inventario/maquinas/<pk>/atividades/
+    """
+    template_name = "inventario/machine_activity_log.html"
+    context_object_name = "logs"
+    paginate_by = 100
+
+    def get_queryset(self):
+        self.machine = get_object_or_404(Machine, pk=self.kwargs["pk"])
+        qs = LogAtividade.objects.filter(machine=self.machine)
+
+        tipo = self.request.GET.get("tipo", "").strip()
+        if tipo in {"login", "logoff", "app_iniciado"}:
+            qs = qs.filter(tipo=tipo)
+
+        usuario = self.request.GET.get("usuario", "").strip()
+        if usuario:
+            qs = qs.filter(usuario_windows__icontains=usuario)
+
+        app = self.request.GET.get("app", "").strip()
+        if app:
+            qs = qs.filter(app_nome__icontains=app)
+
+        return qs.select_related()
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["machine"]        = self.machine
+        ctx["filtro_tipo"]    = self.request.GET.get("tipo", "")
+        ctx["filtro_usuario"] = self.request.GET.get("usuario", "")
+        ctx["filtro_app"]     = self.request.GET.get("app", "")
+        # Top apps para o período exibido
+        from django.db.models import Count
+        ctx["top_apps"] = (
+            LogAtividade.objects.filter(machine=self.machine, tipo="app_iniciado")
+            .values("app_nome")
+            .annotate(total=Count("id"))
+            .order_by("-total")[:10]
+        )
+        return ctx
 
 
 @method_decorator(csrf_exempt, name='dispatch')

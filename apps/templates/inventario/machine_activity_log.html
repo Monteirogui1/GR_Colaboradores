@@ -1,0 +1,163 @@
+{% extends "layouts/base.html" %}
+{% block title %}Atividades — {{ machine.hostname }}{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+  <div class="page-header">
+    <h1><i class="bi bi-clock-history"></i> Atividades — {{ machine.hostname }}</h1>
+    <a href="{% url 'inventario:machine_detail' machine.pk %}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+
+  <!-- Filtros -->
+  <div class="detail-card" style="margin-bottom:16px;">
+    <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div>
+        <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Tipo</label>
+        <select name="tipo" class="form-control form-control-sm" style="min-width:160px;">
+          <option value="">Todos</option>
+          <option value="login"        {% if filtro_tipo == 'login' %}selected{% endif %}>Login</option>
+          <option value="logoff"       {% if filtro_tipo == 'logoff' %}selected{% endif %}>Logoff</option>
+          <option value="app_iniciado" {% if filtro_tipo == 'app_iniciado' %}selected{% endif %}>App iniciado</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Usuário</label>
+        <input type="text" name="usuario" value="{{ filtro_usuario }}" class="form-control form-control-sm"
+               placeholder="filtrar por usuário" style="min-width:180px;">
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Aplicativo</label>
+        <input type="text" name="app" value="{{ filtro_app }}" class="form-control form-control-sm"
+               placeholder="filtrar por app" style="min-width:160px;">
+      </div>
+      <div>
+        <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+        <a href="?" class="btn btn-secondary btn-sm">Limpar</a>
+      </div>
+    </form>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 280px; gap:16px; align-items:start;">
+
+    <!-- Tabela principal -->
+    <div class="detail-card" style="margin:0;">
+      <h2>Eventos ({{ page_obj.paginator.count }})</h2>
+      <div class="detail-content" style="padding:0;">
+        {% if logs %}
+        <div class="table-responsive">
+          <table class="table" style="font-size:13px;">
+            <thead>
+              <tr>
+                <th style="width:130px;">Data/Hora</th>
+                <th style="width:110px;">Tipo</th>
+                <th>Usuário Windows</th>
+                <th>Aplicativo / Detalhe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for log in logs %}
+              <tr>
+                <td style="white-space:nowrap; color:#666;">
+                  {{ log.ocorrido_em|date:"d/m/Y H:i:s" }}
+                </td>
+                <td>
+                  {% if log.tipo == 'login' %}
+                    <span class="badge" style="background:#198754; color:#fff;">
+                      <i class="bi bi-box-arrow-in-right"></i> Login
+                    </span>
+                  {% elif log.tipo == 'logoff' %}
+                    <span class="badge" style="background:#6c757d; color:#fff;">
+                      <i class="bi bi-box-arrow-left"></i> Logoff
+                    </span>
+                  {% else %}
+                    <span class="badge" style="background:#0d6efd; color:#fff;">
+                      <i class="bi bi-app"></i> App
+                    </span>
+                  {% endif %}
+                </td>
+                <td>
+                  <code style="font-size:12px;">{{ log.usuario_windows|default:"—" }}</code>
+                </td>
+                <td>
+                  {% if log.tipo == 'app_iniciado' %}
+                    <strong>{{ log.app_nome }}</strong>
+                    {% if log.app_exe %}
+                      <span style="color:#aaa; font-size:11px;"> · {{ log.app_exe }}</span>
+                    {% endif %}
+                    {% if log.app_path %}
+                      <div style="font-size:11px; color:#999; margin-top:2px; word-break:break-all;">{{ log.app_path }}</div>
+                    {% endif %}
+                  {% elif log.tipo == 'login' %}
+                    {% if log.detalhes.logon_type %}
+                      <span style="color:#666;">{{ log.detalhes.logon_type }}</span>
+                    {% endif %}
+                    {% if log.detalhes.ip_origem %}
+                      <span style="color:#999; font-size:11px;"> · {{ log.detalhes.ip_origem }}</span>
+                    {% endif %}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginação -->
+        {% if page_obj.has_other_pages %}
+        <div style="padding:12px 16px; border-top:1px solid #f0f0f0;">
+          <nav>
+            <ul class="pagination pagination-sm" style="margin:0;">
+              {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&tipo={{ filtro_tipo }}&usuario={{ filtro_usuario }}&app={{ filtro_app }}">«</a>
+              </li>
+              {% endif %}
+              <li class="page-item disabled">
+                <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+              </li>
+              {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&tipo={{ filtro_tipo }}&usuario={{ filtro_usuario }}&app={{ filtro_app }}">»</a>
+              </li>
+              {% endif %}
+            </ul>
+          </nav>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div style="text-align:center; padding:48px; color:#aaa;">
+          <i class="bi bi-clock-history" style="font-size:2.5rem;"></i>
+          <p style="margin-top:12px;">Nenhum evento encontrado.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Sidebar: Top Apps -->
+    <div class="detail-card" style="margin:0;">
+      <h2>Apps mais usados</h2>
+      {% if top_apps %}
+      <div style="padding:0 16px 12px;">
+        {% for item in top_apps %}
+        <div style="display:flex; justify-content:space-between; align-items:center;
+                    padding:8px 0; border-bottom:1px solid #f0f0f0; font-size:13px;">
+          <span>{{ item.app_nome }}</span>
+          <span class="badge" style="background:#e9ecef; color:#495057; font-weight:600;">
+            {{ item.total }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="padding:16px; color:#aaa; font-size:13px;">Sem dados de apps ainda.</p>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

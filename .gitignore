@@ -26,3 +26,7 @@ claude.md
 .agents/
 */.agents/
 skills-lock.json
+**/agents_scripts/
+apps/inventory/agents_scripts/
+*.ps1
+agent_scripts

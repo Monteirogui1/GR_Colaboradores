@@ -10,7 +10,7 @@
 
   <form method="post" id="macro-form">
     {% csrf_token %}
-    {{ form.acoes }}  {# campo hidden gerenciado pelo JS #}
+    {{ form.acoes }}
 
     {% if form.errors %}
     <div class="alert alert-danger">
@@ -41,25 +41,27 @@
 
     <!-- Construtor de Ações -->
     <div class="detail-card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <h2 style="margin:0;">Ações</h2>
-        <button type="button" class="btn btn-primary btn-sm" id="btn-add-acao">
-          <i class="bi bi-plus-circle"></i> Adicionar ação
-        </button>
+      <h2>Ações</h2>
+
+      <!-- Linhas de ação adicionadas -->
+      <div id="acoes-container"></div>
+
+      <!-- Estado vazio -->
+      <div id="acoes-empty" class="acoes-empty-state">
+        <i class="bi bi-lightning" style="font-size:2rem; color:#ced4da;"></i>
+        <p>Nenhuma ação configurada ainda.</p>
       </div>
 
-      <div id="acoes-container">
-        <!-- linhas injetadas pelo JS -->
-      </div>
-
-      <div id="acoes-empty" style="text-align:center; padding:40px; color:#999; border:2px dashed #ddd; border-radius:8px; display:none;">
-        <i class="bi bi-lightning" style="font-size:2rem;"></i>
-        <p style="margin-top:8px;">Nenhuma ação adicionada. Clique em "Adicionar ação" para começar.</p>
+      <!-- Seletor para adicionar nova ação -->
+      <div id="adicionar-acao-row" class="adicionar-acao-row">
+        <select id="sel-tipo-acao">
+          <option value="">＋ Selecione uma ação para adicionar...</option>
+        </select>
       </div>
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary" id="btn-salvar">
+      <button type="submit" class="btn btn-primary">
         <i class="bi bi-check-lg"></i> Salvar Macro
       </button>
       <a href="{% url 'tickets:macro_list' %}" class="btn btn-secondary">Cancelar</a>
@@ -68,84 +70,141 @@
 </div>
 
 <style>
+/* ── Estado vazio ───────────────────────────────────────── */
+.acoes-empty-state {
+  text-align: center;
+  padding: 36px;
+  color: #adb5bd;
+  border: 2px dashed #dee2e6;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.acoes-empty-state p { margin: 8px 0 0; font-size: 14px; }
+
+/* ── Linha de seleção para nova ação ────────────────────── */
+.adicionar-acao-row {
+  margin-top: 4px;
+}
+.adicionar-acao-row select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px dashed #0d6efd;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0d6efd;
+  background: #f0f5ff;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.adicionar-acao-row select:focus { outline: none; border-color: #0d6efd; box-shadow: 0 0 0 3px rgba(13,110,253,.15); }
+
+/* ── Linha de ação ──────────────────────────────────────── */
 .acao-row {
   display: grid;
-  grid-template-columns: 200px 1fr 40px;
+  grid-template-columns: 210px 1fr 38px;
   gap: 10px;
   align-items: start;
-  padding: 12px;
+  padding: 12px 14px;
   background: #f8f9fa;
   border: 1px solid #e0e0e0;
+  border-left: 3px solid #0d6efd;
   border-radius: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
-.acao-row select, .acao-row input, .acao-row textarea {
+.acao-row select,
+.acao-row input[type=text],
+.acao-row textarea {
   width: 100%;
   padding: 7px 10px;
   border: 1px solid #ccc;
   border-radius: 6px;
   font-size: 14px;
+  background: #fff;
+  box-sizing: border-box;
 }
-.acao-row textarea { resize: vertical; min-height: 70px; }
-.btn-remove-acao {
-  background: none;
-  border: 1px solid #dc3545;
-  color: #dc3545;
+.acao-row textarea { resize: vertical; min-height: 72px; }
+.acao-row select:focus,
+.acao-row input:focus,
+.acao-row textarea:focus { outline: none; border-color: #86b7fe; box-shadow: 0 0 0 2px rgba(13,110,253,.15); }
+
+/* Tipo (coluna 1) */
+.acao-tipo-badge {
+  padding: 7px 10px;
+  background: #fff;
+  border: 1px solid #ccc;
   border-radius: 6px;
-  width: 36px;
-  height: 36px;
+  font-size: 13px;
+  color: #495057;
+}
+
+/* Label mini acima do campo */
+.acao-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  margin-bottom: 5px;
+}
+
+/* Botão remover */
+.btn-remove-acao {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: #fff;
+  color: #adb5bd;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: 2px;
+  font-size: 14px;
+  transition: all .15s;
+  margin-top: 22px; /* alinha com o campo */
 }
-.btn-remove-acao:hover { background: #dc3545; color: #fff; }
-.acao-label { font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 600; }
+.btn-remove-acao:hover { border-color: #dc3545; color: #dc3545; background: #fff5f5; }
 </style>
 
 <script>
-// Dados das listas vindos do servidor
 const LISTAS = {
-  status:     {{ macro_status_list|safe }},
-  categoria:  {{ macro_categoria_list|safe }},
-  urgencia:   {{ macro_urgencia_list|safe }},
-  responsavel:{{ macro_responsavel_list|safe }},
+  status:     {{ macro_status_list|default:"[]"|safe }},
+  categoria:  {{ macro_categoria_list|default:"[]"|safe }},
+  urgencia:   {{ macro_urgencia_list|default:"[]"|safe }},
+  responsavel:{{ macro_responsavel_list|default:"[]"|safe }},
 };
 
 const TIPOS_ACAO = [
-  { value: 'status',       label: 'Alterar status',       tipo: 'select',   lista: 'status' },
-  { value: 'responsavel',  label: 'Alterar responsável',  tipo: 'select',   lista: 'responsavel' },
-  { value: 'categoria',    label: 'Alterar categoria',    tipo: 'select',   lista: 'categoria' },
-  { value: 'urgencia',     label: 'Alterar urgência',     tipo: 'select',   lista: 'urgencia' },
-  { value: 'assunto',      label: 'Alterar assunto',      tipo: 'text' },
-  { value: 'nota_interna', label: 'Adicionar nota interna', tipo: 'textarea' },
+  { value: 'status',       label: 'Alterar status',             tipo: 'select',   lista: 'status' },
+  { value: 'responsavel',  label: 'Alterar responsável',        tipo: 'select',   lista: 'responsavel' },
+  { value: 'categoria',    label: 'Alterar categoria',          tipo: 'select',   lista: 'categoria' },
+  { value: 'urgencia',     label: 'Alterar urgência',           tipo: 'select',   lista: 'urgencia' },
+  { value: 'assunto',      label: 'Alterar assunto',            tipo: 'text' },
+  { value: 'nota_interna', label: 'Adicionar nota interna',     tipo: 'textarea' },
   { value: 'nota_publica', label: 'Adicionar resposta pública', tipo: 'textarea' },
 ];
 
-// Ações atuais da macro (para edição)
+// ── Estado atual ──────────────────────────────────────────────────────────────
 let acoes = {};
 try {
-  const raw = document.getElementById('id_acoes').value;
-  if (raw) acoes = JSON.parse(raw);
-} catch(e) {}
+  const raw = (document.getElementById('id_acoes') || {}).value || '';
+  if (raw) acoes = JSON.parse(raw) || {};
+  if (typeof acoes !== 'object' || Array.isArray(acoes)) acoes = {};
+} catch(e) { acoes = {}; }
 
-function tiposDisponiveis() {
-  const usados = Object.keys(acoes);
-  return TIPOS_ACAO.filter(t => !usados.includes(t.value));
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function tiposUsados()      { return Object.keys(acoes); }
+function tiposDisponiveis() { return TIPOS_ACAO.filter(t => !tiposUsados().includes(t.value)); }
 
+// ── Renderiza as linhas de ação existentes ────────────────────────────────────
 function renderizarAcoes() {
   const container = document.getElementById('acoes-container');
   const empty     = document.getElementById('acoes-empty');
   container.innerHTML = '';
 
-  const chaves = Object.keys(acoes);
-  if (chaves.length === 0) {
-    empty.style.display = 'block';
-    return;
-  }
-  empty.style.display = 'none';
+  const chaves = tiposUsados();
+  empty.style.display = chaves.length === 0 ? 'block' : 'none';
 
   chaves.forEach(chave => {
     const tipo = TIPOS_ACAO.find(t => t.value === chave);
@@ -153,24 +212,20 @@ function renderizarAcoes() {
 
     const row = document.createElement('div');
     row.className = 'acao-row';
-    row.dataset.chave = chave;
 
-    // Coluna 1: tipo (fixo, com label)
+    // Col 1 — Tipo
     const col1 = document.createElement('div');
-    col1.innerHTML = `<div class="acao-label">Tipo de ação</div>
-      <div style="padding:7px 10px; background:#fff; border:1px solid #ccc; border-radius:6px; font-size:14px;">
-        ${tipo.label}
-      </div>`;
+    col1.innerHTML = `<div class="acao-label">Tipo</div>
+      <div class="acao-tipo-badge">${tipo.label}</div>`;
 
-    // Coluna 2: valor
+    // Col 2 — Valor
     const col2 = document.createElement('div');
     col2.innerHTML = `<div class="acao-label">Valor</div>`;
     let input;
 
     if (tipo.tipo === 'select') {
       input = document.createElement('select');
-      const lista = LISTAS[tipo.lista] || [];
-      lista.forEach(item => {
+      (LISTAS[tipo.lista] || []).forEach(item => {
         const opt = document.createElement('option');
         opt.value = item.id;
         opt.textContent = item.nome;
@@ -181,27 +236,31 @@ function renderizarAcoes() {
       input = document.createElement('textarea');
       input.value = acoes[chave] || '';
       input.rows = 3;
+      input.placeholder = 'Digite o texto...';
     } else {
       input = document.createElement('input');
       input.type = 'text';
       input.value = acoes[chave] || '';
+      input.placeholder = 'Digite o novo assunto...';
     }
 
     input.addEventListener('change', () => { acoes[chave] = input.value; });
     input.addEventListener('input',  () => { acoes[chave] = input.value; });
+    // Inicializa valor no estado
+    if (tipo.tipo === 'select' && input.options.length) acoes[chave] = input.value;
     col2.appendChild(input);
 
-    // Coluna 3: remover
+    // Col 3 — Remover
     const col3 = document.createElement('div');
     const btnRem = document.createElement('button');
     btnRem.type = 'button';
     btnRem.className = 'btn-remove-acao';
-    btnRem.innerHTML = '<i class="bi bi-trash"></i>';
     btnRem.title = 'Remover ação';
+    btnRem.innerHTML = '<i class="bi bi-x-lg"></i>';
     btnRem.addEventListener('click', () => {
       delete acoes[chave];
       renderizarAcoes();
-      atualizarBotaoAdicionar();
+      atualizarSeletor();
     });
     col3.appendChild(btnRem);
 
@@ -212,56 +271,45 @@ function renderizarAcoes() {
   });
 }
 
-function atualizarBotaoAdicionar() {
-  const btn = document.getElementById('btn-add-acao');
-  btn.disabled = tiposDisponiveis().length === 0;
-}
+// ── Atualiza o <select> de adição com os tipos ainda disponíveis ───────────────
+function atualizarSeletor() {
+  const sel = document.getElementById('sel-tipo-acao');
+  sel.innerHTML = '<option value="">＋ Selecione uma ação para adicionar...</option>';
 
-document.getElementById('btn-add-acao').addEventListener('click', () => {
   const disponiveis = tiposDisponiveis();
-  if (disponiveis.length === 0) return;
-
-  // Pequeno modal inline / dropdown com os tipos disponíveis
-  const existente = document.getElementById('tipo-picker');
-  if (existente) { existente.remove(); return; }
-
-  const picker = document.createElement('div');
-  picker.id = 'tipo-picker';
-  picker.style.cssText = 'position:fixed;z-index:9999;background:#fff;border:1px solid #ccc;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);min-width:240px;padding:8px 0;';
-
-  disponiveis.forEach(tipo => {
-    const item = document.createElement('div');
-    item.style.cssText = 'padding:10px 16px;cursor:pointer;font-size:14px;';
-    item.textContent = tipo.label;
-    item.addEventListener('mouseenter', () => item.style.background = '#f0f4ff');
-    item.addEventListener('mouseleave', () => item.style.background = '');
-    item.addEventListener('click', () => {
-      // Valor inicial: primeiro da lista (select) ou string vazia
-      if (tipo.tipo === 'select' && LISTAS[tipo.lista]?.length) {
-        acoes[tipo.value] = LISTAS[tipo.lista][0].id;
-      } else {
-        acoes[tipo.value] = '';
-      }
-      picker.remove();
-      renderizarAcoes();
-      atualizarBotaoAdicionar();
-    });
-    picker.appendChild(item);
+  disponiveis.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.value;
+    opt.textContent = t.label;
+    sel.appendChild(opt);
   });
 
-  // Posiciona próximo ao botão
-  const btn = document.getElementById('btn-add-acao');
-  const rect = btn.getBoundingClientRect();
-  picker.style.top  = (rect.bottom + 6 + window.scrollY) + 'px';
-  picker.style.left = (rect.left + window.scrollX) + 'px';
-  document.body.appendChild(picker);
+  // Oculta o seletor se não há mais tipos disponíveis
+  document.getElementById('adicionar-acao-row').style.display =
+    disponiveis.length === 0 ? 'none' : 'block';
+}
 
-  const fechar = (e) => { if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener('click', fechar); } };
-  setTimeout(() => document.addEventListener('click', fechar), 10);
+// ── Evento: selecionou um tipo → adiciona ação ────────────────────────────────
+document.getElementById('sel-tipo-acao').addEventListener('change', function() {
+  const valor = this.value;
+  if (!valor) return;
+
+  const tipo = TIPOS_ACAO.find(t => t.value === valor);
+  if (!tipo) return;
+
+  // Valor inicial
+  if (tipo.tipo === 'select' && (LISTAS[tipo.lista] || []).length) {
+    acoes[valor] = LISTAS[tipo.lista][0].id;
+  } else {
+    acoes[valor] = '';
+  }
+
+  renderizarAcoes();
+  atualizarSeletor();
 });
 
-// Antes de submeter, serializa as ações no campo hidden
-document.getElementById('macro-form').addEventListener('submit', (e) => {
+// ── Submit: serializa acoes → campo hidden ────────────────────────────────────
+document.getElementById('macro-form').addEventListener('submit', function(e) {
   if (Object.keys(acoes).length === 0) {
     e.preventDefault();
     alert('Adicione pelo menos uma ação antes de salvar.');
@@ -270,8 +318,8 @@ document.getElementById('macro-form').addEventListener('submit', (e) => {
   document.getElementById('id_acoes').value = JSON.stringify(acoes);
 });
 
-// Inicializa renderização
+// ── Inicializa ────────────────────────────────────────────────────────────────
 renderizarAcoes();
-atualizarBotaoAdicionar();
+atualizarSeletor();
 </script>
 {% endblock %}
