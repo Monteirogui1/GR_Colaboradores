@@ -96,6 +96,7 @@ urlpatterns = [
     path('config/macros/criar/', views.MacroCreateView.as_view(), name='macro_create'),
     path('config/macros/<int:pk>/editar/', views.MacroUpdateView.as_view(), name='macro_update'),
     path('config/macros/<int:pk>/excluir/', views.MacroDeleteView.as_view(), name='macro_delete'),
+    path('<int:pk>/aplicar-macro/', views.aplicar_macro_direto, name='aplicar_macro_direto'),
 
     # ==================== HORÁRIO DE ATENDIMENTO ====================
     path('config/horarios/', views.HorarioAtendimentoListView.as_view(), name='horario_list'),

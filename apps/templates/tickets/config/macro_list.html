@@ -2,35 +2,112 @@
 {% block title %}Macros{% endblock %}
 {% block conteudo %}
 <div class="content">
-    <div class="page-header">
-        <h1><i class="bi bi-tools"></i> Macros</h1>
-        <a href="{% url 'tickets:macro_create' %}" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Nova Macro</a>
-    </div>
-    <div class="detail-card">
-        <h2>Lista</h2>
-        <div class="detail-content" style="padding: 0;">
-            {% if object_list %}
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead><tr><th>Nome</th><th>Status</th><th>Ações</th></tr></thead>
-                        <tbody>
-                            {% for obj in object_list %}
-                            <tr>
-                                <td><strong>{{ obj.nome }}</strong></td>
-                                <td><span class="badge" style="background-color: {% if obj.ativo %}#28a745{% else %}#6c757d{% endif %}; color: white;">{% if obj.ativo %}Ativo{% else %}Inativo{% endif %}</span></td>
-                                <td>
-                                    <a href="{% url 'tickets:macro_update' obj.pk %}" class="btn btn-sm btn-edit"><i class="bi bi-pencil"></i></a>
-                                    <form method="post" action="{% url 'tickets:macro_delete' obj.pk %}" style="display: inline;" onsubmit="return confirm('Tem certeza?');">{% csrf_token %}<button type="submit" class="btn btn-sm btn-delete"><i class="bi bi-trash"></i></button></form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+  <div class="page-header">
+    <h1><i class="bi bi-lightning-charge"></i> Macros</h1>
+    <a href="{% url 'tickets:macro_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-circle"></i> Nova Macro
+    </a>
+  </div>
+
+  <div class="detail-card">
+    <h2>Macros cadastradas</h2>
+    <div class="detail-content" style="padding:0;">
+      {% if macros %}
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Ações configuradas</th>
+              <th>Status</th>
+              <th style="width:110px;">Operações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in macros %}
+            <tr>
+              <td>
+                <strong>{{ m.nome }}</strong>
+                {% if m.descricao %}
+                  <div style="font-size:12px; color:#888; margin-top:2px;">{{ m.descricao|truncatechars:80 }}</div>
+                {% endif %}
+              </td>
+
+              <td>
+                {# resumo visual das ações configuradas #}
+                {% with a=m.acoes %}
+                <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                  {% if a.status %}
+                    <span class="badge" style="background:#0d6efd; color:#fff; font-weight:400;">
+                      <i class="bi bi-circle-fill" style="font-size:8px;"></i> Status
+                    </span>
+                  {% endif %}
+                  {% if a.responsavel %}
+                    <span class="badge" style="background:#6f42c1; color:#fff; font-weight:400;">
+                      <i class="bi bi-person"></i> Responsável
+                    </span>
+                  {% endif %}
+                  {% if a.categoria %}
+                    <span class="badge" style="background:#20c997; color:#fff; font-weight:400;">
+                      <i class="bi bi-tag"></i> Categoria
+                    </span>
+                  {% endif %}
+                  {% if a.urgencia %}
+                    <span class="badge" style="background:#fd7e14; color:#fff; font-weight:400;">
+                      <i class="bi bi-exclamation-triangle"></i> Urgência
+                    </span>
+                  {% endif %}
+                  {% if a.assunto %}
+                    <span class="badge" style="background:#6c757d; color:#fff; font-weight:400;">
+                      <i class="bi bi-pencil"></i> Assunto
+                    </span>
+                  {% endif %}
+                  {% if a.nota_interna or a.adicionar_acao %}
+                    <span class="badge" style="background:#adb5bd; color:#fff; font-weight:400;">
+                      <i class="bi bi-lock"></i> Nota interna
+                    </span>
+                  {% endif %}
+                  {% if a.nota_publica %}
+                    <span class="badge" style="background:#0dcaf0; color:#000; font-weight:400;">
+                      <i class="bi bi-chat-text"></i> Resposta pública
+                    </span>
+                  {% endif %}
                 </div>
-            {% else %}
-                <div style="text-align: center; padding: 60px;"><p>Nenhum registro</p><a href="{% url 'tickets:macro_create' %}" class="btn btn-primary">Criar Primeiro</a></div>
-            {% endif %}
-        </div>
+                {% endwith %}
+              </td>
+
+              <td>
+                <span class="badge" style="background:{% if m.ativo %}#28a745{% else %}#6c757d{% endif %}; color:#fff;">
+                  {% if m.ativo %}Ativa{% else %}Inativa{% endif %}
+                </span>
+              </td>
+
+              <td>
+                <a href="{% url 'tickets:macro_update' m.pk %}" class="btn btn-sm btn-edit" title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post" action="{% url 'tickets:macro_delete' m.pk %}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Excluir a macro &quot;{{ m.nome }}&quot;?');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-delete" title="Excluir">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="text-align:center; padding:60px; color:#999;">
+        <i class="bi bi-lightning" style="font-size:3rem; color:#dee2e6;"></i>
+        <p style="margin-top:12px;">Nenhuma macro cadastrada.</p>
+        <a href="{% url 'tickets:macro_create' %}" class="btn btn-primary">Criar primeira macro</a>
+      </div>
+      {% endif %}
     </div>
+  </div>
 </div>
 {% endblock %}

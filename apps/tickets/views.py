@@ -855,52 +855,6 @@ def alterar_responsavel_rapido(request, pk):
     return redirect('tickets:ticket_detail', pk=ticket.pk)
 
 
-# ==================== HELPER FUNCTIONS ====================
-
-def aplicar_macro_ao_ticket(ticket, macro, usuario):
-    """Aplica uma macro ao ticket"""
-    try:
-        acoes = macro.acoes
-
-        # Altera campos conforme macro
-        campos_alterados = []
-
-        if 'status' in acoes:
-            status = Status.objects.get(pk=acoes['status'])
-            ticket.status = status
-            campos_alterados.append(f'Status alterado para {status}')
-
-        if 'responsavel' in acoes:
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            responsavel = User.objects.get(pk=acoes['responsavel'])
-            ticket.responsavel = responsavel
-            campos_alterados.append(f'Responsável alterado para {responsavel}')
-
-        if 'adicionar_acao' in acoes:
-            AcaoTicket.objects.create(
-                ticket=ticket,
-                tipo='interna',
-                autor=usuario,
-                conteudo=f"[MACRO: {macro.nome}] {acoes['adicionar_acao']}"
-            )
-
-        ticket.save()
-
-        # Registra no histórico
-        if campos_alterados:
-            HistoricoTicket.objects.create(
-                ticket=ticket,
-                usuario=usuario,
-                campo='macro_aplicada',
-                valor_novo=f"Macro '{macro.nome}' aplicada: " + ', '.join(campos_alterados)
-            )
-
-        return True
-    except Exception as e:
-        return False
-
-
 # ==================== ATIVOS DO TICKET ====================
 
 @login_required
@@ -1493,12 +1447,20 @@ class MacroListView(LoginRequiredMixin, ListView):
     context_object_name = 'macros'
     ordering = ['nome']
 
+    def get_queryset(self):
+        return super().get_queryset().filter(cliente=self.request.user)
+
 
 class MacroCreateView(LoginRequiredMixin, ClienteCreateMixin, CreateView):
     model = Macro
     form_class = MacroForm
     template_name = 'tickets/config/macro_form.html'
     success_url = reverse_lazy('tickets:macro_list')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(_macro_opcoes_contexto(self.request.user))
+        return ctx
 
     def form_valid(self, form):
         messages.success(self.request, 'Macro criada com sucesso!')
@@ -1510,6 +1472,11 @@ class MacroUpdateView(LoginRequiredMixin, ClienteObjectMixin, UpdateView):
     form_class = MacroForm
     template_name = 'tickets/config/macro_form.html'
     success_url = reverse_lazy('tickets:macro_list')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(_macro_opcoes_contexto(self.request.user))
+        return ctx
 
     def form_valid(self, form):
         messages.success(self.request, 'Macro atualizada com sucesso!')
@@ -1523,6 +1490,36 @@ class MacroDeleteView(LoginRequiredMixin, ClienteObjectMixin, DeleteView):
     def delete(self, request, *args, **kwargs):
         messages.success(request, 'Macro excluída com sucesso!')
         return super().delete(request, *args, **kwargs)
+
+
+@login_required
+def aplicar_macro_direto(request, pk):
+    """
+    Aplica uma macro diretamente ao ticket via POST, sem exigir texto de ação.
+    Chamada AJAX pelo botão "Aplicar" no detail do ticket.
+
+    POST body: { "macro_id": <int> }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'erro': 'Método não permitido.'}, status=405)
+
+    ticket = get_object_or_404(Ticket, pk=pk)
+    if not request.user.is_superuser:
+        if ticket.cliente != request.user and ticket.solicitante != request.user:
+            return JsonResponse({'ok': False, 'erro': 'Sem permissão.'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        macro_id = int(data.get('macro_id', 0))
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'erro': 'macro_id inválido.'}, status=400)
+
+    macro = get_object_or_404(Macro, pk=macro_id, ativo=True, cliente=request.user)
+    ok = aplicar_macro_ao_ticket(ticket, macro, request.user)
+
+    if ok:
+        return JsonResponse({'ok': True, 'mensagem': f'Macro "{macro.nome}" aplicada.'})
+    return JsonResponse({'ok': False, 'erro': 'Falha ao aplicar a macro.'}, status=500)
 
 
 # ==================== HORÁRIO DE ATENDIMENTO ====================

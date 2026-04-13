@@ -782,12 +782,24 @@
 
                     <!-- Macro -->
                     {% if acao_form.aplicar_macro.field.queryset.exists %}
-                    <select name="aplicar_macro" class="tk-macro-select">
-                        <option value="">Aplicar macro ▾</option>
+                    <div style="display:inline-flex; gap:0; border:1px solid #ccc; border-radius:4px; overflow:hidden;">
+                      <select id="sel-macro-direto" class="tk-macro-select" name="aplicar_macro"
+                              style="border:none; border-radius:0; border-right:1px solid #ccc;"
+                              title="Selecione uma macro">
+                        <option value="">⚡ Macro ▾</option>
                         {% for m in acao_form.aplicar_macro.field.queryset %}
-                        <option value="{{ m.pk }}">{{ m.nome }}</option>
+                        <option value="{{ m.pk }}"
+                                data-descricao="{{ m.descricao|default:'' }}"
+                                data-acoes="{{ m.acoes|safe }}">{{ m.nome }}</option>
                         {% endfor %}
-                    </select>
+                      </select>
+                      <button type="button" id="btn-macro-direto"
+                              class="tk-macro-select"
+                              style="border:none; border-radius:0; background:#f8f9fa; padding:5px 10px; cursor:pointer; font-size:13px;"
+                              title="Aplicar macro agora (sem adicionar ação)">
+                        Aplicar
+                      </button>
+                    </div>
                     {% endif %}
                     {% endif %}
 
@@ -1083,6 +1095,55 @@ function aplicarTemplate(templateId) {
     window._quill.clipboard.dangerouslyPasteHTML(0, tpl.conteudo);
     document.getElementById('sel-template').value = '';
 }
+
+// ── Macro: aplicação direta (sem precisar preencher texto) ────────────────────
+(function() {
+  const btnAplicar = document.getElementById('btn-macro-direto');
+  if (!btnAplicar) return;
+
+  btnAplicar.addEventListener('click', function() {
+    const sel = document.getElementById('sel-macro-direto');
+    const macroId = sel ? sel.value : '';
+    if (!macroId) {
+      alert('Selecione uma macro primeiro.');
+      return;
+    }
+    const macroNome = sel.options[sel.selectedIndex].text;
+    if (!confirm('Aplicar a macro "' + macroNome + '" a este ticket?')) return;
+
+    btnAplicar.disabled = true;
+    btnAplicar.textContent = '...';
+
+    fetch('{% url "tickets:aplicar_macro_direto" ticket.pk %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+      },
+      body: JSON.stringify({ macro_id: parseInt(macroId, 10) }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        // Feedback visual e recarrega a página para refletir as mudanças
+        const msg = document.createElement('div');
+        msg.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;background:#198754;color:#fff;padding:12px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.2);font-size:14px;';
+        msg.textContent = '✓ ' + data.mensagem;
+        document.body.appendChild(msg);
+        setTimeout(() => location.reload(), 900);
+      } else {
+        alert('Erro: ' + (data.erro || 'Não foi possível aplicar a macro.'));
+        btnAplicar.disabled = false;
+        btnAplicar.textContent = 'Aplicar';
+      }
+    })
+    .catch(() => {
+      alert('Erro de comunicação com o servidor.');
+      btnAplicar.disabled = false;
+      btnAplicar.textContent = 'Aplicar';
+    });
+  });
+})();
 
 function setEditorTab(tab) {
     const isPub = tab === 'pub';

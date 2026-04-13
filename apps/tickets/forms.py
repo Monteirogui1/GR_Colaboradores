@@ -525,17 +525,18 @@ class GatilhoForm(forms.ModelForm):
 
 
 class MacroForm(forms.ModelForm):
+    """
+    Formulário de macro com construtor visual de ações.
+    O campo `acoes` (JSON) é populado via JavaScript pelo template
+    macro_form.html — o usuário não edita JSON diretamente.
+    """
     class Meta:
         model = Macro
         fields = ['nome', 'descricao', 'acoes', 'ativo']
         widgets = {
-            'nome': forms.TextInput(attrs={'class': 'form-control'}),
-            'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'acoes': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 8,
-                'placeholder': '{"status": 2, "responsavel": 1, "adicionar_acao": "Resolvido conforme solicitado"}'
-            }),
+            'nome': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Encerrar ticket resolvido'}),
+            'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Descrição opcional'}),
+            'acoes': forms.HiddenInput(),   # gerenciado pelo JS do construtor
             'ativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
