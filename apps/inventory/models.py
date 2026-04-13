@@ -530,3 +530,44 @@ class AgentDownloadLog(models.Model):
 
     def __str__(self) -> str:
         return f"{self.machine_name} → v{self.agent_version.version} em {self.downloaded_at:%d/%m/%Y %H:%M}"
+
+
+class AgentUpdateReport(models.Model):
+    """
+    Relatório de resultado de hot-update enviado pelo script launcher.
+
+    Após o agente disparar o script PowerShell de atualização e encerrar,
+    o próprio script reporta sucesso ou falha para este endpoint.
+    Permite rastrear quais máquinas foram atualizadas com sucesso.
+    """
+
+    STATUS_CHOICES = [
+        ("downloading", "Baixando"),
+        ("ready",       "Pronto para aplicar"),
+        ("applied",     "Aplicado com sucesso"),
+        ("failed",      "Falhou"),
+        ("rolled_back", "Revertido"),
+    ]
+
+    machine_name = models.CharField(max_length=255, verbose_name="Máquina")
+    agent_type   = models.CharField(max_length=20, verbose_name="Tipo de Agente")
+    from_version = models.CharField(max_length=20, blank=True, verbose_name="Versão anterior")
+    to_version   = models.ForeignKey(
+        AgentVersion,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="update_reports",
+        verbose_name="Versão destino",
+    )
+    status  = models.CharField(max_length=20, choices=STATUS_CHOICES, verbose_name="Status")
+    message = models.TextField(blank=True, verbose_name="Mensagem / erro")
+    reported_at = models.DateTimeField(auto_now_add=True, verbose_name="Reportado em")
+
+    class Meta:
+        ordering = ["-reported_at"]
+        verbose_name = "Relatório de Atualização"
+        verbose_name_plural = "Relatórios de Atualização"
+
+    def __str__(self) -> str:
+        return f"{self.machine_name} | {self.agent_type} | {self.status} | {self.reported_at:%d/%m/%Y %H:%M}"

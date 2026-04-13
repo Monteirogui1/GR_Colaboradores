@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from django.conf import settings
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
@@ -129,10 +132,13 @@ def dashboard_view(request):
 
         maquinas_query = Machine.objects.all()
 
+        timeout = getattr(settings, 'MACHINE_OFFLINE_TIMEOUT', 15)
+        threshold = timezone.now() - timedelta(minutes=timeout)
+
         context['stats']['maquinas'] = {
             'total': maquinas_query.count(),
-            'online': maquinas_query.filter(is_online=True).count(),
-            'offline': maquinas_query.filter(is_online=False).count(),
+            'online': maquinas_query.filter(last_seen__gte=threshold).count(),
+            'offline': maquinas_query.filter(last_seen__lt=threshold).count(),
         }
 
         # Máquinas por grupo

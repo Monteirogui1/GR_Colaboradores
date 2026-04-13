@@ -21,9 +21,3 @@ def notification_created(sender, instance, created, **kwargs):
         if instance.is_read:
             print(f"Notificação marcada como lida: {instance.title}")
 
-
-@receiver(post_save, sender=Machine)
-def sync_online_status(sender, instance, update_fields, **kwargs):
-    # Só dispara quando last_seen foi o campo salvo
-    if update_fields and 'last_seen' in update_fields:
-        instance.update_online_status()

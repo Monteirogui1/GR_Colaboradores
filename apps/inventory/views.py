@@ -30,7 +30,7 @@ from rest_framework.views import APIView
 from django.db.models import Q
 from .forms import MachineForm, NotificationForm, BlockedSiteForm, MachineGroupForm, AgentTokenGenerateForm
 from .models import (Machine, BlockedSite, Notification, MachineGroup, AgentToken, AgentVersion, AgentTokenUsage,
-                     AgentDownloadLog)
+                     AgentDownloadLog, AgentUpdateReport)
 
 logger = logging.getLogger(__name__)
 
@@ -141,37 +141,66 @@ class AgentTokenRequiredMixin:
             return None, JsonResponse(error, status=404)
 
 
-def _safe_str(v) -> str | None:
+def _sanitize_str(v) -> "str | None":
     """
-    Converte valor para string segura para CharField.
+    Remove null bytes (\\u0000) e retorna None se vazio/None.
 
-    Retorna None para: None, string vazia, string literal "None" (vinda do PowerShell).
-    Isso evita que o banco salve a string "None" onde deveria estar NULL.
-
-    Args:
-        v: Qualquer valor recebido do payload do agente.
-
-    Returns:
-        String limpa ou None.
+    PostgreSQL text/varchar rejeita \\u0000 com:
+      unsupported Unicode escape sequence / \\u0000 cannot be converted to text
+    Origem: PowerShell serializa strings WMI com null bytes no final
+            ex: tpm.manufacturer_ver = "11.6.10.1196\\u0000"
     """
     if v is None:
         return None
-    s = str(v).strip()
-    return s if s and s.lower() != 'none' else None
+    cleaned = str(v).replace("\\u0000", "").replace("\\x00", "").strip()
+    return cleaned if cleaned and cleaned.lower() != "none" else None
 
 
-def _safe_float(v) -> float | None:
+def _remove_null_chars(s: str) -> str:
     """
-    Converte valor para float seguro para FloatField.
-
-    PostgreSQL é estrito — rejeita strings não numéricas onde SQLite convertia.
-
-    Args:
-        v: Valor numérico ou string numérica do payload.
-
-    Returns:
-        Float ou None.
+    Remove todos os caracteres nulos de uma string.
+    Usa filter+ord porque replace('\\x00','') pode falhar dependendo
+    de como o Python internalizou o caractere (\\u0000 vs \\x00).
     """
+    return ''.join(c for c in s if ord(c) != 0)
+
+
+def _sanitize_json(v):
+    """
+    Garante dict/list ou None para JSONField — remove null bytes (\\x00/\\u0000).
+    PostgreSQL jsonb rejeita null bytes: DataError: unsupported Unicode escape sequence.
+    Origem: PowerShell serializa strings WMI com null bytes no final
+            ex: tpm.manufacturer_ver = '11.8.50.3399\\x00'
+    Usa ord(c) != 0 porque replace('\\x00','') pode não capturar todos os casos.
+    """
+    if v is None:
+        return None
+
+    def _clean(obj):
+        if isinstance(obj, str):
+            cleaned = _remove_null_chars(obj)
+            return cleaned if cleaned else None
+        if isinstance(obj, dict):
+            return {k: _clean(val) for k, val in obj.items()}
+        if isinstance(obj, list):
+            return [_clean(item) for item in obj]
+        return obj
+
+    if isinstance(v, (dict, list)):
+        return _clean(v)
+    if isinstance(v, str):
+        try:
+            import json as _json
+            parsed = _json.loads(v)
+            if isinstance(parsed, (dict, list)):
+                return _clean(parsed)
+        except Exception:
+            pass
+    return None
+
+
+def _sanitize_float(v) -> "float | None":
+    """Converte para float ou None. PostgreSQL FloatField rejeita strings não-numéricas."""
     if v is None:
         return None
     try:
@@ -180,16 +209,8 @@ def _safe_float(v) -> float | None:
         return None
 
 
-def _safe_int(v) -> int | None:
-    """
-    Converte valor para int seguro para IntegerField.
-
-    Args:
-        v: Valor inteiro ou string inteira do payload.
-
-    Returns:
-        Int ou None.
-    """
+def _sanitize_int(v) -> "int | None":
+    """Converte para int ou None. PostgreSQL IntegerField rejeita strings não-numéricas."""
     if v is None:
         return None
     try:
@@ -198,88 +219,46 @@ def _safe_int(v) -> int | None:
         return None
 
 
-def _safe_json(v):
+def parse_wmi_date(wmi_date_str):
     """
-    Garante que JSONField receba dict/list ou None — nunca string.
-
-    SQLite armazenava qualquer tipo no JSONField silenciosamente.
-    PostgreSQL jsonb rejeita strings com DataError: invalid input syntax for type json.
-
-    Cenários tratados:
-    - dict/list: retorna diretamente (caso normal do agente)
-    - string JSON válida: deserializa (dupla-serialização do PowerShell)
-    - string @{...} (formato PS nativo): retorna None
-    - None: retorna None
-
-    Args:
-        v: Valor recebido no campo JSON do payload.
-
-    Returns:
-        dict, list ou None.
-    """
-    if v is None:
-        return None
-    if isinstance(v, (dict, list)):
-        return v
-    if isinstance(v, str):
-        try:
-            parsed = json.loads(v)
-            if isinstance(parsed, (dict, list)):
-                return parsed
-        except (json.JSONDecodeError, ValueError):
-            pass
-    return None
-
-
-def parse_wmi_date(wmi_date_str) -> dt.datetime | None:
-    """
-    Converte data WMI/PowerShell para datetime timezone-aware.
+    Converte data WMI/PowerShell para datetime timezone-aware (UTC).
 
     Formatos suportados:
-    - ``/Date(1234567890000)/`` — timestamp em ms (ConvertTo-Json padrão)
-    - ISO 8601: ``2023-04-15T10:30:00``, ``2023-04-15T10:30:00Z``, etc.
-      (PowerShell 5+ com -Depth > 1 pode usar este formato)
-    - datetime Python: retorna diretamente
-
-    Args:
-        wmi_date_str: String de data do payload do agente.
-
-    Returns:
-        datetime timezone-aware (UTC) ou None se não reconhecido.
+      - /Date(1234567890000)/  — timestamp ms (ConvertTo-Json padrão)
+      - ISO 8601               — PowerShell 5+ com -Depth alto
+      - datetime Python        — passado diretamente
     """
     if not wmi_date_str:
         return None
     try:
-        # Formato /Date(ms)/ — timestamp em milissegundos
-        if isinstance(wmi_date_str, str) and wmi_date_str.startswith('/Date('):
-            ms = int(wmi_date_str.replace('/Date(', '').replace(')/', ''))
-            return dt.datetime.fromtimestamp(ms / 1000, tz=dt.timezone.utc)
-
-        # datetime passado diretamente
-        if isinstance(wmi_date_str, dt.datetime):
+        if isinstance(wmi_date_str, str) and wmi_date_str.startswith("/Date("):
+            ms = int(wmi_date_str.replace("/Date(", "").replace(")/", ""))
+            return datetime.datetime.fromtimestamp(
+                ms / 1000, tz=datetime.timezone.utc
+            )
+        if isinstance(wmi_date_str, datetime.datetime):
             if wmi_date_str.tzinfo is None:
-                return wmi_date_str.replace(tzinfo=dt.timezone.utc)
+                return wmi_date_str.replace(tzinfo=datetime.timezone.utc)
             return wmi_date_str
-
-        # ISO 8601 — PowerShell 5+ com serialização de alto depth
         if isinstance(wmi_date_str, str):
             for fmt in (
-                '%Y-%m-%dT%H:%M:%S%z',
-                '%Y-%m-%dT%H:%M:%SZ',
-                '%Y-%m-%dT%H:%M:%S.%f%z',
-                '%Y-%m-%dT%H:%M:%S',
-                '%Y-%m-%dT%H:%M:%S.%f',
+                    "%Y-%m-%dT%H:%M:%S%z",
+                    "%Y-%m-%dT%H:%M:%SZ",
+                    "%Y-%m-%dT%H:%M:%S.%f%z",
+                    "%Y-%m-%dT%H:%M:%S",
+                    "%Y-%m-%dT%H:%M:%S.%f",
             ):
                 try:
-                    parsed = dt.datetime.strptime(wmi_date_str.rstrip('Z'), fmt.rstrip('Z') if fmt.endswith('Z') else fmt)
+                    s = wmi_date_str.rstrip("Z") if fmt.endswith("Z") else wmi_date_str
+                    f = fmt.rstrip("Z") if fmt.endswith("Z") else fmt
+                    parsed = datetime.datetime.strptime(s, f)
                     if parsed.tzinfo is None:
-                        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+                        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
                     return parsed
                 except ValueError:
                     continue
-
-    except (ValueError, AttributeError, OverflowError) as e:
-        logger.error(f"parse_wmi_date: valor não reconhecido {wmi_date_str!r} — {e}")
+    except Exception as e:
+        logger.error(f"parse_wmi_date: {wmi_date_str!r} — {e}")
     return None
 
 
@@ -319,46 +298,47 @@ class MachineCheckinView(View):
                     'last_seen': timezone.now(),
 
                     # Dados do usuário
-                    'loggedUser': _safe_str(hw.get('logged_user')),
+                    'loggedUser': _sanitize_str(hw.get('logged_user')),
 
-                    # JSONFields — PostgreSQL jsonb exige dict/list, nunca string
-                    'tpm': _safe_json(hw.get('tpm')),
-                    'memory_modules': _safe_json(hw.get('memory_modules')),
-                    'network_info': _safe_json(hw.get('network_adapters')),
+                    # JSONFields — PostgreSQL jsonb rejeita \\u0000 dentro de strings
+                    'tpm':            _sanitize_json(hw.get('tpm')),
+                    'memory_modules': _sanitize_json(hw.get('memory_modules')),
+                    'network_info':   _sanitize_json(hw.get('network_adapters')),
 
                     # Hardware
-                    'manufacturer': _safe_str(hw.get('manufacturer')),
-                    'model': _safe_str(hw.get('model')),
-                    'serial_number': _safe_str(hw.get('serial_number')),
-                    'bios_version': _safe_str(hw.get('bios_version')),
-                    'mac_address': _safe_str(hw.get('mac_address')),
+                    'manufacturer':           _sanitize_str(hw.get('manufacturer')),
+                    'model':                  _sanitize_str(hw.get('model')),
+                    'serial_number':          _sanitize_str(hw.get('serial_number')),
+                    'bios_version':           _sanitize_str(hw.get('bios_version')),
+                    'mac_address':            _sanitize_str(hw.get('mac_address')),
 
-                    # RAM slots — IntegerField estrito no PostgreSQL
-                    'total_memory_slots': _safe_int(hw.get('total_memory_slots')),
-                    'populated_memory_slots': _safe_int(hw.get('populated_memory_slots')),
+                    # RAM slots — IntegerField, PostgreSQL rejeita string não-numérica
+                    'total_memory_slots':     _sanitize_int(hw.get('total_memory_slots')),
+                    'populated_memory_slots': _sanitize_int(hw.get('populated_memory_slots')),
 
                     # SO
-                    'os_caption': _safe_str(hw.get('os_caption')),
-                    'os_architecture': _safe_str(hw.get('os_architecture')),
-                    'os_build': _safe_str(hw.get('os_build')),
-                    'install_date': install_date,
-                    'last_boot': last_boot,
+                    'os_caption':     _sanitize_str(hw.get('os_caption')),
+                    'os_architecture':_sanitize_str(hw.get('os_architecture')),
+                    'os_build':       _sanitize_str(hw.get('os_build')),
+                    'install_date':   install_date,
+                    'last_boot':      last_boot,
 
-                    # Métricas — FloatField estrito no PostgreSQL
-                    'uptime_days': _safe_float(hw.get('uptime_days')),
-                    'cpu': _safe_str(hw.get('cpu')),
-                    'ram_gb': _safe_float(hw.get('ram_gb')),
-                    'disk_space_gb': _safe_float(hw.get('disk_space_gb')),
-                    'disk_free_gb': _safe_float(hw.get('disk_free_gb')),
+                    # Métricas — FloatField, PostgreSQL rejeita string não-numérica
+                    'uptime_days':  _sanitize_float(hw.get('uptime_days')),
+                    'cpu':          _sanitize_str(hw.get('cpu')),
+                    'ram_gb':       _sanitize_float(hw.get('ram_gb')),
+                    'disk_space_gb':_sanitize_float(hw.get('disk_space_gb')),
+                    'disk_free_gb': _sanitize_float(hw.get('disk_free_gb')),
 
                     # GPU
-                    'gpu_name': _safe_str(hw.get('gpu_name')),
-                    'gpu_driver': _safe_str(hw.get('gpu_driver')),
+                    'gpu_name':   _sanitize_str(hw.get('gpu_name')),
+                    'gpu_driver': _sanitize_str(hw.get('gpu_driver')),
 
-                    # Segurança — av_state é int no PowerShell, str no model
-                    # str(None) = "None" era o bug — _safe_str retorna None
-                    'antivirus_name': _safe_str(hw.get('antivirus_name')),
-                    'av_state': _safe_str(hw.get('av_state')),
+                    # Segurança — av_state é int no PowerShell (productState)
+                    # BUG ORIGINAL: str(None) = "None" → salva string "None" no banco
+                    # CORREÇÃO: _sanitize_str retorna None quando valor é None
+                    'antivirus_name': _sanitize_str(hw.get('antivirus_name')),
+                    'av_state':       _sanitize_str(hw.get('av_state')),
                 },
             )
             return JsonResponse({'status': 'ok', 'machine_id': machine.id})
@@ -866,12 +846,15 @@ class MachineListView(LoginRequiredMixin, ListView):
 
         # Filtros
         hostname = self.request.GET.get('hostname')
+        loggedUser = self.request.GET.get('loggedUser')
         ip_address = self.request.GET.get('ip_address')
         group = self.request.GET.get('group')
         is_online = self.request.GET.get('is_online')
 
         if hostname:
             queryset = queryset.filter(hostname__icontains=hostname)
+        if loggedUser:
+            queryset = queryset.filter(loggedUser__icontains=loggedUser)
         if ip_address:
             queryset = queryset.filter(ip_address__icontains=ip_address)
         if group:
@@ -1328,15 +1311,24 @@ class AgentCheckUpdateAPIView(AgentTokenRequiredMixin, APIView):
 
         if is_newer or latest.is_mandatory:
             return Response({
-                "update_available": True,
-                "version":          latest.version,
-                "agent_type":       agent_type,
-                "download_url":     request.build_absolute_uri(
+                "update_available":  True,
+                "version":           latest.version,
+                "agent_type":        agent_type,
+                "download_url":      request.build_absolute_uri(
                     f"/api/inventario/agent/download/{latest.pk}/"
                 ),
-                "sha256":           latest.sha256,
-                "release_notes":    latest.release_notes,
-                "is_mandatory":     latest.is_mandatory,
+                "sha256":            latest.sha256,
+                "release_notes":     latest.release_notes,
+                "is_mandatory":      latest.is_mandatory,
+                # URLs para hot-update enquanto o agente está em execução:
+                # 1) baixa o script PowerShell launcher
+                # 2) executa o script e encerra — o script substitui o exe e reinicia
+                "update_script_url": request.build_absolute_uri(
+                    f"/api/inventario/agent/update-script/?type={agent_type}&version_id={latest.pk}"
+                ),
+                "report_url":        request.build_absolute_uri(
+                    "/api/inventario/agent/update-report/"
+                ),
             })
 
         return Response({
@@ -1472,6 +1464,283 @@ class AgentDownloadLogAPIView(APIView):
             "limit": limit,
             "results": serializer.data,
         })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AgentUpdateScriptAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    Gera e retorna script PowerShell de hot-update para o agente.
+
+    Endpoint: GET /api/inventario/agent/update-script/
+    Auth: Authorization: Bearer <token_hash>
+
+    Query params:
+        type       — ``service`` ou ``tray``
+        version_id — PK da AgentVersion alvo (deve estar ativa)
+
+    Fluxo de hot-update:
+        1. Agente detecta update disponível via /agent/update/
+        2. Agente baixa novo .exe para ``<install_dir>\\<agent>_new.exe``
+        3. Agente requisita este script passando type + version_id
+        4. Agente salva o script em disco como ``gr_updater.ps1``
+        5. Agente executa: ``powershell -WindowStyle Hidden -File gr_updater.ps1
+               -NewExe <path_new> -CurrentExe <path_current>``
+        6. Agente encerra imediatamente
+        7. Script (processo independente) substitui o exe e reinicia o serviço/tray
+        8. Script reporta resultado para /agent/update-report/
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    _SERVICE_SCRIPT = """\
+# GR Agent Hot-Updater — service
+# Gerado automaticamente pelo GR-Colaboradores em {generated_at}
+# Versao destino: {version}
+
+param(
+    [Parameter(Mandatory=$true)][string]$NewExe,
+    [Parameter(Mandatory=$true)][string]$CurrentExe,
+    [string]$ServiceName = "GRAgentService",
+    [string]$ReportUrl   = "{report_url}",
+    [string]$Token       = "{token_hash}"
+)
+
+$FromVersion = "{from_version}"
+$ToVersion   = "{version}"
+
+function Send-Report([string]$StatusVal, [string]$Msg) {{
+    try {{
+        $body = @{{
+            status       = $StatusVal
+            agent_type   = "service"
+            machine_name = $env:COMPUTERNAME
+            from_version = $FromVersion
+            to_version_id = {version_id}
+            message      = $Msg
+        }} | ConvertTo-Json -Compress
+        Invoke-WebRequest -Uri $ReportUrl -Method POST -Body $body `
+            -ContentType "application/json" `
+            -Headers @{{ Authorization = "Bearer $Token" }} `
+            -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop | Out-Null
+    }} catch {{}}
+}}
+
+try {{
+    Send-Report "downloading" "Launcher iniciado, aguardando parada do servico"
+    Start-Sleep -Seconds 3
+
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if ($svc -and $svc.Status -ne "Stopped") {{
+        Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+        Start-Sleep -Seconds 3
+    }}
+
+    Copy-Item -Path $NewExe -Destination $CurrentExe -Force -ErrorAction Stop
+
+    Start-Service -Name $ServiceName -ErrorAction Stop
+
+    Send-Report "applied" "Servico atualizado para v$ToVersion e reiniciado"
+}} catch {{
+    $errMsg = $_.Exception.Message
+    Send-Report "failed" $errMsg
+    # Tenta reiniciar com a versao anterior se o novo exe falhou
+    try {{
+        Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    }} catch {{}}
+}} finally {{
+    Remove-Item -Path $NewExe -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+}}
+"""
+
+    _TRAY_SCRIPT = """\
+# GR Agent Hot-Updater — tray
+# Gerado automaticamente pelo GR-Colaboradores em {generated_at}
+# Versao destino: {version}
+
+param(
+    [Parameter(Mandatory=$true)][string]$NewExe,
+    [Parameter(Mandatory=$true)][string]$CurrentExe,
+    [string]$ReportUrl = "{report_url}",
+    [string]$Token     = "{token_hash}"
+)
+
+$FromVersion = "{from_version}"
+$ToVersion   = "{version}"
+
+function Send-Report([string]$StatusVal, [string]$Msg) {{
+    try {{
+        $body = @{{
+            status        = $StatusVal
+            agent_type    = "tray"
+            machine_name  = $env:COMPUTERNAME
+            from_version  = $FromVersion
+            to_version_id = {version_id}
+            message       = $Msg
+        }} | ConvertTo-Json -Compress
+        Invoke-WebRequest -Uri $ReportUrl -Method POST -Body $body `
+            -ContentType "application/json" `
+            -Headers @{{ Authorization = "Bearer $Token" }} `
+            -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop | Out-Null
+    }} catch {{}}
+}}
+
+try {{
+    Send-Report "downloading" "Launcher iniciado, encerrando processo tray"
+    Start-Sleep -Seconds 3
+
+    # Encerra qualquer processo usando o exe atual
+    Get-Process -ErrorAction SilentlyContinue | `
+        Where-Object {{ $_.Path -and ($_.Path -ieq $CurrentExe) }} | `
+        Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+
+    Copy-Item -Path $NewExe -Destination $CurrentExe -Force -ErrorAction Stop
+
+    # Reinicia a bandeja como processo oculto do usuario atual
+    Start-Process -FilePath $CurrentExe -WindowStyle Hidden
+
+    Send-Report "applied" "Tray atualizado para v$ToVersion e reiniciado"
+}} catch {{
+    $errMsg = $_.Exception.Message
+    Send-Report "failed" $errMsg
+    # Tenta reiniciar com a versao anterior
+    try {{
+        if (Test-Path $CurrentExe) {{
+            Start-Process -FilePath $CurrentExe -WindowStyle Hidden -ErrorAction SilentlyContinue
+        }}
+    }} catch {{}}
+}} finally {{
+    Remove-Item -Path $NewExe -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+}}
+"""
+
+    def get(self, request):
+        """Gera o script PowerShell parametrizado para hot-update."""
+        agent_token, error_response = self._authenticate(request)
+        if error_response:
+            return error_response
+
+        agent_type = request.query_params.get("type", "").strip().lower()
+        version_id = request.query_params.get("version_id", "").strip()
+
+        if agent_type not in ("service", "tray"):
+            return Response(
+                {"error": "Parâmetro 'type' inválido. Use 'service' ou 'tray'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not version_id.isdigit():
+            return Response(
+                {"error": "Parâmetro 'version_id' inválido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        version_obj = AgentVersion.objects.filter(
+            pk=int(version_id), agent_type=agent_type, is_active=True
+        ).first()
+        if not version_obj:
+            return Response(
+                {"error": "Versão não encontrada ou inativa."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Descobre a versão corrente da máquina a partir do último download log
+        machine_name = self._get_machine_name(request)
+        last_log = (
+            AgentDownloadLog.objects
+            .filter(machine_name=machine_name, agent_version__agent_type=agent_type)
+            .order_by("-downloaded_at")
+            .select_related("agent_version")
+            .first()
+        )
+        from_version = last_log.agent_version.version if last_log else "desconhecida"
+
+        report_url  = request.build_absolute_uri("/api/inventario/agent/update-report/")
+        token_hash  = agent_token.token_hash
+        generated_at = timezone.now().strftime("%d/%m/%Y %H:%M")
+
+        template = self._SERVICE_SCRIPT if agent_type == "service" else self._TRAY_SCRIPT
+        script = template.format(
+            version      = version_obj.version,
+            version_id   = version_obj.pk,
+            from_version = from_version,
+            report_url   = report_url,
+            token_hash   = token_hash,
+            generated_at = generated_at,
+        )
+
+        response = HttpResponse(script, content_type="text/plain; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="gr_updater_{agent_type}.ps1"'
+        return response
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AgentUpdateReportAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    Recebe relatório de resultado de atualização enviado pelo script launcher.
+
+    Endpoint: POST /api/inventario/agent/update-report/
+    Auth: Authorization: Bearer <token_hash>
+
+    Body::
+
+        {
+            "status":        "applied",        # downloading | ready | applied | failed | rolled_back
+            "agent_type":    "service",
+            "machine_name":  "PC-NOME",        # opcional, usa X-Machine-Name se ausente
+            "from_version":  "3.1.0",
+            "to_version_id": 42,               # PK da AgentVersion destino
+            "message":       "..."             # detalhes / mensagem de erro
+        }
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        """Registra o resultado do hot-update."""
+        agent_token, error_response = self._authenticate(request)
+        if error_response:
+            return error_response
+
+        status_val   = request.data.get("status", "").strip()
+        agent_type   = request.data.get("agent_type", "").strip().lower()
+        machine_name = (request.data.get("machine_name") or self._get_machine_name(request) or "").strip()
+        from_version = request.data.get("from_version", "").strip()
+        to_version_id = request.data.get("to_version_id")
+        message      = request.data.get("message", "").strip()
+
+        valid_statuses = [s[0] for s in AgentUpdateReport.STATUS_CHOICES]
+        if status_val not in valid_statuses:
+            return Response(
+                {"error": f"Status inválido. Valores aceitos: {valid_statuses}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        version_obj = None
+        if to_version_id:
+            version_obj = AgentVersion.objects.filter(pk=to_version_id).first()
+
+        AgentUpdateReport.objects.create(
+            machine_name = machine_name,
+            agent_type   = agent_type,
+            from_version = from_version,
+            to_version   = version_obj,
+            status       = status_val,
+            message      = message,
+        )
+
+        logger.info(
+            "UpdateReport | máquina=%s tipo=%s %s→%s status=%s",
+            machine_name, agent_type, from_version,
+            version_obj.version if version_obj else "?", status_val,
+        )
+
+        return Response({"ok": True, "message": "Relatório registrado."})
 
 
 @method_decorator(csrf_exempt, name='dispatch')

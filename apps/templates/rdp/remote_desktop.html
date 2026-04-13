@@ -1,1288 +1,2450 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Remote Desktop — Gestão de TI</title>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html,body{height:100%;overflow:hidden;background:#07090c;}
-:root{
-  --bg:#07090c;--s1:#0d1117;--s2:#111820;
-  --b1:rgba(255,255,255,.06);--b2:rgba(255,255,255,.10);
-  --acc:#00c8a0;--ad:rgba(0,200,160,.14);--a2:#3b82f6;
-  --txt:#e2e8f0;--t2:#94a3b8;--t3:#b7bbd0;
-  --err:#f87171;--wrn:#fbbf24;--ok:#34d399;
-  --r:6px;--r2:10px;--mn:'JetBrains Mono','Fira Code','Consolas',monospace;--tr:.15s ease;
-}
-body{font-family:var(--mn);display:flex;flex-direction:column;height:100vh;color:var(--txt);}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Remote Desktop — Gestão de TI</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-/* ── TOPBAR ── */
-#topbar{display:flex;align-items:center;height:40px;background:var(--s1);border-bottom:1px solid var(--b1);padding:0 10px;gap:3px;flex-shrink:0;z-index:50;}
-.brand{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;letter-spacing:.16em;color:var(--acc);text-decoration:none;padding:0 10px 0 2px;border-right:1px solid var(--b1);margin-right:5px;white-space:nowrap;}
-.brand svg{width:14px;height:14px;}
-.tb{display:flex;align-items:center;gap:5px;padding:4px 8px;background:transparent;border:1px solid transparent;color:var(--t3);font-family:var(--mn);font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border-radius:var(--r);cursor:pointer;transition:all var(--tr);white-space:nowrap;}
-.tb svg{width:12px;height:12px;flex-shrink:0;}
-.tb:hover:not(:disabled){background:rgba(255,255,255,.05);border-color:var(--b2);color:var(--txt);}
-.tb:disabled{opacity:.25;cursor:not-allowed;}
-.tb.on{background:var(--ad);border-color:rgba(0,200,160,.28);color:var(--acc);}
-.tb.red{color:var(--err);}
-.tb.red:hover{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.28);}
-.tb.amber{color:var(--wrn);}
-.tb.amber:hover{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.28);}
-.tb.amber.on{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.38);color:var(--wrn);}
-.tdiv{width:1px;height:18px;background:var(--b1);margin:0 4px;}
-.tspc{flex:1;}
-#tbst{font-size:9px;letter-spacing:.1em;color:var(--t3);padding:0 8px;}
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+      background: #07090c;
+    }
 
-/* ── SELF-WARN ── */
-#selfbar{display:none;align-items:center;gap:9px;padding:5px 14px;background:rgba(251,191,36,.07);border-bottom:1px solid rgba(251,191,36,.18);font-size:10px;color:var(--wrn);letter-spacing:.04em;flex-shrink:0;}
-#selfbar.show{display:flex;}
-#selfbar svg{width:12px;height:12px;flex-shrink:0;}
-.sba{display:flex;gap:6px;margin-left:auto;}
-.sbabtn{padding:3px 9px;border-radius:4px;font-size:9px;font-weight:600;letter-spacing:.1em;cursor:pointer;border:1px solid;font-family:var(--mn);transition:all var(--tr);}
-.sbabtn.vo{border-color:var(--wrn);color:var(--wrn);background:transparent;}
-.sbabtn.vo:hover{background:rgba(251,191,36,.1);}
-.sbabtn.ig{border-color:var(--t3);color:var(--t3);background:transparent;}
-.sbabtn.ig:hover{background:rgba(255,255,255,.05);color:var(--t2);}
+    :root {
+      --bg: #07090c;
+      --s1: #0d1117;
+      --s2: #111820;
+      --b1: rgba(255, 255, 255, .06);
+      --b2: rgba(255, 255, 255, .10);
+      --acc: #00c8a0;
+      --ad: rgba(0, 200, 160, .14);
+      --a2: #3b82f6;
+      --txt: #e2e8f0;
+      --t2: #94a3b8;
+      --t3: #b7bbd0;
+      --err: #f87171;
+      --wrn: #fbbf24;
+      --ok: #34d399;
+      --r: 6px;
+      --r2: 10px;
+      --mn: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      --tr: .15s ease;
+    }
 
-/* ── BODY ── */
-#body{flex:1;position:relative;overflow:hidden;}
+    body {
+      font-family: var(--mn);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      color: var(--txt);
+    }
 
-/* ── CONNECT SCREEN ── */
-#cs{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:40;transition:opacity .3s ease;}
-#cs.out{opacity:0;pointer-events:none;}
-#cs::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(0,200,160,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,200,160,.03) 1px,transparent 1px);background-size:30px 30px;mask-image:radial-gradient(ellipse 55% 55% at 50% 50%,black 15%,transparent 80%);}
-.card{position:relative;z-index:1;width:400px;border:1px solid var(--b2);border-radius:var(--r2);overflow:hidden;}
-.chd{background:var(--s1);padding:13px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--b1);}
-.ctitle{font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--txt);}
-.cbadge{font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--acc);border:1px solid rgba(0,200,160,.28);padding:2px 6px;border-radius:3px;}
-.cbd{background:var(--s2);padding:18px;display:flex;flex-direction:column;gap:13px;border-bottom:1px solid var(--b1);}
-.cft{background:var(--s1);padding:13px 18px;display:flex;flex-direction:column;gap:8px;}
-.f{display:flex;flex-direction:column;gap:5px;}
-.f label{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--t3);font-weight:600;}
-.fw{position:relative;}
-.fw input{width:100%;font-family:var(--mn);font-size:12px;background:var(--bg);border:1px solid var(--b2);color:var(--txt);padding:8px 34px 8px 10px;border-radius:var(--r);outline:none;transition:border-color var(--tr);letter-spacing:.03em;}
-.fw input::placeholder{color:var(--t3);}
-.fw input:focus{border-color:rgba(0,200,160,.42);}
-.eye{position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--t3);cursor:pointer;padding:3px;display:flex;align-items:center;transition:color var(--tr);}
-.eye:hover{color:var(--txt);}
-#sdinline{display:none;align-items:flex-start;gap:8px;padding:8px 10px;background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.2);border-radius:var(--r);font-size:10px;color:var(--wrn);line-height:1.5;letter-spacing:.03em;}
-#sdinline.show{display:flex;}
-#sdinline svg{width:13px;height:13px;flex-shrink:0;margin-top:2px;}
-.advtog{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:9px;color:var(--t3);letter-spacing:.08em;user-select:none;transition:color var(--tr);}
-.advtog:hover{color:var(--t2);}
-.advtog svg{width:9px;height:9px;transition:transform var(--tr);}
-.advtog.open svg{transform:rotate(90deg);}
-.advb{display:none;flex-direction:column;gap:11px;}
-.advb.open{display:flex;}
-.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.iceopts{display:flex;gap:5px;}
-.iceopt{flex:1;padding:5px 2px;border:1px solid var(--b2);border-radius:var(--r);background:var(--bg);color:var(--t2);font-family:var(--mn);font-size:9px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all var(--tr);text-align:center;}
-.iceopt.on{border-color:rgba(0,200,160,.38);color:var(--acc);background:var(--ad);}
-.qgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;}
-.qopt{padding:5px 2px;border:1px solid var(--b2);border-radius:var(--r);background:var(--bg);color:var(--t2);font-family:var(--mn);font-size:9px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all var(--tr);text-align:center;}
-.qopt.on{border-color:rgba(59,130,246,.38);color:var(--a2);background:rgba(59,130,246,.07);}
-.connbtn{width:100%;padding:11px;background:rgba(0,200,160,.05);border:1px solid rgba(0,200,160,.32);color:var(--acc);font-family:var(--mn);font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;border-radius:var(--r);cursor:pointer;transition:all var(--tr);display:flex;align-items:center;justify-content:center;gap:8px;}
-.connbtn:hover:not(:disabled){background:rgba(0,200,160,.1);box-shadow:0 0 14px rgba(0,200,160,.12);}
-.connbtn:disabled{opacity:.28;cursor:not-allowed;}
-.spin{width:11px;height:11px;border:1.5px solid transparent;border-top-color:var(--acc);border-radius:50%;animation:spin .6s linear infinite;display:none;}
-.spin.show{display:block;}
-@keyframes spin{to{transform:rotate(360deg);}}
-.errmsg{font-size:10px;color:var(--err);text-align:center;min-height:13px;letter-spacing:.04em;}
+    /* ── TOPBAR ── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      height: 40px;
+      background: var(--s1);
+      border-bottom: 1px solid var(--b1);
+      padding: 0 10px;
+      gap: 3px;
+      flex-shrink: 0;
+      z-index: 50;
+    }
 
-/* ── VIDEO ── */
-#vw{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#030507;}
-#vw.show{display:flex;}
-#rv{display:block;width:100%;height:100%;object-fit:contain;cursor:default;}
-#vw.viewonly #rv{cursor:not-allowed;}
-#voov{display:none;position:absolute;inset:0;z-index:8;}
-#voov.show{display:block;}
-#mtag{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:8px;background:rgba(7,9,12,.82);border:1px solid var(--b2);border-radius:20px;padding:4px 12px;z-index:15;backdrop-filter:blur(4px);}
-#mtagname{font-size:10px;color:var(--t2);letter-spacing:.06em;}
-.mdot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 5px var(--ok);}
-#vobadge{position:absolute;top:10px;right:10px;display:none;align-items:center;gap:6px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.28);border-radius:20px;padding:4px 12px;z-index:15;font-size:9px;color:var(--wrn);letter-spacing:.1em;text-transform:uppercase;}
-#vobadge.show{display:flex;}
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      color: var(--acc);
+      text-decoration: none;
+      padding: 0 10px 0 2px;
+      border-right: 1px solid var(--b1);
+      margin-right: 5px;
+      white-space: nowrap;
+    }
 
-/* ── SCREEN LOCK OVERLAY ── */
-#lockbadge{
-  position:absolute;top:10px;left:50%;transform:translateX(-50%);
-  display:none;align-items:center;gap:8px;
-  background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);
-  border-radius:20px;padding:5px 14px;z-index:16;backdrop-filter:blur(4px);
-  font-size:9px;color:var(--wrn);letter-spacing:.1em;text-transform:uppercase;
-  animation:bw 2s ease-in-out infinite;
-}
-#lockbadge.show{display:flex;}
+    .brand svg {
+      width: 14px;
+      height: 14px;
+    }
 
-#reconn{display:none;position:absolute;inset:0;background:rgba(7,9,12,.75);backdrop-filter:blur(3px);z-index:20;align-items:center;justify-content:center;flex-direction:column;gap:14px;}
-#reconn.show{display:flex;}
-.rspin{width:30px;height:30px;border:2px solid rgba(0,200,160,.2);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite;}
-#recontxt{font-size:10px;color:var(--t2);letter-spacing:.06em;}
-#dropov{display:none;position:absolute;inset:0;background:rgba(7,9,12,.85);backdrop-filter:blur(3px);z-index:20;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
-#dropov.show{display:flex;}
-.dico{width:52px;height:52px;border:2px dashed rgba(59,130,246,.42);border-radius:12px;display:flex;align-items:center;justify-content:center;animation:fl 2s ease-in-out infinite;}
-@keyframes fl{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-.dico svg{width:22px;height:22px;color:var(--a2);}
-.dtxt{font-size:12px;font-weight:700;color:var(--a2);letter-spacing:.08em;text-transform:uppercase;}
-.dsub{font-size:9px;color:var(--t3);letter-spacing:.06em;}
+    .tb {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--t3);
+      font-family: var(--mn);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      border-radius: var(--r);
+      cursor: pointer;
+      transition: all var(--tr);
+      white-space: nowrap;
+    }
 
-/* ── STATS ── */
-#stats{position:absolute;bottom:28px;left:10px;display:none;background:rgba(7,9,12,.9);border:1px solid var(--b2);border-radius:var(--r2);padding:10px 14px;z-index:12;backdrop-filter:blur(4px);min-width:200px;}
-#stats.show{display:block;}
-.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;}
-.si{display:flex;flex-direction:column;gap:2px;}
-.sl{font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--t3);}
-.sv{font-size:13px;font-weight:700;color:var(--t2);}
-.sv.g{color:var(--ok);}.sv.w{color:var(--wrn);}.sv.b{color:var(--err);}
+    .tb svg {
+      width: 12px;
+      height: 12px;
+      flex-shrink: 0;
+    }
 
-/* ── PANELS ── */
-.panel{position:absolute;right:0;top:0;bottom:0;width:280px;background:var(--s1);border-left:1px solid var(--b1);display:flex;flex-direction:column;z-index:30;transform:translateX(100%);transition:transform .24s cubic-bezier(.4,0,.2,1);}
-.panel.open{transform:translateX(0);}
-.ph{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;border-bottom:1px solid var(--b1);}
-.pht{font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--t2);}
-.phx{background:none;border:none;color:var(--t3);cursor:pointer;padding:3px;border-radius:4px;display:flex;align-items:center;transition:all var(--tr);}
-.phx:hover{background:rgba(255,255,255,.06);color:var(--txt);}
-.pb{flex:1;overflow-y:auto;padding:13px;display:flex;flex-direction:column;gap:10px;}
-.pb::-webkit-scrollbar{width:3px;}
-.pb::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
-#clipta{width:100%;min-height:80px;resize:vertical;background:var(--bg);border:1px solid var(--b2);color:var(--txt);font-family:var(--mn);font-size:11px;padding:8px;border-radius:var(--r);outline:none;transition:border-color var(--tr);}
-#clipta:focus{border-color:rgba(0,200,160,.32);}
-.pbtn{width:100%;padding:8px;background:rgba(255,255,255,.04);border:1px solid var(--b2);color:var(--t2);font-family:var(--mn);font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border-radius:var(--r);cursor:pointer;transition:all var(--tr);}
-.pbtn:hover{background:rgba(255,255,255,.07);color:var(--txt);}
-.pbtn.acc{border-color:rgba(0,200,160,.28);color:var(--acc);background:var(--ad);}
-.pbtn.acc:hover{background:rgba(0,200,160,.2);}
-.dpreset{padding:3px 8px;border:1px solid var(--b2);border-radius:var(--r);background:var(--bg);color:var(--t3);font-family:var(--mn);font-size:8px;letter-spacing:.06em;cursor:pointer;transition:all var(--tr);}
-.dpreset:hover{border-color:rgba(0,200,160,.3);color:var(--acc);}
-.dpreset.on{border-color:rgba(0,200,160,.4);color:var(--acc);background:var(--ad);}
-#explcard{transition:border-color var(--tr);}
-#explcard.on{border-color:rgba(0,200,160,.5)!important;background:var(--ad)!important;}
-#flist{display:flex;flex-direction:column;gap:5px;}
-.fi{display:flex;align-items:center;gap:7px;padding:7px 9px;background:var(--bg);border:1px solid var(--b1);border-radius:var(--r);flex-direction:column;align-items:flex-start;}
-.fi-row{display:flex;align-items:center;gap:7px;width:100%;}
-.fii{width:11px;height:11px;color:var(--a2);flex-shrink:0;}
-.fin{flex:1;font-size:10px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.fis{font-size:9px;color:var(--t3);flex-shrink:0;}
-.fi-prog{height:2px;background:var(--b2);border-radius:1px;overflow:hidden;width:100%;}
-.fi-bar{height:100%;background:var(--a2);width:0%;transition:width .1s;}
-.fi-bar.done{background:var(--acc);}
-.fi-bar.err{background:var(--err);}
-.fi-st{font-size:9px;color:var(--t3);}
+    .tb:hover:not(:disabled) {
+      background: rgba(255, 255, 255, .05);
+      border-color: var(--b2);
+      color: var(--txt);
+    }
 
-/* ── STATUS BAR ── */
-#sbar{display:flex;align-items:center;height:22px;background:var(--s1);border-top:1px solid var(--b1);flex-shrink:0;overflow:hidden;}
-.sit{display:flex;align-items:center;gap:5px;padding:0 11px;border-right:1px solid var(--b1);height:100%;font-size:8px;letter-spacing:.08em;color:var(--t3);white-space:nowrap;}
-.sil{text-transform:uppercase;}
-.siv{color:var(--t2);font-weight:600;}
-.sdot{width:5px;height:5px;border-radius:50%;background:var(--t3);transition:background .3s;flex-shrink:0;}
-.sdot.ok{background:var(--ok);box-shadow:0 0 4px var(--ok);}
-.sdot.err{background:var(--err);box-shadow:0 0 4px var(--err);}
-.sdot.w{background:var(--wrn);box-shadow:0 0 4px var(--wrn);}
-.smsg{flex:1;padding:0 11px;font-size:8px;color:var(--t3);letter-spacing:.04em;}
-#pauseind{display:none;align-items:center;gap:5px;padding:0 11px;border-right:1px solid rgba(251,191,36,.22);height:100%;font-size:8px;letter-spacing:.08em;color:var(--wrn);animation:bw 1.5s ease-in-out infinite;}
-#pauseind.show{display:flex;}
-@keyframes bw{0%,100%{opacity:1}50%{opacity:.4}}
+    .tb:disabled {
+      opacity: .25;
+      cursor: not-allowed;
+    }
 
-/* ── MONITOR SELECTOR ── */
-#monitorselector{display:none;align-items:center;gap:3px;opacity:0;transition:opacity .25s ease;}
-#monitorselector.show{display:flex;opacity:1;}
-.monbtn{padding:3px 8px;background:transparent;border:1px solid var(--b2);color:var(--t3);font-family:var(--mn);font-size:8px;font-weight:600;letter-spacing:.07em;border-radius:var(--r);cursor:pointer;transition:all var(--tr);white-space:nowrap;text-transform:uppercase;line-height:1;}
-.monbtn:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.18);color:var(--txt);}
-.monbtn.active{background:var(--ad);border-color:rgba(0,200,160,.38);color:var(--acc);}
+    .tb.on {
+      background: var(--ad);
+      border-color: rgba(0, 200, 160, .28);
+      color: var(--acc);
+    }
 
-/* ── TOASTS ── */
-#toasts{position:fixed;top:48px;right:10px;z-index:200;display:flex;flex-direction:column;gap:5px;pointer-events:none;}
-.t{padding:7px 13px;border-radius:var(--r);font-size:10px;letter-spacing:.05em;border-width:1px;border-style:solid;opacity:0;transform:translateX(18px);transition:all .18s ease;pointer-events:none;white-space:nowrap;}
-.t.show{opacity:1;transform:translateX(0);}
-.t.info{background:rgba(13,17,23,.95);border-color:var(--b2);color:var(--t2);}
-.t.ok{background:rgba(0,200,160,.09);border-color:rgba(0,200,160,.3);color:var(--acc);}
-.t.err{background:rgba(248,113,113,.09);border-color:rgba(248,113,113,.3);color:var(--err);}
-.t.warn{background:rgba(251,191,36,.09);border-color:rgba(251,191,36,.3);color:var(--wrn);}
-</style>
+    .tb.red {
+      color: var(--err);
+    }
+
+    .tb.red:hover {
+      background: rgba(248, 113, 113, .08);
+      border-color: rgba(248, 113, 113, .28);
+    }
+
+    .tb.amber {
+      color: var(--wrn);
+    }
+
+    .tb.amber:hover {
+      background: rgba(251, 191, 36, .08);
+      border-color: rgba(251, 191, 36, .28);
+    }
+
+    .tb.amber.on {
+      background: rgba(251, 191, 36, .12);
+      border-color: rgba(251, 191, 36, .38);
+      color: var(--wrn);
+    }
+
+    .tdiv {
+      width: 1px;
+      height: 18px;
+      background: var(--b1);
+      margin: 0 4px;
+    }
+
+    .tspc {
+      flex: 1;
+    }
+
+    #tbst {
+      font-size: 9px;
+      letter-spacing: .1em;
+      color: var(--t3);
+      padding: 0 8px;
+    }
+
+    /* ── SELF-WARN ── */
+    #selfbar {
+      display: none;
+      align-items: center;
+      gap: 9px;
+      padding: 5px 14px;
+      background: rgba(251, 191, 36, .07);
+      border-bottom: 1px solid rgba(251, 191, 36, .18);
+      font-size: 10px;
+      color: var(--wrn);
+      letter-spacing: .04em;
+      flex-shrink: 0;
+    }
+
+    #selfbar.show {
+      display: flex;
+    }
+
+    #selfbar svg {
+      width: 12px;
+      height: 12px;
+      flex-shrink: 0;
+    }
+
+    .sba {
+      display: flex;
+      gap: 6px;
+      margin-left: auto;
+    }
+
+    .sbabtn {
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .1em;
+      cursor: pointer;
+      border: 1px solid;
+      font-family: var(--mn);
+      transition: all var(--tr);
+    }
+
+    .sbabtn.vo {
+      border-color: var(--wrn);
+      color: var(--wrn);
+      background: transparent;
+    }
+
+    .sbabtn.vo:hover {
+      background: rgba(251, 191, 36, .1);
+    }
+
+    .sbabtn.ig {
+      border-color: var(--t3);
+      color: var(--t3);
+      background: transparent;
+    }
+
+    .sbabtn.ig:hover {
+      background: rgba(255, 255, 255, .05);
+      color: var(--t2);
+    }
+
+    /* ── BODY ── */
+    #body {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ── CONNECT SCREEN ── */
+    #cs {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      z-index: 40;
+      transition: opacity .3s ease;
+    }
+
+    #cs.out {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #cs::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(rgba(0, 200, 160, .03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 200, 160, .03) 1px, transparent 1px);
+      background-size: 30px 30px;
+      mask-image: radial-gradient(ellipse 55% 55% at 50% 50%, black 15%, transparent 80%);
+    }
+
+    .card {
+      position: relative;
+      z-index: 1;
+      width: 400px;
+      border: 1px solid var(--b2);
+      border-radius: var(--r2);
+      overflow: hidden;
+    }
+
+    .chd {
+      background: var(--s1);
+      padding: 13px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--b1);
+    }
+
+    .ctitle {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--txt);
+    }
+
+    .cbadge {
+      font-size: 8px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--acc);
+      border: 1px solid rgba(0, 200, 160, .28);
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .cbd {
+      background: var(--s2);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 13px;
+      border-bottom: 1px solid var(--b1);
+    }
+
+    .cft {
+      background: var(--s1);
+      padding: 13px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .f {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .f label {
+      font-size: 8px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--t3);
+      font-weight: 600;
+    }
+
+    .fw {
+      position: relative;
+    }
+
+    .fw input {
+      width: 100%;
+      font-family: var(--mn);
+      font-size: 12px;
+      background: var(--bg);
+      border: 1px solid var(--b2);
+      color: var(--txt);
+      padding: 8px 34px 8px 10px;
+      border-radius: var(--r);
+      outline: none;
+      transition: border-color var(--tr);
+      letter-spacing: .03em;
+    }
+
+    .fw input::placeholder {
+      color: var(--t3);
+    }
+
+    .fw input:focus {
+      border-color: rgba(0, 200, 160, .42);
+    }
+
+    .eye {
+      position: absolute;
+      right: 9px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--t3);
+      cursor: pointer;
+      padding: 3px;
+      display: flex;
+      align-items: center;
+      transition: color var(--tr);
+    }
+
+    .eye:hover {
+      color: var(--txt);
+    }
+
+    #sdinline {
+      display: none;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 10px;
+      background: rgba(251, 191, 36, .05);
+      border: 1px solid rgba(251, 191, 36, .2);
+      border-radius: var(--r);
+      font-size: 10px;
+      color: var(--wrn);
+      line-height: 1.5;
+      letter-spacing: .03em;
+    }
+
+    #sdinline.show {
+      display: flex;
+    }
+
+    #sdinline svg {
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .advtog {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      font-size: 9px;
+      color: var(--t3);
+      letter-spacing: .08em;
+      user-select: none;
+      transition: color var(--tr);
+    }
+
+    .advtog:hover {
+      color: var(--t2);
+    }
+
+    .advtog svg {
+      width: 9px;
+      height: 9px;
+      transition: transform var(--tr);
+    }
+
+    .advtog.open svg {
+      transform: rotate(90deg);
+    }
+
+    .advb {
+      display: none;
+      flex-direction: column;
+      gap: 11px;
+    }
+
+    .advb.open {
+      display: flex;
+    }
+
+    .frow {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .iceopts {
+      display: flex;
+      gap: 5px;
+    }
+
+    .iceopt {
+      flex: 1;
+      padding: 5px 2px;
+      border: 1px solid var(--b2);
+      border-radius: var(--r);
+      background: var(--bg);
+      color: var(--t2);
+      font-family: var(--mn);
+      font-size: 9px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all var(--tr);
+      text-align: center;
+    }
+
+    .iceopt.on {
+      border-color: rgba(0, 200, 160, .38);
+      color: var(--acc);
+      background: var(--ad);
+    }
+
+    .qgrid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+    }
+
+    .qopt {
+      padding: 5px 2px;
+      border: 1px solid var(--b2);
+      border-radius: var(--r);
+      background: var(--bg);
+      color: var(--t2);
+      font-family: var(--mn);
+      font-size: 9px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all var(--tr);
+      text-align: center;
+    }
+
+    .qopt.on {
+      border-color: rgba(59, 130, 246, .38);
+      color: var(--a2);
+      background: rgba(59, 130, 246, .07);
+    }
+
+    .connbtn {
+      width: 100%;
+      padding: 11px;
+      background: rgba(0, 200, 160, .05);
+      border: 1px solid rgba(0, 200, 160, .32);
+      color: var(--acc);
+      font-family: var(--mn);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      border-radius: var(--r);
+      cursor: pointer;
+      transition: all var(--tr);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .connbtn:hover:not(:disabled) {
+      background: rgba(0, 200, 160, .1);
+      box-shadow: 0 0 14px rgba(0, 200, 160, .12);
+    }
+
+    .connbtn:disabled {
+      opacity: .28;
+      cursor: not-allowed;
+    }
+
+    .spin {
+      width: 11px;
+      height: 11px;
+      border: 1.5px solid transparent;
+      border-top-color: var(--acc);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      display: none;
+    }
+
+    .spin.show {
+      display: block;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .errmsg {
+      font-size: 10px;
+      color: var(--err);
+      text-align: center;
+      min-height: 13px;
+      letter-spacing: .04em;
+    }
+
+    /* ── VIDEO ── */
+    #vw {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: #030507;
+    }
+
+    #vw.show {
+      display: flex;
+    }
+
+    #rv {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      cursor: default;
+    }
+
+    #vw.viewonly #rv {
+      cursor: not-allowed;
+    }
+
+    #voov {
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 8;
+    }
+
+    #voov.show {
+      display: block;
+    }
+
+    #mtag {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 8px;
+      background: rgba(7, 9, 12, .82);
+      border: 1px solid var(--b2);
+      border-radius: 20px;
+      padding: 4px 12px;
+      z-index: 15;
+      backdrop-filter: blur(4px);
+    }
+
+    #mtagname {
+      font-size: 10px;
+      color: var(--t2);
+      letter-spacing: .06em;
+    }
+
+    .mdot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 5px var(--ok);
+    }
+
+    #vobadge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: rgba(251, 191, 36, .08);
+      border: 1px solid rgba(251, 191, 36, .28);
+      border-radius: 20px;
+      padding: 4px 12px;
+      z-index: 15;
+      font-size: 9px;
+      color: var(--wrn);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    #vobadge.show {
+      display: flex;
+    }
+
+    /* ── SCREEN LOCK OVERLAY ── */
+    #lockbadge {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 8px;
+      background: rgba(251, 191, 36, .12);
+      border: 1px solid rgba(251, 191, 36, .4);
+      border-radius: 20px;
+      padding: 5px 14px;
+      z-index: 16;
+      backdrop-filter: blur(4px);
+      font-size: 9px;
+      color: var(--wrn);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      animation: bw 2s ease-in-out infinite;
+    }
+
+    #lockbadge.show {
+      display: flex;
+    }
+
+    #reconn {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(7, 9, 12, .75);
+      backdrop-filter: blur(3px);
+      z-index: 20;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    #reconn.show {
+      display: flex;
+    }
+
+    .rspin {
+      width: 30px;
+      height: 30px;
+      border: 2px solid rgba(0, 200, 160, .2);
+      border-top-color: var(--acc);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    #recontxt {
+      font-size: 10px;
+      color: var(--t2);
+      letter-spacing: .06em;
+    }
+
+    #dropov {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(7, 9, 12, .85);
+      backdrop-filter: blur(3px);
+      z-index: 20;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    #dropov.show {
+      display: flex;
+    }
+
+    .dico {
+      width: 52px;
+      height: 52px;
+      border: 2px dashed rgba(59, 130, 246, .42);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fl 2s ease-in-out infinite;
+    }
+
+    @keyframes fl {
+
+      0%,
+      100% {
+        transform: translateY(0)
+      }
+
+      50% {
+        transform: translateY(-6px)
+      }
+    }
+
+    .dico svg {
+      width: 22px;
+      height: 22px;
+      color: var(--a2);
+    }
+
+    .dtxt {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--a2);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .dsub {
+      font-size: 9px;
+      color: var(--t3);
+      letter-spacing: .06em;
+    }
+
+    /* ── STATS ── */
+    #stats {
+      position: absolute;
+      bottom: 28px;
+      left: 10px;
+      display: none;
+      background: rgba(7, 9, 12, .9);
+      border: 1px solid var(--b2);
+      border-radius: var(--r2);
+      padding: 10px 14px;
+      z-index: 12;
+      backdrop-filter: blur(4px);
+      min-width: 200px;
+    }
+
+    #stats.show {
+      display: block;
+    }
+
+    .sgrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 18px;
+    }
+
+    .si {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .sl {
+      font-size: 7px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--t3);
+    }
+
+    .sv {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--t2);
+    }
+
+    .sv.g {
+      color: var(--ok);
+    }
+
+    .sv.w {
+      color: var(--wrn);
+    }
+
+    .sv.b {
+      color: var(--err);
+    }
+
+    /* ── PANELS ── */
+    .panel {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 280px;
+      background: var(--s1);
+      border-left: 1px solid var(--b1);
+      display: flex;
+      flex-direction: column;
+      z-index: 30;
+      transform: translateX(100%);
+      transition: transform .24s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .panel.open {
+      transform: translateX(0);
+    }
+
+    .ph {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 13px;
+      border-bottom: 1px solid var(--b1);
+    }
+
+    .pht {
+      font-size: 9px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--t2);
+    }
+
+    .phx {
+      background: none;
+      border: none;
+      color: var(--t3);
+      cursor: pointer;
+      padding: 3px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      transition: all var(--tr);
+    }
+
+    .phx:hover {
+      background: rgba(255, 255, 255, .06);
+      color: var(--txt);
+    }
+
+    .pb {
+      flex: 1;
+      overflow-y: auto;
+      padding: 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .pb::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    .pb::-webkit-scrollbar-thumb {
+      background: var(--b2);
+      border-radius: 2px;
+    }
+
+    #clipta {
+      width: 100%;
+      min-height: 80px;
+      resize: vertical;
+      background: var(--bg);
+      border: 1px solid var(--b2);
+      color: var(--txt);
+      font-family: var(--mn);
+      font-size: 11px;
+      padding: 8px;
+      border-radius: var(--r);
+      outline: none;
+      transition: border-color var(--tr);
+    }
+
+    #clipta:focus {
+      border-color: rgba(0, 200, 160, .32);
+    }
+
+    .pbtn {
+      width: 100%;
+      padding: 8px;
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid var(--b2);
+      color: var(--t2);
+      font-family: var(--mn);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      border-radius: var(--r);
+      cursor: pointer;
+      transition: all var(--tr);
+    }
+
+    .pbtn:hover {
+      background: rgba(255, 255, 255, .07);
+      color: var(--txt);
+    }
+
+    .pbtn.acc {
+      border-color: rgba(0, 200, 160, .28);
+      color: var(--acc);
+      background: var(--ad);
+    }
+
+    .pbtn.acc:hover {
+      background: rgba(0, 200, 160, .2);
+    }
+
+    .dpreset {
+      padding: 3px 8px;
+      border: 1px solid var(--b2);
+      border-radius: var(--r);
+      background: var(--bg);
+      color: var(--t3);
+      font-family: var(--mn);
+      font-size: 8px;
+      letter-spacing: .06em;
+      cursor: pointer;
+      transition: all var(--tr);
+    }
+
+    .dpreset:hover {
+      border-color: rgba(0, 200, 160, .3);
+      color: var(--acc);
+    }
+
+    .dpreset.on {
+      border-color: rgba(0, 200, 160, .4);
+      color: var(--acc);
+      background: var(--ad);
+    }
+
+    #explcard {
+      transition: border-color var(--tr);
+    }
+
+    #explcard.on {
+      border-color: rgba(0, 200, 160, .5) !important;
+      background: var(--ad) !important;
+    }
+
+    #flist {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .fi {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 9px;
+      background: var(--bg);
+      border: 1px solid var(--b1);
+      border-radius: var(--r);
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .fi-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      width: 100%;
+    }
+
+    .fii {
+      width: 11px;
+      height: 11px;
+      color: var(--a2);
+      flex-shrink: 0;
+    }
+
+    .fin {
+      flex: 1;
+      font-size: 10px;
+      color: var(--t2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .fis {
+      font-size: 9px;
+      color: var(--t3);
+      flex-shrink: 0;
+    }
+
+    .fi-prog {
+      height: 2px;
+      background: var(--b2);
+      border-radius: 1px;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .fi-bar {
+      height: 100%;
+      background: var(--a2);
+      width: 0%;
+      transition: width .1s;
+    }
+
+    .fi-bar.done {
+      background: var(--acc);
+    }
+
+    .fi-bar.err {
+      background: var(--err);
+    }
+
+    .fi-st {
+      font-size: 9px;
+      color: var(--t3);
+    }
+
+    /* ── STATUS BAR ── */
+    #sbar {
+      display: flex;
+      align-items: center;
+      height: 22px;
+      background: var(--s1);
+      border-top: 1px solid var(--b1);
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .sit {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0 11px;
+      border-right: 1px solid var(--b1);
+      height: 100%;
+      font-size: 8px;
+      letter-spacing: .08em;
+      color: var(--t3);
+      white-space: nowrap;
+    }
+
+    .sil {
+      text-transform: uppercase;
+    }
+
+    .siv {
+      color: var(--t2);
+      font-weight: 600;
+    }
+
+    .sdot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--t3);
+      transition: background .3s;
+      flex-shrink: 0;
+    }
+
+    .sdot.ok {
+      background: var(--ok);
+      box-shadow: 0 0 4px var(--ok);
+    }
+
+    .sdot.err {
+      background: var(--err);
+      box-shadow: 0 0 4px var(--err);
+    }
+
+    .sdot.w {
+      background: var(--wrn);
+      box-shadow: 0 0 4px var(--wrn);
+    }
+
+    .smsg {
+      flex: 1;
+      padding: 0 11px;
+      font-size: 8px;
+      color: var(--t3);
+      letter-spacing: .04em;
+    }
+
+    #pauseind {
+      display: none;
+      align-items: center;
+      gap: 5px;
+      padding: 0 11px;
+      border-right: 1px solid rgba(251, 191, 36, .22);
+      height: 100%;
+      font-size: 8px;
+      letter-spacing: .08em;
+      color: var(--wrn);
+      animation: bw 1.5s ease-in-out infinite;
+    }
+
+    #pauseind.show {
+      display: flex;
+    }
+
+    @keyframes bw {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .4
+      }
+    }
+
+    /* ── MONITOR SELECTOR ── */
+    #monitorselector {
+      display: none;
+      align-items: center;
+      gap: 3px;
+      opacity: 0;
+      transition: opacity .25s ease;
+    }
+
+    #monitorselector.show {
+      display: flex;
+      opacity: 1;
+    }
+
+    .monbtn {
+      padding: 3px 8px;
+      background: transparent;
+      border: 1px solid var(--b2);
+      color: var(--t3);
+      font-family: var(--mn);
+      font-size: 8px;
+      font-weight: 600;
+      letter-spacing: .07em;
+      border-radius: var(--r);
+      cursor: pointer;
+      transition: all var(--tr);
+      white-space: nowrap;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+
+    .monbtn:hover {
+      background: rgba(255, 255, 255, .05);
+      border-color: rgba(255, 255, 255, .18);
+      color: var(--txt);
+    }
+
+    .monbtn.active {
+      background: var(--ad);
+      border-color: rgba(0, 200, 160, .38);
+      color: var(--acc);
+    }
+
+    /* ── TOASTS ── */
+    #toasts {
+      position: fixed;
+      top: 48px;
+      right: 10px;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      pointer-events: none;
+    }
+
+    .t {
+      padding: 7px 13px;
+      border-radius: var(--r);
+      font-size: 10px;
+      letter-spacing: .05em;
+      border-width: 1px;
+      border-style: solid;
+      opacity: 0;
+      transform: translateX(18px);
+      transition: all .18s ease;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .t.show {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .t.info {
+      background: rgba(13, 17, 23, .95);
+      border-color: var(--b2);
+      color: var(--t2);
+    }
+
+    .t.ok {
+      background: rgba(0, 200, 160, .09);
+      border-color: rgba(0, 200, 160, .3);
+      color: var(--acc);
+    }
+
+    .t.err {
+      background: rgba(248, 113, 113, .09);
+      border-color: rgba(248, 113, 113, .3);
+      color: var(--err);
+    }
+
+    .t.warn {
+      background: rgba(251, 191, 36, .09);
+      border-color: rgba(251, 191, 36, .3);
+      color: var(--wrn);
+    }
+  </style>
 </head>
+
 <body>
 
-<!-- TOPBAR -->
-<div id="topbar">
-  <a class="brand" href="{% url 'home:dashboard' %}">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="5" height="4" rx="1"/><rect x="9" y="3" width="5" height="4" rx="1"/><rect x="2" y="9" width="5" height="4" rx="1"/><rect x="9" y="9" width="5" height="4" rx="1"/></svg>RDP
-  </a>
-  <button class="tb" id="btnback" onclick="goBack()" style="display:none">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 12L6 8l4-4"/></svg>VOLTAR
-  </button>
-  <div class="tdiv"></div>
-  <button class="tb" id="btnpause" disabled onclick="togglePause()">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/></svg>
-    <span id="pauselbl">PAUSAR INPUT</span>
-  </button>
-  <button class="tb" id="btnvo" disabled onclick="toggleVO()">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/></svg>SÓ VER
-  </button>
-  <div class="tdiv"></div>
-  <button class="tb" id="btnqual" disabled onclick="cycleQual()">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v1.5M8 12v1.5M2.5 8H4M12 8h1.5"/></svg>
-    <span id="quallbl">AUTO</span>
-  </button>
-  <button class="tb" id="btnclip" disabled onclick="togglePanel('ppclip')">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="2" width="8" height="2" rx="1"/><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M5 8h6M5 10.5h4"/></svg>CLIPBOARD
-  </button>
-  <button class="tb" id="btnfile" disabled onclick="togglePanel('ppfile')">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/><path d="M8 8v4M6 10l2-2 2 2"/></svg>ARQUIVOS
-  </button>
-  <button class="tb" id="btnstats" disabled onclick="toggleStats()">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l3-4 3 2 3-5 3 3"/></svg>STATS
-  </button>
-  <button class="tb" id="btnfs" disabled onclick="toggleFS()">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>FULLSCREEN
-  </button>
-  <div class="tdiv"></div>
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <a class="brand" href="{% url 'home:dashboard' %}">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="2" y="3" width="5" height="4" rx="1" />
+        <rect x="9" y="3" width="5" height="4" rx="1" />
+        <rect x="2" y="9" width="5" height="4" rx="1" />
+        <rect x="9" y="9" width="5" height="4" rx="1" />
+      </svg>RDP
+    </a>
+    <button class="tb" id="btnback" onclick="goBack()" style="display:none">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M10 12L6 8l4-4" />
+      </svg>VOLTAR
+    </button>
+    <div class="tdiv"></div>
+    <button class="tb" id="btnpause" disabled onclick="togglePause()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="4" y="3" width="3" height="10" rx="1" />
+        <rect x="9" y="3" width="3" height="10" rx="1" />
+      </svg>
+      <span id="pauselbl">PAUSAR INPUT</span>
+    </button>
+    <button class="tb" id="btnvo" disabled onclick="toggleVO()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
+        <circle cx="8" cy="8" r="2" />
+      </svg>SÓ VER
+    </button>
+    <div class="tdiv"></div>
+    <button class="tb" id="btnqual" disabled onclick="cycleQual()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="8" cy="8" r="5.5" />
+        <path d="M8 2.5v1.5M8 12v1.5M2.5 8H4M12 8h1.5" />
+      </svg>
+      <span id="quallbl">AUTO</span>
+    </button>
+    <button class="tb" id="btnclip" disabled onclick="togglePanel('ppclip')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="4" y="2" width="8" height="2" rx="1" />
+        <rect x="2" y="3" width="12" height="11" rx="1.5" />
+        <path d="M5 8h6M5 10.5h4" />
+      </svg>CLIPBOARD
+    </button>
+    <button class="tb" id="btnfile" disabled onclick="togglePanel('ppfile')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z" />
+        <path d="M8 8v4M6 10l2-2 2 2" />
+      </svg>ARQUIVOS
+    </button>
+    <button class="tb" id="btnstats" disabled onclick="toggleStats()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M2 12l3-4 3 2 3-5 3 3" />
+      </svg>STATS
+    </button>
+    <button class="tb" id="btnfs" disabled onclick="toggleFS()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
+      </svg>FULLSCREEN
+    </button>
+    <div class="tdiv"></div>
 
-  <!-- MONITOR -->
-  <button class="tb" id="btnmon" disabled onclick="requestMonitorList()">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-      <rect x="1" y="2" width="8" height="6" rx="1"/>
-      <rect x="10" y="4" width="5" height="5" rx="1"/>
-      <path d="M3 8v2M5 10H1M12.5 9v2"/>
-    </svg>MONITOR
-  </button>
-  <div id="monitorselector"></div>
+    <!-- MONITOR -->
+    <button class="tb" id="btnmon" disabled onclick="requestMonitorList()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="1" y="2" width="8" height="6" rx="1" />
+        <rect x="10" y="4" width="5" height="5" rx="1" />
+        <path d="M3 8v2M5 10H1M12.5 9v2" />
+      </svg>MONITOR
+    </button>
+    <div id="monitorselector"></div>
 
-  <div class="tdiv"></div>
+    <div class="tdiv"></div>
 
-  <!-- BLOQUEAR TELA DO USUÁRIO -->
-  <button class="tb amber" id="btnlock" disabled onclick="toggleScreenLock()">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-      <rect x="4" y="7" width="8" height="7" rx="1"/>
-      <path d="M5.5 7V5a2.5 2.5 0 015 0v2"/>
-    </svg><span id="locklbl">BLOQUEAR TELA</span>
-  </button>
+    <!-- BLOQUEAR TELA DO USUÁRIO -->
+    <button class="tb amber" id="btnlock" disabled onclick="toggleScreenLock()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="4" y="7" width="8" height="7" rx="1" />
+        <path d="M5.5 7V5a2.5 2.5 0 015 0v2" />
+      </svg><span id="locklbl">BLOQUEAR TELA</span>
+    </button>
 
-  <div class="tdiv"></div>
-  <button class="tb" id="btncad" disabled onclick="sendCAD()">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v5l3 2"/><circle cx="8" cy="8" r="6"/></svg>C+A+DEL
-  </button>
-  <div class="tspc"></div>
-  <span id="tbst">OFFLINE</span>
-  <div class="tdiv"></div>
-  <button class="tb red" id="btndisc" style="display:none" onclick="disconnect()">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 6l-4 4M6 6l4 4"/><circle cx="8" cy="8" r="6"/></svg>DESCONECTAR
-  </button>
-</div>
-
-<!-- SELF-WARN -->
-<div id="selfbar">
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 6v3M8 11v.5"/><path d="M7.1 2.5L1.6 12A1 1 0 002.5 13.5h11a1 1 0 00.9-1.5L8.9 2.5a1 1 0 00-1.8 0z"/></svg>
-  <span><strong>ATENÇÃO:</strong> Você está conectado ao próprio computador. Input pausado para evitar loop.</span>
-  <div class="sba">
-    <button class="sbabtn vo" onclick="setVO(true);closeSelfBar()">SÓ VER</button>
-    <button class="sbabtn ig" onclick="resumeFromSelf()">RETOMAR INPUT</button>
+    <div class="tdiv"></div>
+    <button class="tb" id="btncad" disabled onclick="sendCAD()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M8 3v5l3 2" />
+        <circle cx="8" cy="8" r="6" />
+      </svg>C+A+DEL
+    </button>
+    <div class="tspc"></div>
+    <span id="tbst">OFFLINE</span>
+    <div class="tdiv"></div>
+    <button class="tb red" id="btndisc" style="display:none" onclick="disconnect()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M10 6l-4 4M6 6l4 4" />
+        <circle cx="8" cy="8" r="6" />
+      </svg>DESCONECTAR
+    </button>
   </div>
-</div>
 
-<!-- BODY -->
-<div id="body">
+  <!-- SELF-WARN -->
+  <div id="selfbar">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M8 6v3M8 11v.5" />
+      <path d="M7.1 2.5L1.6 12A1 1 0 002.5 13.5h11a1 1 0 00.9-1.5L8.9 2.5a1 1 0 00-1.8 0z" />
+    </svg>
+    <span><strong>ATENÇÃO:</strong> Você está conectado ao próprio computador. Input pausado para evitar loop.</span>
+    <div class="sba">
+      <button class="sbabtn vo" onclick="setVO(true);closeSelfBar()">SÓ VER</button>
+      <button class="sbabtn ig" onclick="resumeFromSelf()">RETOMAR INPUT</button>
+    </div>
+  </div>
 
-  <!-- CONNECT SCREEN -->
-  <div id="cs">
-    <div class="card">
-      <div class="chd"><span class="ctitle">Remote Desktop</span><span class="cbadge">WebRTC · E2E</span></div>
-      <div class="cbd">
-        <div class="f">
-          <label>Máquina destino</label>
-          <div class="fw"><input id="inpmachine" type="text" placeholder="hostname ou IP" oninput="chkSelf(this.value)" onkeydown="if(event.key==='Enter')document.getElementById('inptoken').focus()"></div>
+  <!-- BODY -->
+  <div id="body">
+
+    <!-- CONNECT SCREEN -->
+    <div id="cs">
+      <div class="card">
+        <div class="chd"><span class="ctitle">Remote Desktop</span><span class="cbadge">WebRTC · E2E</span></div>
+        <div class="cbd">
+          <div class="f">
+            <label>Máquina destino</label>
+            <div class="fw"><input id="inpmachine" type="text" placeholder="hostname ou IP"
+                oninput="chkSelf(this.value)"
+                onkeydown="if(event.key==='Enter')document.getElementById('inptoken').focus()"></div>
+          </div>
+          <div id="sdinline">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M8 6v3M8 11v.5" />
+              <path d="M7.1 2.5L1.6 12A1 1 0 002.5 13.5h11a1 1 0 00.9-1.5L8.9 2.5a1 1 0 00-1.8 0z" />
+            </svg>
+            <span>Este parece ser <strong>seu próprio PC</strong>. Input será pausado ao conectar.</span>
+          </div>
+          <div class="f">
+            <label>Access Token</label>
+            <div class="fw">
+              <input id="inptoken" type="password" placeholder="token (8+ chars)"
+                onkeydown="if(event.key==='Enter')doConnect()">
+              <button class="eye" onclick="toggleEye()">
+                <svg id="eyeo" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13"
+                  height="13">
+                  <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
+                  <circle cx="8" cy="8" r="2" />
+                </svg>
+                <svg id="eyec" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13"
+                  height="13" style="display:none">
+                  <path
+                    d="M2 2l12 12M6.3 6.4A2 2 0 0010 9.7M4 4.3C2.4 5.4 1 8 1 8s2.5 5 7 5c1.3 0 2.5-.3 3.5-.9M8 3c4.1.3 6 5 6 5s-.6 1.3-1.6 2.4" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="advtog" id="advtog" onclick="toggleAdv()">
+            <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M4 2l3 3-3 3" />
+            </svg>OPÇÕES AVANÇADAS
+          </div>
+          <div class="advb" id="advb">
+            <div class="f">
+              <label>Política ICE</label>
+              <div class="iceopts">
+                <div class="iceopt on" data-v="all" onclick="selIce(this)">AUTO (recomendado)</div>
+                <div class="iceopt" data-v="relay" onclick="selIce(this)">FORÇAR TURN</div>
+              </div>
+            </div>
+            <div class="frow">
+              <div class="f"><label>Servidor TURN</label>
+                <div class="fw"><input id="inpturn" type="text" placeholder="turn:host:3478"></div>
+              </div>
+              <div class="f"><label>Usuário TURN</label>
+                <div class="fw"><input id="inpturnuser" type="text" placeholder="user"></div>
+              </div>
+            </div>
+            <div class="f">
+              <label>Qualidade inicial</label>
+              <div class="qgrid">
+                <div class="qopt on" data-q="AUTO" onclick="selQ(this)">AUTO</div>
+                <div class="qopt" data-q="HIGH" onclick="selQ(this)">HIGH</div>
+                <div class="qopt" data-q="MEDIUM" onclick="selQ(this)">MED</div>
+                <div class="qopt" data-q="LOW" onclick="selQ(this)">LOW</div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div id="sdinline">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 6v3M8 11v.5"/><path d="M7.1 2.5L1.6 12A1 1 0 002.5 13.5h11a1 1 0 00.9-1.5L8.9 2.5a1 1 0 00-1.8 0z"/></svg>
-          <span>Este parece ser <strong>seu próprio PC</strong>. Input será pausado ao conectar.</span>
+        <div class="cft">
+          <button class="connbtn" id="connbtn" onclick="doConnect()">
+            <div class="spin" id="spin"></div><span id="connlbl">CONECTAR</span>
+          </button>
+          <div class="errmsg" id="errmsg"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- VIDEO -->
+    <div id="vw">
+      <div id="voov"></div>
+      <video id="rv" autoplay playsinline></video>
+      <div id="mtag">
+        <div class="mdot"></div><span id="mtagname"></span>
+      </div>
+      <div id="vobadge">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11">
+          <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
+          <circle cx="8" cy="8" r="2" />
+        </svg>SOMENTE VISUALIZAÇÃO
+      </div>
+      <div id="lockbadge">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11">
+          <rect x="4" y="7" width="8" height="7" rx="1" />
+          <path d="M5.5 7V5a2.5 2.5 0 015 0v2" />
+        </svg>
+        TELA DO USUÁRIO BLOQUEADA
+      </div>
+      <div id="reconn">
+        <div class="rspin"></div>
+        <div id="recontxt">Reconectando…</div>
+      </div>
+      <div id="dropov">
+        <div class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path
+              d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z" />
+            <path d="M8 8v4M6 10l2-2 2 2" />
+          </svg></div>
+        <div class="dtxt">SOLTAR PARA ENVIAR</div>
+        <div class="dsub" id="drop-dest-lbl">DESTINO: Explorer</div>
+      </div>
+      <div id="stats">
+        <div class="sgrid">
+          <div class="si">
+            <div class="sl">FPS</div>
+            <div class="sv" id="sfps">—</div>
+          </div>
+          <div class="si">
+            <div class="sl">RTT</div>
+            <div class="sv" id="srtt">—</div>
+          </div>
+          <div class="si">
+            <div class="sl">BW</div>
+            <div class="sv" id="sbw">—</div>
+          </div>
+          <div class="si">
+            <div class="sl">LOSS</div>
+            <div class="sv" id="sloss">—</div>
+          </div>
+          <div class="si">
+            <div class="sl">RES</div>
+            <div class="sv" id="sres">—</div>
+          </div>
+          <div class="si">
+            <div class="sl">ICE</div>
+            <div class="sv" id="sice" style="font-size:9px">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CLIPBOARD PANEL -->
+    <div class="panel" id="ppclip">
+      <div class="ph"><span class="pht">Clipboard</span>
+        <button class="phx" onclick="closePanel('ppclip')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"
+            stroke-width="1.5" width="11" height="11">
+            <path d="M12 4L4 12M4 4l8 8" />
+          </svg></button>
+      </div>
+      <div class="pb">
+        <textarea id="clipta" placeholder="Cole ou escreva o texto a enviar…"></textarea>
+        <button class="pbtn acc" onclick="sendClip()">ENVIAR PARA MÁQUINA REMOTA</button>
+        <button class="pbtn" onclick="reqClip()">OBTER CLIPBOARD REMOTO</button>
+        <div style="font-size:9px;color:var(--t3);letter-spacing:.04em;line-height:1.6">Ctrl+V na máquina remota irá
+          colar o conteúdo.</div>
+      </div>
+    </div>
+
+    <!-- FILE PANEL -->
+    <div class="panel" id="ppfile">
+      <div class="ph"><span class="pht">Transferir Arquivos</span>
+        <button class="phx" onclick="closePanel('ppfile')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"
+            stroke-width="1.5" width="11" height="11">
+            <path d="M12 4L4 12M4 4l8 8" />
+          </svg></button>
+      </div>
+      <div class="pb">
         <div class="f">
-          <label>Access Token</label>
-          <div class="fw">
-            <input id="inptoken" type="password" placeholder="token (8+ chars)" onkeydown="if(event.key==='Enter')doConnect()">
-            <button class="eye" onclick="toggleEye()">
-              <svg id="eyeo" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/></svg>
-              <svg id="eyec" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13" style="display:none"><path d="M2 2l12 12M6.3 6.4A2 2 0 0010 9.7M4 4.3C2.4 5.4 1 8 1 8s2.5 5 7 5c1.3 0 2.5-.3 3.5-.9M8 3c4.1.3 6 5 6 5s-.6 1.3-1.6 2.4"/></svg>
+          <label>Destino na máquina remota</label>
+          <div id="explcard" onclick="selDest('explorer')" title="Pasta aberta no Explorer"
+            style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--b2);border-radius:var(--r);cursor:pointer;">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--acc)" stroke-width="1.5">
+              <path
+                d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z" />
+            </svg>
+            <div style="flex:1;min-width:0;">
+              <div
+                style="font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:2px;">
+                Explorer (pasta aberta)</div>
+              <div id="explpath"
+                style="font-size:10px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                Consultando…</div>
+            </div>
+            <button onclick="event.stopPropagation();refreshExplorer()"
+              style="background:none;border:none;color:var(--t3);cursor:pointer;padding:2px;display:flex;align-items:center;"
+              title="Atualizar">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M2 8a6 6 0 1110.5-4" />
+                <path d="M12 1v4H8" />
+              </svg>
             </button>
           </div>
-        </div>
-        <div class="advtog" id="advtog" onclick="toggleAdv()">
-          <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l3 3-3 3"/></svg>OPÇÕES AVANÇADAS
-        </div>
-        <div class="advb" id="advb">
-          <div class="f">
-            <label>Política ICE</label>
-            <div class="iceopts">
-              <div class="iceopt on" data-v="all" onclick="selIce(this)">AUTO (recomendado)</div>
-              <div class="iceopt" data-v="relay" onclick="selIce(this)">FORÇAR TURN</div>
-            </div>
+          <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;">
+            <div class="dpreset" data-path="downloads" onclick="selDest('downloads')">Downloads</div>
+            <div class="dpreset" data-path="desktop" onclick="selDest('desktop')">Desktop</div>
+            <div class="dpreset" data-path="documents" onclick="selDest('documents')">Documentos</div>
+            <div class="dpreset" data-path="custom" onclick="selDest('custom')">Outro…</div>
           </div>
-          <div class="frow">
-            <div class="f"><label>Servidor TURN</label><div class="fw"><input id="inpturn" type="text" placeholder="turn:host:3478"></div></div>
-            <div class="f"><label>Usuário TURN</label><div class="fw"><input id="inpturnuser" type="text" placeholder="user"></div></div>
+          <div class="fw" id="custdestrow" style="display:none;margin-top:6px;">
+            <input id="custdest" type="text" placeholder="Ex: C:\Projetos" style="padding-right:10px;">
           </div>
-          <div class="f">
-            <label>Qualidade inicial</label>
-            <div class="qgrid">
-              <div class="qopt on" data-q="AUTO" onclick="selQ(this)">AUTO</div>
-              <div class="qopt" data-q="HIGH" onclick="selQ(this)">HIGH</div>
-              <div class="qopt" data-q="MEDIUM" onclick="selQ(this)">MED</div>
-              <div class="qopt" data-q="LOW" onclick="selQ(this)">LOW</div>
-            </div>
+          <div style="margin-top:5px;font-size:9px;color:var(--t3);">
+            Enviando para: <span id="destlbl" style="color:var(--acc);font-weight:600;">Explorer</span>
           </div>
         </div>
-      </div>
-      <div class="cft">
-        <button class="connbtn" id="connbtn" onclick="doConnect()">
-          <div class="spin" id="spin"></div><span id="connlbl">CONECTAR</span>
-        </button>
-        <div class="errmsg" id="errmsg"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- VIDEO -->
-  <div id="vw">
-    <div id="voov"></div>
-    <video id="rv" autoplay playsinline></video>
-    <div id="mtag"><div class="mdot"></div><span id="mtagname"></span></div>
-    <div id="vobadge">
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/></svg>SOMENTE VISUALIZAÇÃO
-    </div>
-    <div id="lockbadge">
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><rect x="4" y="7" width="8" height="7" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>
-      TELA DO USUÁRIO BLOQUEADA
-    </div>
-    <div id="reconn"><div class="rspin"></div><div id="recontxt">Reconectando…</div></div>
-    <div id="dropov">
-      <div class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/><path d="M8 8v4M6 10l2-2 2 2"/></svg></div>
-      <div class="dtxt">SOLTAR PARA ENVIAR</div>
-      <div class="dsub" id="drop-dest-lbl">DESTINO: Explorer</div>
-    </div>
-    <div id="stats">
-      <div class="sgrid">
-        <div class="si"><div class="sl">FPS</div><div class="sv" id="sfps">—</div></div>
-        <div class="si"><div class="sl">RTT</div><div class="sv" id="srtt">—</div></div>
-        <div class="si"><div class="sl">BW</div><div class="sv" id="sbw">—</div></div>
-        <div class="si"><div class="sl">LOSS</div><div class="sv" id="sloss">—</div></div>
-        <div class="si"><div class="sl">RES</div><div class="sv" id="sres">—</div></div>
-        <div class="si"><div class="sl">ICE</div><div class="sv" id="sice" style="font-size:9px">—</div></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CLIPBOARD PANEL -->
-  <div class="panel" id="ppclip">
-    <div class="ph"><span class="pht">Clipboard</span>
-      <button class="phx" onclick="closePanel('ppclip')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><path d="M12 4L4 12M4 4l8 8"/></svg></button>
-    </div>
-    <div class="pb">
-      <textarea id="clipta" placeholder="Cole ou escreva o texto a enviar…"></textarea>
-      <button class="pbtn acc" onclick="sendClip()">ENVIAR PARA MÁQUINA REMOTA</button>
-      <button class="pbtn" onclick="reqClip()">OBTER CLIPBOARD REMOTO</button>
-      <div style="font-size:9px;color:var(--t3);letter-spacing:.04em;line-height:1.6">Ctrl+V na máquina remota irá colar o conteúdo.</div>
-    </div>
-  </div>
-
-  <!-- FILE PANEL -->
-  <div class="panel" id="ppfile">
-    <div class="ph"><span class="pht">Transferir Arquivos</span>
-      <button class="phx" onclick="closePanel('ppfile')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><path d="M12 4L4 12M4 4l8 8"/></svg></button>
-    </div>
-    <div class="pb">
-      <div class="f">
-        <label>Destino na máquina remota</label>
-        <div id="explcard" onclick="selDest('explorer')" title="Pasta aberta no Explorer" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--b2);border-radius:var(--r);cursor:pointer;">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--acc)" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/></svg>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:2px;">Explorer (pasta aberta)</div>
-            <div id="explpath" style="font-size:10px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Consultando…</div>
-          </div>
-          <button onclick="event.stopPropagation();refreshExplorer()" style="background:none;border:none;color:var(--t3);cursor:pointer;padding:2px;display:flex;align-items:center;" title="Atualizar">
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8a6 6 0 1110.5-4"/><path d="M12 1v4H8"/></svg>
-          </button>
+        <button class="pbtn acc" onclick="document.getElementById('finput').click()">SELECIONAR ARQUIVO</button>
+        <input type="file" id="finput" style="display:none" multiple onchange="uploadFiles(this.files)">
+        <div
+          style="padding:10px;border:1px dashed var(--b2);border-radius:var(--r);text-align:center;font-size:9px;color:var(--t3);cursor:pointer"
+          onclick="document.getElementById('finput').click()">
+          Ou arraste arquivos sobre a tela remota
         </div>
-        <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;">
-          <div class="dpreset" data-path="downloads" onclick="selDest('downloads')">Downloads</div>
-          <div class="dpreset" data-path="desktop"   onclick="selDest('desktop')">Desktop</div>
-          <div class="dpreset" data-path="documents" onclick="selDest('documents')">Documentos</div>
-          <div class="dpreset" data-path="custom"    onclick="selDest('custom')">Outro…</div>
-        </div>
-        <div class="fw" id="custdestrow" style="display:none;margin-top:6px;">
-          <input id="custdest" type="text" placeholder="Ex: C:\Projetos" style="padding-right:10px;">
-        </div>
-        <div style="margin-top:5px;font-size:9px;color:var(--t3);">
-          Enviando para: <span id="destlbl" style="color:var(--acc);font-weight:600;">Explorer</span>
-        </div>
+        <div id="flist"></div>
       </div>
-      <button class="pbtn acc" onclick="document.getElementById('finput').click()">SELECIONAR ARQUIVO</button>
-      <input type="file" id="finput" style="display:none" multiple onchange="uploadFiles(this.files)">
-      <div style="padding:10px;border:1px dashed var(--b2);border-radius:var(--r);text-align:center;font-size:9px;color:var(--t3);cursor:pointer" onclick="document.getElementById('finput').click()">
-        Ou arraste arquivos sobre a tela remota
-      </div>
-      <div id="flist"></div>
     </div>
+
   </div>
 
-</div>
-
-<!-- STATUS BAR -->
-<div id="sbar">
-  <div class="sit"><div class="sdot" id="sdot"></div><span class="sil">STATUS</span><span class="siv" id="sbstat">OFFLINE</span></div>
-  <div id="pauseind">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="9" height="9"><rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/></svg>INPUT PAUSADO
+  <!-- STATUS BAR -->
+  <div id="sbar">
+    <div class="sit">
+      <div class="sdot" id="sdot"></div><span class="sil">STATUS</span><span class="siv" id="sbstat">OFFLINE</span>
+    </div>
+    <div id="pauseind">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="9" height="9">
+        <rect x="4" y="3" width="3" height="10" rx="1" />
+        <rect x="9" y="3" width="3" height="10" rx="1" />
+      </svg>INPUT PAUSADO
+    </div>
+    <div class="sit"><span class="sil">CODEC</span><span class="siv" id="sbcodec">—</span></div>
+    <div class="sit"><span class="sil">MÁQUINA</span><span class="siv" id="sbmac">—</span></div>
+    <div class="smsg" id="sbmsg">Pronto.</div>
   </div>
-  <div class="sit"><span class="sil">CODEC</span><span class="siv" id="sbcodec">—</span></div>
-  <div class="sit"><span class="sil">MÁQUINA</span><span class="siv" id="sbmac">—</span></div>
-  <div class="smsg" id="sbmsg">Pronto.</div>
-</div>
-<div id="toasts"></div>
+  <div id="toasts"></div>
 
-<script>
-// ═══════════════════════════════════════
-// ESTADO
-// ═══════════════════════════════════════
-var pc = null, dc = null, fileDC = null;
-var sessToken = '', connMachine = '';
-var screenW = 1920, screenH = 1080;
-var quality = 'AUTO', icePolicy = 'all';
-var reconnAtt = 0, MAX_R = 5;
-var statsTimer = null;
-var paused = false, viewOnly = false, isSelf = false;
-var screenLocked = false;
-var destMode = 'explorer', explorerPath = '';
-var _monitors = [];
-var _lastIceServers = [];       // FIX P11: preserva ICE servers para reconexão
-var _mouseDown = false;         // FIX P4:  detecta drag para suprimir mc falso
-var _mouseMoved = false;        // FIX P4:  idem
-var _remoteClipboard = '';      // CLIP-B1: último clipboard recebido da máquina remota
-var _clipApiAvailable = (typeof navigator.clipboard !== 'undefined' && typeof navigator.clipboard.readText === 'function');
-var _inVideoFocus = false;      // CLIP-B2: true enquanto o usuário está interagindo com o vídeo
+  <script>
+    // ═══════════════════════════════════════
+    // ESTADO
+    // ═══════════════════════════════════════
+    var pc = null, dc = null, fileDC = null;
+    var sessToken = '', connMachine = '';
+    var screenW = 1920, screenH = 1080;
+    var quality = 'AUTO', icePolicy = 'all';
+    var reconnAtt = 0, MAX_R = 5;
+    var statsTimer = null;
+    var paused = false, viewOnly = false, isSelf = false;
+    var screenLocked = false;
+    var destMode = 'explorer', explorerPath = '';
+    var _monitors = [];
+    var _lastIceServers = [];       // FIX P11: preserva ICE servers para reconexão
+    var _mouseDown = false;         // FIX P4:  detecta drag para suprimir mc falso
+    var _mouseMoved = false;        // FIX P4:  idem
+    var _remoteClipboard = '';      // CLIP-B1: último clipboard recebido da máquina remota
+    var _clipApiAvailable = (typeof navigator.clipboard !== 'undefined' && typeof navigator.clipboard.readText === 'function');
+    var _inVideoFocus = false;      // CLIP-B2: true enquanto o usuário está interagindo com o vídeo
 
-// ═══════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════
-function $(id){ return document.getElementById(id); }
-function sbMsg(t){ $('sbmsg').textContent = t; }
-function setErr(t){ $('errmsg').textContent = t; }
-function setStatus(txt, cls){
-  cls = cls || '';
-  $('sbstat').textContent = $('tbst').textContent = txt;
-  var d = $('sdot');
-  d.className = 'sdot' + (cls==='ok'?' ok':cls==='err'?' err':cls==='w'?' w':'');
-}
-function toast(msg, type, ms){
-  type = type||'info'; ms = ms||3000;
-  var el = document.createElement('div');
-  el.className = 't ' + type; el.textContent = msg;
-  $('toasts').appendChild(el);
-  requestAnimationFrame(function(){ requestAnimationFrame(function(){ el.classList.add('show'); }); });
-  setTimeout(function(){ el.classList.remove('show'); setTimeout(function(){ el.remove(); },250); }, ms);
-}
-function getCookie(n){
-  var c = document.cookie.split(';').map(function(x){ return x.trim(); }).find(function(x){ return x.startsWith(n+'='); });
-  return c ? c.split('=')[1] : '';
-}
-
-// ═══════════════════════════════════════
-// SELF-CONNECT
-// ═══════════════════════════════════════
-var SELF_IDS = ['localhost','127.0.0.1','::1',window.location.hostname];
-(function(){
-  try{
-    var p = new RTCPeerConnection({iceServers:[]});
-    p.createDataChannel('');
-    p.createOffer().then(function(o){ return p.setLocalDescription(o); }).then(function(){
-      setTimeout(function(){
-        var sdp = p.localDescription&&p.localDescription.sdp||'';
-        var ms = sdp.match(/a=candidate:.+? .+? .+? .+? (\S+)/g)||[];
-        ms.forEach(function(c){ var ip=c.split(' ')[4]; if(ip&&!ip.includes('0.0.0.0')) SELF_IDS.push(ip.toLowerCase()); });
-        p.close();
-      },600);
-    });
-  }catch(e){}
-})();
-function chkSelf(v){
-  v=v.trim().toLowerCase();
-  isSelf = v.length>1 && SELF_IDS.some(function(s){ return s&&s.toLowerCase()===v; });
-  $('sdinline').classList.toggle('show', isSelf);
-}
-function closeSelfBar(){ $('selfbar').classList.remove('show'); }
-
-// ═══════════════════════════════════════
-// PAUSE / VIEW-ONLY
-// ═══════════════════════════════════════
-function protectSelf(){
-  if(!isSelf) return;
-  doPause(); $('selfbar').classList.add('show');
-  toast('Input pausado — seu próprio PC detectado','warn',5000);
-}
-function doPause(){
-  paused=true; $('btnpause').classList.add('on');
-  $('btnpause').innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><polygon points="5,3 13,8 5,13" fill="currentColor"/></svg><span>RETOMAR INPUT</span>';
-  $('pauseind').classList.add('show'); sbMsg('Input pausado.');
-}
-function doResume(){
-  paused=false; $('btnpause').classList.remove('on');
-  $('btnpause').innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/></svg><span>PAUSAR INPUT</span>';
-  $('pauseind').classList.remove('show'); sbMsg('Input ativo.');
-}
-function togglePause(){
-  if(viewOnly){ toast('Desative "Somente Visualização" primeiro','warn'); return; }
-  paused ? doResume() : doPause();
-}
-function setVO(on){
-  viewOnly=on;
-  $('voov').classList.toggle('show',on); $('vobadge').classList.toggle('show',on);
-  $('vw').classList.toggle('viewonly',on); $('btnvo').classList.toggle('on',on);
-  $('btnpause').disabled=on;
-  if(on) doPause(); else doResume();
-  toast(on?'Somente Visualização ativado':'Modo interativo retomado',on?'warn':'ok');
-}
-function toggleVO(){ setVO(!viewOnly); }
-function resumeFromSelf(){ isSelf=false; closeSelfBar(); setVO(false); toast('Input retomado com cuidado!','warn',4000); }
-
-// ═══════════════════════════════════════
-// BLOQUEIO DE TELA DO USUÁRIO REMOTO
-// ═══════════════════════════════════════
-function toggleScreenLock(){
-  screenLocked = !screenLocked;
-  send({ t: screenLocked ? 'screen_lock' : 'screen_unlock' });
-  var btn = $('btnlock');
-  var lbl = $('locklbl');
-  var badge = $('lockbadge');
-  if(screenLocked){
-    btn.classList.add('on'); lbl.textContent = 'DESBLOQUEAR';
-    badge.classList.add('show');
-    toast('Tela do usuário bloqueada','warn',3000);
-    sbMsg('Tela remota bloqueada — usuário não visualiza.');
-  } else {
-    btn.classList.remove('on'); lbl.textContent = 'BLOQUEAR TELA';
-    badge.classList.remove('show');
-    toast('Tela desbloqueada','ok',2000);
-    sbMsg('Tela remota desbloqueada.');
-  }
-}
-
-// ═══════════════════════════════════════
-// MONITOR SWITCHER
-// ═══════════════════════════════════════
-function requestMonitorList(){
-  if(!dc||dc.readyState!=='open') return;
-  dc.send(JSON.stringify({t:'list_monitors'}));
-  sbMsg('Consultando monitores…');
-}
-function renderMonitorButtons(monitors, current){
-  _monitors = monitors;
-  var sel = $('monitorselector');
-  sel.innerHTML='';
-  if(!monitors||monitors.length===0){ sel.classList.remove('show'); return; }
-  monitors.forEach(function(m){
-    var btn = document.createElement('button');
-    btn.className = 'monbtn'+(m.id===current?' active':'');
-    btn.textContent = 'MON\u00a0'+m.id+(m.w&&m.h ? '\u00a0'+m.w+'\u00d7'+m.h : '');
-    btn.title = 'Monitor '+m.id+(m.w?' — '+m.w+'×'+m.h:'')+(m.x!==undefined?' @ '+m.x+','+m.y:'');
-    btn.onclick = function(){ switchMonitor(m.id); };
-    sel.appendChild(btn);
-  });
-  sel.classList.add('show');
-}
-function switchMonitor(idx){
-  if(!dc||dc.readyState!=='open') return;
-  dc.send(JSON.stringify({t:'switch_monitor',index:idx}));
-  $('monitorselector').querySelectorAll('.monbtn').forEach(function(b,i){
-    b.classList.toggle('active', _monitors[i]&&_monitors[i].id===idx);
-  });
-  sbMsg('Trocando para Monitor '+idx+'…');
-}
-
-// ═══════════════════════════════════════
-// DESTINO DE ARQUIVO
-// ═══════════════════════════════════════
-function selDest(mode){
-  destMode=mode;
-  document.querySelectorAll('.dpreset').forEach(function(e){ e.classList.remove('on'); });
-  $('explcard').classList.remove('on'); $('custdestrow').style.display='none';
-  if(mode==='explorer') $('explcard').classList.add('on');
-  else if(mode==='custom'){
-    var el=document.querySelector('.dpreset[data-path="custom"]'); if(el) el.classList.add('on');
-    $('custdestrow').style.display='';
-  } else {
-    var el=document.querySelector('.dpreset[data-path="'+mode+'"]'); if(el) el.classList.add('on');
-  }
-  var labels={explorer:'Explorer',downloads:'Downloads',desktop:'Desktop',documents:'Documentos',custom:'Personalizado'};
-  $('destlbl').textContent=labels[mode]||mode;
-  $('drop-dest-lbl').textContent='DESTINO: '+(mode==='explorer'?(explorerPath?explorerPath.split('\\').pop()||'Explorer':'Explorer'):(labels[mode]||mode));
-}
-function getDestPath(){
-  if(destMode==='explorer') return 'explorer';
-  if(destMode==='custom'){ var v=$('custdest').value.trim(); return v||'downloads'; }
-  return destMode;
-}
-function refreshExplorer(){
-  var el=$('explpath'); el.textContent='Consultando…'; el.style.color='var(--t3)';
-  fetch('/api/rdp/info/?machine='+encodeURIComponent(connMachine)+'&action=explorer_path',{
-    credentials:'same-origin',headers:{'X-RDP-Token':sessToken,'X-CSRFToken':getCookie('csrftoken')}
-  })
-  .then(function(r){ return r.ok?r.json():Promise.reject(r.status); })
-  .then(function(d){
-    explorerPath=d.path||''; el.textContent=explorerPath||'Não disponível';
-    el.style.color=explorerPath?'var(--txt)':'var(--wrn)';
-    if(destMode==='explorer') selDest('explorer');
-  })
-  .catch(function(){ el.textContent='Não disponível — usando Downloads'; el.style.color='var(--wrn)'; explorerPath=''; });
-}
-
-// ═══════════════════════════════════════
-// UI
-// ═══════════════════════════════════════
-function toggleEye(){
-  var i=$('inptoken'),s=i.type==='password'; i.type=s?'text':'password';
-  $('eyeo').style.display=s?'none':''; $('eyec').style.display=s?'':'none';
-}
-function toggleAdv(){ $('advtog').classList.toggle('open'); $('advb').classList.toggle('open'); }
-function selQ(el){ document.querySelectorAll('.qopt').forEach(function(e){ e.classList.remove('on'); }); el.classList.add('on'); quality=el.dataset.q; }
-function selIce(el){ document.querySelectorAll('.iceopt').forEach(function(e){ e.classList.remove('on'); }); el.classList.add('on'); icePolicy=el.dataset.v; }
-
-function cycleQual(){
-  var o = ['AUTO','HIGH','MEDIUM','LOW'];
-  quality = o[(o.indexOf(quality) + 1) % o.length];
-  $('quallbl').textContent = quality;
-  // Envia ao agente — tipo correto 't':'set_quality'
-  send({ t: 'set_quality', quality: quality.toLowerCase() });
-  // FIX P1/P3: applyBrowserEncoding respeita "auto" sem teto de bitrate
-  applyBrowserEncoding(quality.toLowerCase());
-  toast('Qualidade: ' + quality, 'info', 2000);
-}
-
-function setConnUI(on){
-  ['btnpause','btnvo','btnqual','btnclip','btnfile','btnstats','btnfs','btncad','btnmon','btnlock'].forEach(function(id){
-    if($(id)) $(id).disabled=!on;
-  });
-  $('btndisc').style.display=on?'':'none'; $('btnback').style.display=on?'':'none';
-  if(on) $('btnpause').disabled=viewOnly;
-  if(!on){
-    var sel=$('monitorselector'); sel.classList.remove('show'); sel.innerHTML=''; _monitors=[];
-    if(screenLocked){ screenLocked=false; $('btnlock').classList.remove('on'); $('locklbl').textContent='BLOQUEAR TELA'; $('lockbadge').classList.remove('show'); }
-  }
-}
-function goBack(){ disconnect(); }
-function togglePanel(id){
-  ['ppclip','ppfile'].forEach(function(p){
-    if(p!==id) $(p).classList.remove('open'); else $(p).classList.toggle('open');
-  });
-  var m={ppclip:'btnclip',ppfile:'btnfile'};
-  Object.keys(m).forEach(function(p){ var b=$(m[p]); if(b) b.classList.toggle('on',$(p).classList.contains('open')); });
-  if(id==='ppfile'&&$('ppfile').classList.contains('open')&&pc){ selDest('explorer'); refreshExplorer(); }
-}
-function closePanel(id){
-  $(id).classList.remove('open');
-  var m={ppclip:'btnclip',ppfile:'btnfile'}; if(m[id]&&$(m[id])) $(m[id]).classList.remove('on');
-}
-function toggleStats(){ $('stats').classList.toggle('show'); $('btnstats').classList.toggle('on',$('stats').classList.contains('show')); }
-function toggleFS(){
-  if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function(){});
-  else document.exitFullscreen().catch(function(){});
-}
-
-// ═══════════════════════════════════════
-// COORDENADAS 0-1 corrigindo letterbox
-// ═══════════════════════════════════════
-function videoRect(){
-  var v=$('rv'),vw=v.clientWidth,vh=v.clientHeight;
-  var sAR=screenW/screenH,eAR=vw/vh,renderW,renderH,offsetX,offsetY;
-  if(sAR>eAR){ renderW=vw;renderH=vw/sAR;offsetX=0;offsetY=(vh-renderH)/2; }
-  else{ renderH=vh;renderW=vh*sAR;offsetX=(vw-renderW)/2;offsetY=0; }
-  return {renderW:renderW,renderH:renderH,offsetX:offsetX,offsetY:offsetY};
-}
-function relPos(e){
-  var v=$('rv'),rect=v.getBoundingClientRect();
-  var cx=e.clientX-rect.left,cy=e.clientY-rect.top,r=videoRect();
-  return {x:Math.max(0,Math.min(r.renderW,cx-r.offsetX))/r.renderW,y:Math.max(0,Math.min(r.renderH,cy-r.offsetY))/r.renderH};
-}
-
-// ═══════════════════════════════════════
-// PERFIS DE QUALIDADE — espelha _QUALITY_PROFILES do agente
-//
-// FIX P1/P3: "auto" não define maxBitrate — REMB corre livre
-// sem o teto de 1.5 Mbps que travava o encoder.
-// Apenas maxFramerate é definido para orientar o congestion control.
-// Os outros perfis mantêm seus tetos explícitos.
-// ═══════════════════════════════════════
-var QUALITY_PROFILES = {
-  'auto':   { maxBitrate: null,    maxFramerate: 30 },
-  'high':   { maxBitrate: 2000000, maxFramerate: 30 },
-  'medium': { maxBitrate:  800000, maxFramerate: 20 },
-  'low':    { maxBitrate:  300000, maxFramerate: 15 },
-};
-
-// FIX P2: só aplica maxBitrate quando não é null (modo auto)
-// FIX P7: degradationPreference removido — browser é receiver, não sender;
-//         o campo é semanticamente inválido no lado que recebe o stream.
-function applyBrowserEncoding(q) {
-  if (!pc) return;
-  var profile = QUALITY_PROFILES[q] || QUALITY_PROFILES['auto'];
-
-  pc.getSenders().forEach(function(sender) {
-    // Browser só envia dados e áudio — não envia vídeo nesta arquitetura.
-    // O vídeo flui Agente → Browser (recvonly).
-    // Manter o bloco por compatibilidade caso arquitetura mude para bidirecional.
-    if (!sender.track) return;
-    var params = sender.getParameters();
-    if (!params.encodings || params.encodings.length === 0) {
-      params.encodings = [{}];
+    // ═══════════════════════════════════════
+    // HELPERS
+    // ═══════════════════════════════════════
+    function $(id) { return document.getElementById(id); }
+    function sbMsg(t) { $('sbmsg').textContent = t; }
+    function setErr(t) { $('errmsg').textContent = t; }
+    function setStatus(txt, cls) {
+      cls = cls || '';
+      $('sbstat').textContent = $('tbst').textContent = txt;
+      var d = $('sdot');
+      d.className = 'sdot' + (cls === 'ok' ? ' ok' : cls === 'err' ? ' err' : cls === 'w' ? ' w' : '');
     }
-    // FIX P3: "auto" → não define maxBitrate, REMB negocia livremente
-    if (profile.maxBitrate !== null) {
-      params.encodings[0].maxBitrate = profile.maxBitrate;
-    } else {
-      delete params.encodings[0].maxBitrate;
+    function toast(msg, type, ms) {
+      type = type || 'info'; ms = ms || 3000;
+      var el = document.createElement('div');
+      el.className = 't ' + type; el.textContent = msg;
+      $('toasts').appendChild(el);
+      requestAnimationFrame(function () { requestAnimationFrame(function () { el.classList.add('show'); }); });
+      setTimeout(function () { el.classList.remove('show'); setTimeout(function () { el.remove(); }, 250); }, ms);
     }
-    params.encodings[0].maxFramerate = profile.maxFramerate;
-    // FIX P7: degradationPreference removido — só válido em senders de vídeo locais
+    function getCookie(n) {
+      var c = document.cookie.split(';').map(function (x) { return x.trim(); }).find(function (x) { return x.startsWith(n + '='); });
+      return c ? c.split('=')[1] : '';
+    }
 
-    sender.setParameters(params).then(function() {
-      console.log('[RDP] encoding atualizado:', q,
-        profile.maxBitrate ? profile.maxBitrate/1000+'kbps' : 'REMB livre',
-        profile.maxFramerate+'fps');
-    }).catch(function(e) {
-      console.warn('[RDP] setParameters falhou:', e);
-    });
-  });
-}
+    // ═══════════════════════════════════════
+    // SELF-CONNECT
+    // ═══════════════════════════════════════
+    var SELF_IDS = ['localhost', '127.0.0.1', '::1', window.location.hostname];
+    (function () {
+      try {
+        var p = new RTCPeerConnection({ iceServers: [] });
+        p.createDataChannel('');
+        p.createOffer().then(function (o) { return p.setLocalDescription(o); }).then(function () {
+          setTimeout(function () {
+            var sdp = p.localDescription && p.localDescription.sdp || '';
+            var ms = sdp.match(/a=candidate:.+? .+? .+? .+? (\S+)/g) || [];
+            ms.forEach(function (c) { var ip = c.split(' ')[4]; if (ip && !ip.includes('0.0.0.0')) SELF_IDS.push(ip.toLowerCase()); });
+            p.close();
+          }, 600);
+        });
+      } catch (e) { }
+    })();
+    function chkSelf(v) {
+      v = v.trim().toLowerCase();
+      isSelf = v.length > 1 && SELF_IDS.some(function (s) { return s && s.toLowerCase() === v; });
+      $('sdinline').classList.toggle('show', isSelf);
+    }
+    function closeSelfBar() { $('selfbar').classList.remove('show'); }
 
-// ═══════════════════════════════════════
-// CONNECT
-// ═══════════════════════════════════════
-function doConnect(){
-  var machine=$('inpmachine').value.trim(), token=$('inptoken').value.trim();
-  if(!machine){setErr('Informe a máquina destino');return;}
-  if(!token){setErr('Token obrigatório');return;}
-  if(token.length<8){setErr('Token deve ter >= 8 caracteres');return;}
-  setErr(''); sessToken=token; connMachine=machine;
-  $('connbtn').disabled=true; $('spin').classList.add('show'); $('connlbl').textContent='CONECTANDO…';
-  setStatus('CONNECTING…','w'); sbMsg('Obtendo configuração ICE…');
-  fetch('/api/rdp/config/',{credentials:'same-origin',headers:{'X-CSRFToken':getCookie('csrftoken')}})
-    .then(function(r){ if(!r.ok) throw new Error('Falha ao obter ICE'); return r.json(); })
-    .then(function(d){ return openConn(machine,token,d.ice_servers); })
-    .catch(function(e){
-      setErr('Erro: '+e.message); setStatus('ERRO','err'); sbMsg('Falha: '+e.message);
-      $('connbtn').disabled=false; $('spin').classList.remove('show'); $('connlbl').textContent='CONECTAR';
-    });
-}
+    // ═══════════════════════════════════════
+    // PAUSE / VIEW-ONLY
+    // ═══════════════════════════════════════
+    function protectSelf() {
+      if (!isSelf) return;
+      doPause(); $('selfbar').classList.add('show');
+      toast('Input pausado — seu próprio PC detectado', 'warn', 5000);
+    }
+    function doPause() {
+      paused = true; $('btnpause').classList.add('on');
+      $('btnpause').innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><polygon points="5,3 13,8 5,13" fill="currentColor"/></svg><span>RETOMAR INPUT</span>';
+      $('pauseind').classList.add('show'); sbMsg('Input pausado.');
+    }
+    function doResume() {
+      paused = false; $('btnpause').classList.remove('on');
+      $('btnpause').innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/></svg><span>PAUSAR INPUT</span>';
+      $('pauseind').classList.remove('show'); sbMsg('Input ativo.');
+    }
+    function togglePause() {
+      if (viewOnly) { toast('Desative "Somente Visualização" primeiro', 'warn'); return; }
+      paused ? doResume() : doPause();
+    }
+    function setVO(on) {
+      viewOnly = on;
+      $('voov').classList.toggle('show', on); $('vobadge').classList.toggle('show', on);
+      $('vw').classList.toggle('viewonly', on); $('btnvo').classList.toggle('on', on);
+      $('btnpause').disabled = on;
+      if (on) doPause(); else doResume();
+      toast(on ? 'Somente Visualização ativado' : 'Modo interativo retomado', on ? 'warn' : 'ok');
+    }
+    function toggleVO() { setVO(!viewOnly); }
+    function resumeFromSelf() { isSelf = false; closeSelfBar(); setVO(false); toast('Input retomado com cuidado!', 'warn', 4000); }
 
-function openConn(machine,token,iceServers){
-  if(pc){ pc.close(); pc=null; }
-  _lastIceServers = iceServers || [];   // FIX P11: preserva para reconexão
+    // ═══════════════════════════════════════
+    // BLOQUEIO DE TELA DO USUÁRIO REMOTO
+    // ═══════════════════════════════════════
+    function toggleScreenLock() {
+      screenLocked = !screenLocked;
+      send({ t: screenLocked ? 'screen_lock' : 'screen_unlock' });
+      var btn = $('btnlock');
+      var lbl = $('locklbl');
+      var badge = $('lockbadge');
+      if (screenLocked) {
+        btn.classList.add('on'); lbl.textContent = 'DESBLOQUEAR';
+        badge.classList.add('show');
+        toast('Tela do usuário bloqueada', 'warn', 3000);
+        sbMsg('Tela remota bloqueada — usuário não visualiza.');
+      } else {
+        btn.classList.remove('on'); lbl.textContent = 'BLOQUEAR TELA';
+        badge.classList.remove('show');
+        toast('Tela desbloqueada', 'ok', 2000);
+        sbMsg('Tela remota desbloqueada.');
+      }
+    }
 
-  var tu=$('inpturn')&&$('inpturn').value.trim(), tuu=$('inpturnuser')&&$('inpturnuser').value.trim();
-  if(tu) iceServers.push({urls:tu,username:tuu||'rdp',credential:sessToken});
+    // ═══════════════════════════════════════
+    // MONITOR SWITCHER
+    // ═══════════════════════════════════════
+    function requestMonitorList() {
+      if (!dc || dc.readyState !== 'open') return;
+      dc.send(JSON.stringify({ t: 'list_monitors' }));
+      sbMsg('Consultando monitores…');
+    }
+    function renderMonitorButtons(monitors, current) {
+      _monitors = monitors;
+      var sel = $('monitorselector');
+      sel.innerHTML = '';
+      if (!monitors || monitors.length === 0) { sel.classList.remove('show'); return; }
+      monitors.forEach(function (m) {
+        var btn = document.createElement('button');
+        btn.className = 'monbtn' + (m.id === current ? ' active' : '');
+        btn.textContent = 'MON\u00a0' + m.id + (m.w && m.h ? '\u00a0' + m.w + '\u00d7' + m.h : '');
+        btn.title = 'Monitor ' + m.id + (m.w ? ' — ' + m.w + '×' + m.h : '') + (m.x !== undefined ? ' @ ' + m.x + ',' + m.y : '');
+        btn.onclick = function () { switchMonitor(m.id); };
+        sel.appendChild(btn);
+      });
+      sel.classList.add('show');
+    }
+    function switchMonitor(idx) {
+      if (!dc || dc.readyState !== 'open') return;
+      dc.send(JSON.stringify({ t: 'switch_monitor', index: idx }));
+      $('monitorselector').querySelectorAll('.monbtn').forEach(function (b, i) {
+        b.classList.toggle('active', _monitors[i] && _monitors[i].id === idx);
+      });
+      sbMsg('Trocando para Monitor ' + idx + '…');
+    }
 
-  pc=new RTCPeerConnection({iceServers:iceServers,iceTransportPolicy:icePolicy,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'});
-  // FIX F1: ordered:true — md/mu/mc/kd/ku precisam chegar sem perda.
-  // Com ordered:false+maxRetransmits:0 um pacote perdido deixava o botao preso.
-  dc=pc.createDataChannel('input',{ordered:true});
-  setupFileDC(pc.createDataChannel('files',{ordered:true}));
+    // ═══════════════════════════════════════
+    // DESTINO DE ARQUIVO
+    // ═══════════════════════════════════════
+    function selDest(mode) {
+      destMode = mode;
+      document.querySelectorAll('.dpreset').forEach(function (e) { e.classList.remove('on'); });
+      $('explcard').classList.remove('on'); $('custdestrow').style.display = 'none';
+      if (mode === 'explorer') $('explcard').classList.add('on');
+      else if (mode === 'custom') {
+        var el = document.querySelector('.dpreset[data-path="custom"]'); if (el) el.classList.add('on');
+        $('custdestrow').style.display = '';
+      } else {
+        var el = document.querySelector('.dpreset[data-path="' + mode + '"]'); if (el) el.classList.add('on');
+      }
+      var labels = { explorer: 'Explorer', downloads: 'Downloads', desktop: 'Desktop', documents: 'Documentos', custom: 'Personalizado' };
+      $('destlbl').textContent = labels[mode] || mode;
+      $('drop-dest-lbl').textContent = 'DESTINO: ' + (mode === 'explorer' ? (explorerPath ? explorerPath.split('\\').pop() || 'Explorer' : 'Explorer') : (labels[mode] || mode));
+    }
+    function getDestPath() {
+      if (destMode === 'explorer') return 'explorer';
+      if (destMode === 'custom') { var v = $('custdest').value.trim(); return v || 'downloads'; }
+      return destMode;
+    }
+    function refreshExplorer() {
+      var el = $('explpath'); el.textContent = 'Consultando…'; el.style.color = 'var(--t3)';
+      fetch('/api/rdp/info/?machine=' + encodeURIComponent(connMachine) + '&action=explorer_path', {
+        credentials: 'same-origin', headers: { 'X-RDP-Token': sessToken, 'X-CSRFToken': getCookie('csrftoken') }
+      })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+        .then(function (d) {
+          explorerPath = d.path || ''; el.textContent = explorerPath || 'Não disponível';
+          el.style.color = explorerPath ? 'var(--txt)' : 'var(--wrn)';
+          if (destMode === 'explorer') selDest('explorer');
+        })
+        .catch(function () { el.textContent = 'Não disponível — usando Downloads'; el.style.color = 'var(--wrn)'; explorerPath = ''; });
+    }
 
-  dc.onopen = function() {
-    toast('Sessão estabelecida', 'ok');
-    setConnUI(true);
-    // Envia qualidade inicial ao agente
-    send({ t: 'set_quality', quality: quality.toLowerCase() });
-    sbMsg('Sessão ativa — ' + new Date().toLocaleTimeString());
-    protectSelf();
-    setTimeout(function() { requestMonitorList(); }, 600);
-    // FIX P6: applyBrowserEncoding adiado para após ontrack + video play
-    // Não chama aqui — o sender de vídeo ainda não existe no browser receiver.
-  };
+    // ═══════════════════════════════════════
+    // UI
+    // ═══════════════════════════════════════
+    function toggleEye() {
+      var i = $('inptoken'), s = i.type === 'password'; i.type = s ? 'text' : 'password';
+      $('eyeo').style.display = s ? 'none' : ''; $('eyec').style.display = s ? '' : 'none';
+    }
+    function toggleAdv() { $('advtog').classList.toggle('open'); $('advb').classList.toggle('open'); }
+    function selQ(el) { document.querySelectorAll('.qopt').forEach(function (e) { e.classList.remove('on'); }); el.classList.add('on'); quality = el.dataset.q; }
+    function selIce(el) { document.querySelectorAll('.iceopt').forEach(function (e) { e.classList.remove('on'); }); el.classList.add('on'); icePolicy = el.dataset.v; }
 
-  dc.onmessage=handleDC;
+    function cycleQual() {
+      var o = ['AUTO', 'HIGH', 'MEDIUM', 'LOW'];
+      quality = o[(o.indexOf(quality) + 1) % o.length];
+      $('quallbl').textContent = quality;
+      // Envia ao agente — tipo correto 't':'set_quality'
+      send({ t: 'set_quality', quality: quality.toLowerCase() });
+      // FIX P1/P3: applyBrowserEncoding respeita "auto" sem teto de bitrate
+      applyBrowserEncoding(quality.toLowerCase());
+      toast('Qualidade: ' + quality, 'info', 2000);
+    }
 
-  pc.ontrack=function(e){
-    var v=$('rv'); v.srcObject=e.streams[0];
-    v.onloadedmetadata=function(){
-      screenW=v.videoWidth||1920; screenH=v.videoHeight||1080;
-      $('cs').classList.add('out'); setTimeout(function(){$('cs').style.display='none';},320);
-      $('vw').classList.add('show'); $('mtag').style.display='flex';
-      $('mtagname').textContent=connMachine; $('sbmac').textContent=connMachine;
-      setStatus('CONNECTED','ok'); reconnAtt=0; setupInput(); startStats();
-      // FIX P6: applyBrowserEncoding chamado após ontrack — sender existe agora
-      // FIX P8: codec lido via getStats, não via track.kind (sempre retorna 'video')
-      setTimeout(function(){
-        applyBrowserEncoding(quality.toLowerCase());
-        readCodecFromStats();
-      }, 1000);
+    function setConnUI(on) {
+      ['btnpause', 'btnvo', 'btnqual', 'btnclip', 'btnfile', 'btnstats', 'btnfs', 'btncad', 'btnmon', 'btnlock'].forEach(function (id) {
+        if ($(id)) $(id).disabled = !on;
+      });
+      $('btndisc').style.display = on ? '' : 'none'; $('btnback').style.display = on ? '' : 'none';
+      if (on) $('btnpause').disabled = viewOnly;
+      if (!on) {
+        var sel = $('monitorselector'); sel.classList.remove('show'); sel.innerHTML = ''; _monitors = [];
+        if (screenLocked) { screenLocked = false; $('btnlock').classList.remove('on'); $('locklbl').textContent = 'BLOQUEAR TELA'; $('lockbadge').classList.remove('show'); }
+      }
+    }
+    function goBack() { disconnect(); }
+    function togglePanel(id) {
+      ['ppclip', 'ppfile'].forEach(function (p) {
+        if (p !== id) $(p).classList.remove('open'); else $(p).classList.toggle('open');
+      });
+      var m = { ppclip: 'btnclip', ppfile: 'btnfile' };
+      Object.keys(m).forEach(function (p) { var b = $(m[p]); if (b) b.classList.toggle('on', $(p).classList.contains('open')); });
+      if (id === 'ppfile' && $('ppfile').classList.contains('open') && pc) { selDest('explorer'); refreshExplorer(); }
+    }
+    function closePanel(id) {
+      $(id).classList.remove('open');
+      var m = { ppclip: 'btnclip', ppfile: 'btnfile' }; if (m[id] && $(m[id])) $(m[id]).classList.remove('on');
+    }
+    function toggleStats() { $('stats').classList.toggle('show'); $('btnstats').classList.toggle('on', $('stats').classList.contains('show')); }
+    function toggleFS() {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function () { });
+      else document.exitFullscreen().catch(function () { });
+    }
+
+    // ═══════════════════════════════════════
+    // COORDENADAS 0-1 corrigindo letterbox
+    // ═══════════════════════════════════════
+    function videoRect() {
+      var v = $('rv'), vw = v.clientWidth, vh = v.clientHeight;
+      var sAR = screenW / screenH, eAR = vw / vh, renderW, renderH, offsetX, offsetY;
+      if (sAR > eAR) { renderW = vw; renderH = vw / sAR; offsetX = 0; offsetY = (vh - renderH) / 2; }
+      else { renderH = vh; renderW = vh * sAR; offsetX = (vw - renderW) / 2; offsetY = 0; }
+      return { renderW: renderW, renderH: renderH, offsetX: offsetX, offsetY: offsetY };
+    }
+    function relPos(e) {
+      var v = $('rv'), rect = v.getBoundingClientRect();
+      var cx = e.clientX - rect.left, cy = e.clientY - rect.top, r = videoRect();
+      return { x: Math.max(0, Math.min(r.renderW, cx - r.offsetX)) / r.renderW, y: Math.max(0, Math.min(r.renderH, cy - r.offsetY)) / r.renderH };
+    }
+
+    // ═══════════════════════════════════════
+    // PERFIS DE QUALIDADE — espelha _QUALITY_PROFILES do agente
+    //
+    // FIX P1/P3: "auto" não define maxBitrate — REMB corre livre
+    // sem o teto de 1.5 Mbps que travava o encoder.
+    // Apenas maxFramerate é definido para orientar o congestion control.
+    // Os outros perfis mantêm seus tetos explícitos.
+    // ═══════════════════════════════════════
+    var QUALITY_PROFILES = {
+      'auto': { maxBitrate: null, maxFramerate: 30 },
+      'high': { maxBitrate: 2000000, maxFramerate: 30 },
+      'medium': { maxBitrate: 800000, maxFramerate: 20 },
+      'low': { maxBitrate: 300000, maxFramerate: 15 },
     };
-    v.addEventListener('resize',function(){ if(v.videoWidth) screenW=v.videoWidth; if(v.videoHeight) screenH=v.videoHeight; });
-  };
 
-  pc.oniceconnectionstatechange=function(){
-    var s=pc.iceConnectionState; $('sice').textContent=s.toUpperCase();
-    if(s==='failed'||s==='disconnected'){ setStatus('ICE '+s.toUpperCase(),'err'); $('reconn').classList.add('show'); schedReconn(machine,token); }
-    if(s==='connected'||s==='completed') $('reconn').classList.remove('show');
-  };
-  pc.onconnectionstatechange=function(){ if(pc.connectionState==='failed'){setStatus('FALHA','err');schedReconn(machine,token);} };
+    // FIX P2: só aplica maxBitrate quando não é null (modo auto)
+    // FIX P7: degradationPreference removido — browser é receiver, não sender;
+    //         o campo é semanticamente inválido no lado que recebe o stream.
+    function applyBrowserEncoding(q) {
+      if (!pc) return;
+      var profile = QUALITY_PROFILES[q] || QUALITY_PROFILES['auto'];
 
-  sbMsg('Criando SDP offer…');
-  return pc.createOffer({offerToReceiveVideo:true,offerToReceiveAudio:false})
-    .then(function(offer){ return pc.setLocalDescription(offer); })
-    .then(function(){
-      // FIX P5: tratamento robusto de ICE gathering
-      // Cobre o caso onde iceGatheringState já é 'complete' ao registrar o listener
-      return new Promise(function(res,rej){
-        var t=setTimeout(function(){rej(new Error('ICE gathering timeout (25s)'));},25000);
-        function checkComplete(){
-          if(pc.iceGatheringState==='complete'){ clearTimeout(t); res(); }
+      pc.getSenders().forEach(function (sender) {
+        // Browser só envia dados e áudio — não envia vídeo nesta arquitetura.
+        // O vídeo flui Agente → Browser (recvonly).
+        // Manter o bloco por compatibilidade caso arquitetura mude para bidirecional.
+        if (!sender.track) return;
+        var params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{}];
         }
-        // Verifica imediatamente — se já completo, resolve na hora
-        checkComplete();
-        pc.onicegatheringstatechange=function(){ checkComplete(); };
-      });
-    })
-    .then(function(){
-      sbMsg('Enviando offer ao agente…');
-      return fetch('/api/rdp/offer/',{method:'POST',headers:{'Content-Type':'application/json','X-RDP-Token':token,'X-Machine-ID':machine,'X-CSRFToken':getCookie('csrftoken')},body:JSON.stringify({sdp:pc.localDescription.sdp,type:pc.localDescription.type}),credentials:'same-origin'});
-    })
-    .then(function(resp){ if(!resp.ok) return resp.json().then(function(d){throw new Error(d.error||'HTTP '+resp.status);}); return resp.json(); })
-    .then(function(answer){ sbMsg('Estabelecendo WebRTC…'); return pc.setRemoteDescription(new RTCSessionDescription(answer)); });
-}
-
-// FIX P8: lê o codec real via getStats (track.kind sempre retorna 'video')
-function readCodecFromStats(){
-  if(!pc) return;
-  pc.getStats().then(function(ss){
-    ss.forEach(function(r){
-      if(r.type==='inbound-rtp'&&r.kind==='video'&&r.codecId){
-        var codec=ss.get(r.codecId);
-        if(codec&&codec.mimeType){
-          var name=codec.mimeType.split('/')[1]||'VIDEO';
-          $('sbcodec').textContent=name.toUpperCase();
+        // FIX P3: "auto" → não define maxBitrate, REMB negocia livremente
+        if (profile.maxBitrate !== null) {
+          params.encodings[0].maxBitrate = profile.maxBitrate;
+        } else {
+          delete params.encodings[0].maxBitrate;
         }
-      }
-    });
-  }).catch(function(){});
-}
+        params.encodings[0].maxFramerate = profile.maxFramerate;
+        // FIX P7: degradationPreference removido — só válido em senders de vídeo locais
 
-// ═══════════════════════════════════════
-// RECONEXÃO / DESCONEXÃO
-// ═══════════════════════════════════════
-
-// FIX P11: schedReconn preserva ICE servers — usa _lastIceServers em vez de []
-function schedReconn(machine,token){
-  if(reconnAtt>=MAX_R){setStatus('FALHOU','err');toast('Máximo de reconexões','err');$('reconn').classList.remove('show');return;}
-  reconnAtt++; var delay=Math.min(1000*Math.pow(2,reconnAtt),30000);
-  $('recontxt').textContent='Reconectando em '+Math.round(delay/1000)+'s… ('+reconnAtt+'/'+MAX_R+')';
-  // Tenta refrescar ICE config, mas usa _lastIceServers como fallback garantido
-  fetch('/api/rdp/config/',{credentials:'same-origin'})
-    .then(function(r){return r.json();})
-    .then(function(d){
-      var servers=d.ice_servers||_lastIceServers;
-      _lastIceServers=servers;
-      setTimeout(function(){openConn(machine,token,servers);},delay);
-    })
-    .catch(function(){
-      // FIX P11: fallback com servidores anteriores, não []
-      setTimeout(function(){openConn(machine,token,_lastIceServers.slice());},delay);
-    });
-}
-
-// FIX P10: disconnect() notifica o agente para fechar a sessão
-function disconnect(){
-  reconnAtt=MAX_R; stopStats();
-  // Notifica backend para limpar a sessão no agente
-  if(sessToken && connMachine){
-    try{
-      fetch('/api/rdp/close/',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-RDP-Token':sessToken,'X-Machine-ID':connMachine,'X-CSRFToken':getCookie('csrftoken')},
-        body:JSON.stringify({}),
-        credentials:'same-origin',
-        keepalive:true   // garante envio mesmo se página estiver saindo
+        sender.setParameters(params).then(function () {
+          console.log('[RDP] encoding atualizado:', q,
+            profile.maxBitrate ? profile.maxBitrate / 1000 + 'kbps' : 'REMB livre',
+            profile.maxFramerate + 'fps');
+        }).catch(function (e) {
+          console.warn('[RDP] setParameters falhou:', e);
+        });
       });
-    }catch(e){}
-  }
-  if(dc){try{dc.close();}catch(e){} dc=null;}
-  if(fileDC){try{fileDC.close();}catch(e){} fileDC=null;}
-  if(pc){pc.close();pc=null;}
-  $('vw').classList.remove('show','viewonly'); $('cs').style.display=''; $('cs').classList.remove('out');
-  $('connbtn').disabled=false; $('spin').classList.remove('show'); $('connlbl').textContent='CONECTAR';
-  $('reconn').classList.remove('show'); $('mtag').style.display='none';
-  $('selfbar').classList.remove('show'); $('vobadge').classList.remove('show'); $('voov').classList.remove('show');
-  $('pauseind').classList.remove('show'); $('stats').classList.remove('show');
-  ['ppclip','ppfile'].forEach(function(p){$(p).classList.remove('open');});
-  setConnUI(false); setStatus('OFFLINE'); sbMsg('Sessão encerrada — '+new Date().toLocaleTimeString());
-  toast('Sessão encerrada','info');
-  paused=false; viewOnly=false; isSelf=false; screenLocked=false;
-  _remoteClipboard=''; _inVideoFocus=false;
-  _lastIceServers=[];
-  $('sbmac').textContent=$('sbcodec').textContent='—';
-}
-
-// Fecha sessão ao fechar aba/janela
-window.addEventListener('beforeunload', function(){
-  if(pc) disconnect();
-});
-
-function send(obj){
-  if(dc&&dc.readyState==='open') try{dc.send(JSON.stringify(obj));}catch(e){}
-}
-
-// ═══════════════════════════════════════
-// INPUT
-// FIX P4: mc (click) suprimido quando houve movimento (drag)
-// FIX P9: guard paused||viewOnly em mousedown button===1 (middle)
-// ═══════════════════════════════════════
-function setupInput(){
-  var v=$('rv');
-  var DRAG_THRESHOLD = 4; // px de movimento para considerar drag
-
-  v.addEventListener('mousemove',function(e){
-    if(paused||viewOnly)return;
-    var p=relPos(e);
-    send({t:'mm',x:p.x,y:p.y});
-    if(_mouseDown) _mouseMoved=true;
-  });
-
-  v.addEventListener('mousedown',function(e){
-    // FIX P9: guard paused/viewOnly para todos os botões
-    if(paused||viewOnly)return;
-    e.preventDefault();
-    _mouseDown=true; _mouseMoved=false;
-
-    // CLIP-B4: ao entrar no foco do vídeo, empurra clipboard local → remoto
-    // Isso garante que Ctrl+V funciona logo após o primeiro clique na tela.
-    if(!_inVideoFocus){
-      _inVideoFocus=true;
-      if(_clipApiAvailable){
-        navigator.clipboard.readText().then(function(text){
-          if(text && text !== _remoteClipboard){
-            // Sincroniza silenciosamente — não chama paste, só define o clipboard remoto
-            send({t:'clipboard_set_silent', text:text});
-          }
-        }).catch(function(){});
-      }
     }
 
-    var p=relPos(e);
-    if(e.button===0) send({t:'md',b:'left',x:p.x,y:p.y});
-    if(e.button===2) send({t:'md',b:'right',x:p.x,y:p.y});
-    if(e.button===1){ e.preventDefault(); send({t:'mb',d:true}); }
-  });
-
-  v.addEventListener('mouseup',function(e){
-    // Middle button não tem guard paused no original — corrigido aqui pelo guard global
-    if(e.button===1){ if(!paused&&!viewOnly) send({t:'mb',d:false}); _mouseDown=false; return; }
-    if(paused||viewOnly){ _mouseDown=false; return; }
-    e.preventDefault();
-    var p=relPos(e);
-    var wasDrag=_mouseMoved;
-    _mouseDown=false; _mouseMoved=false;
-    if(e.button===0){
-      send({t:'mu',b:'left',x:p.x,y:p.y});
-      // FIX P4: só envia mc (click) se não houve drag
-      if(!wasDrag) send({t:'mc',b:'left',x:p.x,y:p.y});
-    }
-    if(e.button===2){
-      // FIX F2: envia mu (rightup) antes do mc — sem isso o botao direito
-      // ficava preso RIGHTDOWN na maquina remota apos cada clique direito
-      send({t:'mu',b:'right',x:p.x,y:p.y});
-      if(!wasDrag) send({t:'mc',b:'right',x:p.x,y:p.y});
-    }
-  });
-
-  v.addEventListener('dblclick',function(e){
-    if(paused||viewOnly)return;
-    e.preventDefault();
-    var p=relPos(e);
-    send({t:'mdc',x:p.x,y:p.y});
-  });
-
-  v.addEventListener('contextmenu',function(e){e.preventDefault();});
-
-  v.addEventListener('wheel',function(e){
-    if(paused||viewOnly)return;
-    e.preventDefault();
-    if(e.deltaY) send({t:'ms',d:e.deltaY>0?-3:3});
-    if(e.deltaX) send({t:'msh',d:e.deltaX>0?-3:3});
-  },{passive:false});
-
-  // Cancela _mouseDown se mouse sai do vídeo durante drag
-  // CLIP-B4: reseta _inVideoFocus ao sair do vídeo
-  v.addEventListener('mouseleave',function(){
-    if(_mouseDown){
-      _mouseDown=false; _mouseMoved=false;
-    }
-    _inVideoFocus=false;
-  });
-
-  var KEY_MAP={Enter:'enter',Backspace:'backspace',Tab:'tab',Escape:'escape',Delete:'delete',Insert:'insert',Home:'home',End:'end',PageUp:'pageup',PageDown:'pagedown',CapsLock:'capslock',ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',' ':'space',F1:'f1',F2:'f2',F3:'f3',F4:'f4',F5:'f5',F6:'f6',F7:'f7',F8:'f8',F9:'f9',F10:'f10',F11:'f11',F12:'f12',PrintScreen:'printscreen',ScrollLock:'scrolllock',Pause:'pause',NumLock:'numlock'};
-
-  // ── CLIPBOARD BRIDGE ────────────────────────────────────────────────────
-  // CLIP-B1: Ctrl+C interceptado ANTES do browser copiar texto local.
-  //   e.preventDefault() cancela a ação nativa do browser.
-  //   O agente injeta Ctrl+C na máquina remota E responde com clipboard_req
-  //   para sincronizar o conteúdo de volta ao browser.
-  //
-  // CLIP-B2: Ctrl+V interceptado ANTES do browser colar conteúdo local.
-  //   1ª opção: usa _remoteClipboard (recebido via datachannel) — zero latência.
-  //   2ª opção: lê navigator.clipboard (requer HTTPS + permissão).
-  //   3ª opção: usa panel clipboard se preenchido.
-  //   Envia {t:'paste'} ao agente com o texto determinado.
-  //
-  // CLIP-B3: Ctrl+X — idem ao Ctrl+C mas também injeta o corte na remota.
-  //
-  // CLIP-B4: ao entrar no foco do vídeo (mousedown), sincroniza clipboard
-  //   local → remoto automaticamente para que Ctrl+V funcione imediatamente.
-  // ────────────────────────────────────────────────────────────────────────
-
-  function _bridgeCtrlC(e, cut) {
-    e.preventDefault();
-    send({ t: 'kc', k: cut ? 'x' : 'c', mods: ['ctrl'] });
-    send({ t: 'clipboard_req' });
-    toast(cut ? 'Ctrl+X enviado' : 'Ctrl+C enviado', 'info', 1800);
-}
-
-  function _bridgeCtrlV(e) {
-    e.preventDefault();
-    if (_remoteClipboard) {
-        send({ t: 'paste', text: _remoteClipboard });
-        return;
-    }
-    // Prioridade 2: Clipboard API do browser (HTTPS obrigatório)
-    if(_clipApiAvailable){
-      navigator.clipboard.readText().then(function(text){
-        if(text) send({t:'paste', text:text});
-        else toast('Clipboard local vazio','warn',2000);
-      }).catch(function(){
-        // Permissão negada ou não-HTTPS: usa painel clipboard se preenchido
-        var panelText=$('clipta').value.trim();
-        if(panelText) send({t:'paste', text:panelText});
-        else toast('Permissão de clipboard negada — use o painel Clipboard','warn',3500);
-      });
-      return;
-    }
-    // Prioridade 3: fallback para painel clipboard
-    var panelText=$('clipta').value.trim();
-    if(panelText){ send({t:'paste', text:panelText}); return; }
-    toast('Use o painel Clipboard para colar texto','info',3000);
-  }
-
-  document.addEventListener('keydown',function(e){
-    if(!$('vw').classList.contains('show'))return;
-    if(paused||viewOnly)return;
-    if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
-
-    // CLIP-B1/B2/B3: intercepta atalhos de clipboard ANTES do preventDefault global
-    if((e.ctrlKey||e.metaKey) && !e.altKey && !e.shiftKey){
-      var k=e.key.toLowerCase();
-      if (k === 'c') { _bridgeCtrlC(e, false); return; }
-      if (k === 'x') { _bridgeCtrlC(e, true);  return; }
-      if (k === 'v') { _bridgeCtrlV(e);        return; }
-      if(k==='a'){
-        // Ctrl+A: passa normalmente para a máquina remota mas previne seleção local
-        e.preventDefault();
-        send({t:'kc',k:'a',mods:['ctrl']});
-        return;
-      }
+    // ═══════════════════════════════════════
+    // CONNECT
+    // ═══════════════════════════════════════
+    function doConnect() {
+      var machine = $('inpmachine').value.trim(), token = $('inptoken').value.trim();
+      if (!machine) { setErr('Informe a máquina destino'); return; }
+      if (!token) { setErr('Token obrigatório'); return; }
+      if (token.length < 8) { setErr('Token deve ter >= 8 caracteres'); return; }
+      setErr(''); sessToken = token; connMachine = machine;
+      $('connbtn').disabled = true; $('spin').classList.add('show'); $('connlbl').textContent = 'CONECTANDO…';
+      setStatus('CONNECTING…', 'w'); sbMsg('Obtendo configuração ICE…');
+      fetch('/api/rdp/config/', { credentials: 'same-origin', headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+        .then(function (r) { if (!r.ok) throw new Error('Falha ao obter ICE'); return r.json(); })
+        .then(function (d) { return openConn(machine, token, d.ice_servers); })
+        .catch(function (e) {
+          setErr('Erro: ' + e.message); setStatus('ERRO', 'err'); sbMsg('Falha: ' + e.message);
+          $('connbtn').disabled = false; $('spin').classList.remove('show'); $('connlbl').textContent = 'CONECTAR';
+        });
     }
 
-    e.preventDefault();
-    var mods=[];
-    if(e.ctrlKey) mods.push('ctrl'); if(e.altKey) mods.push('alt');
-    if(e.shiftKey) mods.push('shift'); if(e.metaKey) mods.push('win');
-    var mapped=KEY_MAP[e.key];
-    if(mods.length>0){ var k=mapped||(e.key.length===1?e.key.toLowerCase():e.key.toLowerCase()); send({t:'kc',k:k,mods:mods}); }
-    else if(mapped){ send({t:'kp',k:mapped}); }
-    else if(e.key.length===1){ send({t:'kt',k:e.key}); }
-  });
+    function openConn(machine, token, iceServers) {
+      if (pc) { pc.close(); pc = null; }
+      _lastIceServers = iceServers || [];   // FIX P11: preserva para reconexão
 
-  v.addEventListener('dragover',function(e){e.preventDefault();$('dropov').classList.add('show');});
-  v.addEventListener('dragleave',function(){$('dropov').classList.remove('show');});
-  v.addEventListener('drop',function(e){e.preventDefault();$('dropov').classList.remove('show');uploadFiles(e.dataTransfer.files);});
-}
+      var tu = $('inpturn') && $('inpturn').value.trim(), tuu = $('inpturnuser') && $('inpturnuser').value.trim();
+      if (tu) iceServers.push({ urls: tu, username: tuu || 'rdp', credential: sessToken });
 
-function sendCAD(){
-  send({t:'cad'}); toast('Ctrl+Alt+Del enviado','info');
-}
+      pc = new RTCPeerConnection({ iceServers: iceServers, iceTransportPolicy: icePolicy, bundlePolicy: 'max-bundle', rtcpMuxPolicy: 'require' });
+      // FIX F1: ordered:true — md/mu/mc/kd/ku precisam chegar sem perda.
+      // Com ordered:false+maxRetransmits:0 um pacote perdido deixava o botao preso.
+      dc = pc.createDataChannel('input', { ordered: true });
+      setupFileDC(pc.createDataChannel('files', { ordered: true }));
 
-// ═══════════════════════════════════════
-// DATA CHANNEL
-// FIX P12: trata 'quality_applied' — confirmação do agente
-// ═══════════════════════════════════════
-function handleDC(e){
-  try{
-    var m=JSON.parse(e.data);
-    if(m.t==='monitors_list'){
-      renderMonitorButtons(m.monitors||[],m.current||1);
-      sbMsg((m.monitors?m.monitors.length:0)+' monitor(es) encontrado(s).');
-      return;
-    }
-    if(m.t==='monitor_switched'){
-      $('monitorselector').querySelectorAll('.monbtn').forEach(function(b,i){
-        b.classList.toggle('active',_monitors[i]&&_monitors[i].id===m.index);
-      });
-      toast('Monitor '+m.index+' ativo','ok',2000);
-      sbMsg('Monitor '+m.index+' ativo.');
-      return;
-    }
-    // FIX P12: confirmação de qualidade aplicada no agente
-    if(m.t==='quality_applied'){
-      sbMsg('Qualidade aplicada no agente: '+(m.quality||'').toUpperCase());
-      return;
-    }
-    if(m.t==='screen_locked')  { toast('Tela bloqueada confirmada','warn',2000); return; }
-    if(m.t==='screen_unlocked'){ toast('Tela desbloqueada confirmada','ok',2000); return; }
-    if(m.t==='clipboard'){
-      // CLIP-B1: armazena o clipboard remoto para Ctrl+V local via bridge
-      _remoteClipboard = m.text || '';
-      $('clipta').value = _remoteClipboard;
-      // Tenta escrever no clipboard do browser para que Ctrl+V nativo também funcione
-      if(_clipApiAvailable && _remoteClipboard){
-        navigator.clipboard.writeText(_remoteClipboard).catch(function(){});
-      }
-      toast('Clipboard recebido','ok');
-    }
-    if(m.t==='file_done') toast('Arquivo recebido: '+(m.name||''),'ok');
-    if(m.t==='file_err')  toast('Erro: '+(m.reason||''),'err');
-    if(m.t==='ping'){} // keepalive — ignora silenciosamente
-  }catch(ex){}
-}
+      dc.onopen = function () {
+        toast('Sessão estabelecida', 'ok');
+        setConnUI(true);
+        // Envia qualidade inicial ao agente
+        send({ t: 'set_quality', quality: quality.toLowerCase() });
+        sbMsg('Sessão ativa — ' + new Date().toLocaleTimeString());
+        protectSelf();
+        setTimeout(function () { requestMonitorList(); }, 600);
+        // FIX P6: applyBrowserEncoding adiado para após ontrack + video play
+        // Não chama aqui — o sender de vídeo ainda não existe no browser receiver.
+      };
 
-// ═══════════════════════════════════════
-// CLIPBOARD
-// FIX P3: sendClip usava t:'clipboard_set' — agente espera t:'paste'
-// ═══════════════════════════════════════
-function sendClip(){
-  var t=$('clipta').value;
-  if(!t){ toast('Nenhum texto','warn'); return; }
-  // FIX P3: tipo correto — agente trata 'paste' com pyperclip + ctrl+v
-  send({t:'paste', text:t});
-  toast('Clipboard enviado','ok');
-}
-function reqClip(){ send({t:'clipboard_req'}); sbMsg('Solicitando clipboard remoto…'); }
+      dc.onmessage = handleDC;
 
-// ═══════════════════════════════════════
-// ARQUIVOS — protocolo com header fid
-//
-// Protocolo binário (alinhado com agent_tray v3.5.0):
-//   chunk: [2 bytes big-endian = len(fid)] + [fid UTF-8] + [dados]
-//   controle: JSON no canal "files"
-//     file_start: { t, id, name, size, dest }
-//     file_end:   { t, id }
-// ═══════════════════════════════════════
-function setupFileDC(ch){
-  fileDC=ch;
-  fileDC.binaryType='arraybuffer';
-  fileDC.onerror=function(){ toast('Erro canal arquivos','err'); };
-}
-function uploadFiles(files){
-  if(!fileDC||fileDC.readyState!=='open'){toast('Canal de arquivos indisponível','err');return;}
-  Array.from(files).forEach(function(f){ uploadFile(f); });
-}
+      pc.ontrack = function (e) {
+        var v = $('rv'); v.srcObject = e.streams[0];
+        v.onloadedmetadata = function () {
+          screenW = v.videoWidth || 1920; screenH = v.videoHeight || 1080;
+          $('cs').classList.add('out'); setTimeout(function () { $('cs').style.display = 'none'; }, 320);
+          $('vw').classList.add('show'); $('mtag').style.display = 'flex';
+          $('mtagname').textContent = connMachine; $('sbmac').textContent = connMachine;
+          setStatus('CONNECTED', 'ok'); reconnAtt = 0; setupInput(); startStats();
+          // FIX P6: applyBrowserEncoding chamado após ontrack — sender existe agora
+          // FIX P8: codec lido via getStats, não via track.kind (sempre retorna 'video')
+          setTimeout(function () {
+            applyBrowserEncoding(quality.toLowerCase());
+            readCodecFromStats();
+          }, 1000);
+        };
+        v.addEventListener('resize', function () { if (v.videoWidth) screenW = v.videoWidth; if (v.videoHeight) screenH = v.videoHeight; });
+      };
 
-function uploadFile(file){
-  var id=(crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
-  var CHUNK=16384;
-  var dest=getDestPath();
+      pc.oniceconnectionstatechange = function () {
+        var s = pc.iceConnectionState; $('sice').textContent = s.toUpperCase();
+        if (s === 'failed' || s === 'disconnected') { setStatus('ICE ' + s.toUpperCase(), 'err'); $('reconn').classList.add('show'); schedReconn(machine, token); }
+        if (s === 'connected' || s === 'completed') $('reconn').classList.remove('show');
+      };
+      pc.onconnectionstatechange = function () { if (pc.connectionState === 'failed') { setStatus('FALHA', 'err'); schedReconn(machine, token); } };
 
-  // UI
-  var item=document.createElement('div'); item.className='fi';
-  item.innerHTML='<div class="fi-row"><svg class="fii" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/></svg><span class="fin">'+file.name+'</span><span class="fis">'+fmtSize(file.size)+'</span></div><div class="fi-prog"><div class="fi-bar" id="fb-'+id+'"></div></div><div class="fi-st" id="fs-'+id+'">Preparando…</div>';
-  $('flist').prepend(item);
-  var bar=$('fb-'+id), status=$('fs-'+id);
-
-  // Sinaliza início
-  fileDC.send(JSON.stringify({t:'file_start',id:id,name:file.name,size:file.size,dest:dest}));
-  status.textContent='Enviando…';
-
-  file.arrayBuffer().then(function(buf){
-    var sent=0;
-
-    function sendChunk(){
-      if(sent>=file.size){
-        fileDC.send(JSON.stringify({t:'file_end',id:id}));
-        status.textContent='Aguardando confirmação…';
-        bar.classList.add('done');
-        return;
-      }
-      // Backpressure — aguarda esvaziamento do buffer
-      if(fileDC.bufferedAmount>4*1024*1024){ setTimeout(sendChunk,50); return; }
-
-      var chunkData=buf.slice(sent,sent+CHUNK);
-      sent+=chunkData.byteLength;
-
-      // Monta chunk com header: [2 bytes len(id)][id UTF-8][dados]
-      var idBytes=new TextEncoder().encode(id);
-      var header=new Uint8Array(2+idBytes.length);
-      header[0]=(idBytes.length>>8)&0xff;
-      header[1]=idBytes.length&0xff;
-      header.set(idBytes,2);
-
-      var payload=new Uint8Array(header.length+chunkData.byteLength);
-      payload.set(header,0);
-      payload.set(new Uint8Array(chunkData),header.length);
-      fileDC.send(payload.buffer);
-
-      var pct=Math.round(sent/file.size*100);
-      bar.style.width=pct+'%';
-      status.textContent='Enviando… '+pct+'%';
-      setTimeout(sendChunk,0);
+      sbMsg('Criando SDP offer…');
+      return pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: false })
+        .then(function (offer) { return pc.setLocalDescription(offer); })
+        .then(function () {
+          // FIX P5: tratamento robusto de ICE gathering
+          // Cobre o caso onde iceGatheringState já é 'complete' ao registrar o listener
+          return new Promise(function (res, rej) {
+            var t = setTimeout(function () { rej(new Error('ICE gathering timeout (25s)')); }, 25000);
+            function checkComplete() {
+              if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); }
+            }
+            // Verifica imediatamente — se já completo, resolve na hora
+            checkComplete();
+            pc.onicegatheringstatechange = function () { checkComplete(); };
+          });
+        })
+        .then(function () {
+          sbMsg('Enviando offer ao agente…');
+          return fetch('/api/rdp/offer/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RDP-Token': token, 'X-Machine-ID': machine, 'X-CSRFToken': getCookie('csrftoken') }, body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }), credentials: 'same-origin' });
+        })
+        .then(function (resp) { if (!resp.ok) return resp.json().then(function (d) { throw new Error(d.error || 'HTTP ' + resp.status); }); return resp.json(); })
+        .then(function (answer) { sbMsg('Estabelecendo WebRTC…'); return pc.setRemoteDescription(new RTCSessionDescription(answer)); });
     }
 
-    sendChunk();
-  }).catch(function(e){
-    status.textContent='Erro ao ler arquivo';
-    bar.classList.add('err');
-    toast('Erro ao ler arquivo: '+file.name,'err');
-  });
-}
-
-function fmtSize(b){
-  if(b<1024) return b+' B';
-  if(b<1048576) return (b/1024).toFixed(1)+' KB';
-  if(b<1073741824) return (b/1048576).toFixed(1)+' MB';
-  return (b/1073741824).toFixed(2)+' GB';
-}
-
-// ═══════════════════════════════════════
-// STATS
-// FIX P8: readCodecFromStats usa codecId do getStats, não track.kind
-// ═══════════════════════════════════════
-function startStats(){
-  stopStats(); var lb=0,lf=0,lt=Date.now();
-  statsTimer=setInterval(function(){
-    if(!pc) return;
-    pc.getStats().then(function(ss){
-      ss.forEach(function(r){
-        if(r.type==='inbound-rtp'&&r.kind==='video'){
-          var now=Date.now(),dt=(now-lt)/1000; if(dt<=0)return;
-          var fps=Math.round((r.framesDecoded-lf)/dt);
-          var bwK=Math.round((r.bytesReceived-lb)/dt*8/1024);
-          lf=r.framesDecoded;lb=r.bytesReceived;lt=now;
-          sv('sfps',fps+' fps',fps>=25?'g':fps>=15?'w':'b');
-          sv('sbw',bwK>=1024?(bwK/1024).toFixed(1)+' Mbps':bwK+' kbps',bwK>=1000?'g':bwK>=200?'w':'b');
-          sv('sloss',(r.packetsLost||0)+'',(r.packetsLost||0)===0?'g':(r.packetsLost||0)<20?'w':'b');
-          if(r.frameWidth){$('sres').textContent=r.frameWidth+'×'+r.frameHeight;screenW=r.frameWidth;screenH=r.frameHeight;}
-          // FIX P8: atualiza codec a cada ciclo de stats
-          if(r.codecId){
-            var codec=ss.get(r.codecId);
-            if(codec&&codec.mimeType){
-              var name=codec.mimeType.split('/')[1]||'VIDEO';
-              $('sbcodec').textContent=name.toUpperCase();
+    // FIX P8: lê o codec real via getStats (track.kind sempre retorna 'video')
+    function readCodecFromStats() {
+      if (!pc) return;
+      pc.getStats().then(function (ss) {
+        ss.forEach(function (r) {
+          if (r.type === 'inbound-rtp' && r.kind === 'video' && r.codecId) {
+            var codec = ss.get(r.codecId);
+            if (codec && codec.mimeType) {
+              var name = codec.mimeType.split('/')[1] || 'VIDEO';
+              $('sbcodec').textContent = name.toUpperCase();
             }
           }
+        });
+      }).catch(function () { });
+    }
+
+    // ═══════════════════════════════════════
+    // RECONEXÃO / DESCONEXÃO
+    // ═══════════════════════════════════════
+
+    // FIX P11: schedReconn preserva ICE servers — usa _lastIceServers em vez de []
+    function schedReconn(machine, token) {
+      if (reconnAtt >= MAX_R) { setStatus('FALHOU', 'err'); toast('Máximo de reconexões', 'err'); $('reconn').classList.remove('show'); return; }
+      reconnAtt++; var delay = Math.min(1000 * Math.pow(2, reconnAtt), 30000);
+      $('recontxt').textContent = 'Reconectando em ' + Math.round(delay / 1000) + 's… (' + reconnAtt + '/' + MAX_R + ')';
+      // Tenta refrescar ICE config, mas usa _lastIceServers como fallback garantido
+      fetch('/api/rdp/config/', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var servers = d.ice_servers || _lastIceServers;
+          _lastIceServers = servers;
+          setTimeout(function () { openConn(machine, token, servers); }, delay);
+        })
+        .catch(function () {
+          // FIX P11: fallback com servidores anteriores, não []
+          setTimeout(function () { openConn(machine, token, _lastIceServers.slice()); }, delay);
+        });
+    }
+
+    // FIX P10: disconnect() notifica o agente para fechar a sessão
+    function disconnect() {
+      reconnAtt = MAX_R; stopStats();
+      // Notifica backend para limpar a sessão no agente
+      if (sessToken && connMachine) {
+        try {
+          fetch('/api/rdp/close/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-RDP-Token': sessToken, 'X-Machine-ID': connMachine, 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({}),
+            credentials: 'same-origin',
+            keepalive: true   // garante envio mesmo se página estiver saindo
+          });
+        } catch (e) { }
+      }
+      if (dc) { try { dc.close(); } catch (e) { } dc = null; }
+      if (fileDC) { try { fileDC.close(); } catch (e) { } fileDC = null; }
+      if (pc) { pc.close(); pc = null; }
+      $('vw').classList.remove('show', 'viewonly'); $('cs').style.display = ''; $('cs').classList.remove('out');
+      $('connbtn').disabled = false; $('spin').classList.remove('show'); $('connlbl').textContent = 'CONECTAR';
+      $('reconn').classList.remove('show'); $('mtag').style.display = 'none';
+      $('selfbar').classList.remove('show'); $('vobadge').classList.remove('show'); $('voov').classList.remove('show');
+      $('pauseind').classList.remove('show'); $('stats').classList.remove('show');
+      ['ppclip', 'ppfile'].forEach(function (p) { $(p).classList.remove('open'); });
+      setConnUI(false); setStatus('OFFLINE'); sbMsg('Sessão encerrada — ' + new Date().toLocaleTimeString());
+      toast('Sessão encerrada', 'info');
+      paused = false; viewOnly = false; isSelf = false; screenLocked = false;
+      _remoteClipboard = ''; _inVideoFocus = false;
+      _lastIceServers = [];
+      $('sbmac').textContent = $('sbcodec').textContent = '—';
+    }
+
+    // Fecha sessão ao fechar aba/janela
+    window.addEventListener('beforeunload', function () {
+      if (pc) disconnect();
+    });
+
+    function send(obj) {
+      if (dc && dc.readyState === 'open') try { dc.send(JSON.stringify(obj)); } catch (e) { }
+    }
+
+    // ═══════════════════════════════════════
+    // INPUT
+    // FIX P4: mc (click) suprimido quando houve movimento (drag)
+    // FIX P9: guard paused||viewOnly em mousedown button===1 (middle)
+    // ═══════════════════════════════════════
+    function setupInput() {
+      var v = $('rv');
+      var DRAG_THRESHOLD = 4; // px de movimento para considerar drag
+
+      v.addEventListener('mousemove', function (e) {
+        if (paused || viewOnly) return;
+        var p = relPos(e);
+        send({ t: 'mm', x: p.x, y: p.y });
+        if (_mouseDown) _mouseMoved = true;
+      });
+
+      v.addEventListener('mousedown', function (e) {
+        // FIX P9: guard paused/viewOnly para todos os botões
+        if (paused || viewOnly) return;
+        e.preventDefault();
+        _mouseDown = true; _mouseMoved = false;
+
+        // CLIP-B4: ao entrar no foco do vídeo, empurra clipboard local → remoto
+        // Isso garante que Ctrl+V funciona logo após o primeiro clique na tela.
+        if (!_inVideoFocus) {
+          _inVideoFocus = true;
+          if (_clipApiAvailable) {
+            navigator.clipboard.readText().then(function (text) {
+              if (text && text !== _remoteClipboard) {
+                // Sincroniza silenciosamente — não chama paste, só define o clipboard remoto
+                send({ t: 'clipboard_set_silent', text: text });
+              }
+            }).catch(function () { });
+          }
         }
-        if(r.type==='candidate-pair'&&r.state==='succeeded'){
-          var rtt=Math.round((r.currentRoundTripTime||0)*1000);
-          sv('srtt',rtt+' ms',rtt<50?'g':rtt<150?'w':'b');
+
+        var p = relPos(e);
+        if (e.button === 0) send({ t: 'md', b: 'left', x: p.x, y: p.y });
+        if (e.button === 2) send({ t: 'md', b: 'right', x: p.x, y: p.y });
+        if (e.button === 1) { e.preventDefault(); send({ t: 'mb', d: true }); }
+      });
+
+      v.addEventListener('mouseup', function (e) {
+        // Middle button não tem guard paused no original — corrigido aqui pelo guard global
+        if (e.button === 1) { if (!paused && !viewOnly) send({ t: 'mb', d: false }); _mouseDown = false; return; }
+        if (paused || viewOnly) { _mouseDown = false; return; }
+        e.preventDefault();
+        var p = relPos(e);
+        var wasDrag = _mouseMoved;
+        _mouseDown = false; _mouseMoved = false;
+        if (e.button === 0) {
+          send({ t: 'mu', b: 'left', x: p.x, y: p.y });
+          // FIX P4: só envia mc (click) se não houve drag
+          if (!wasDrag) send({ t: 'mc', b: 'left', x: p.x, y: p.y });
+        }
+        if (e.button === 2) {
+          // FIX F2: envia mu (rightup) antes do mc — sem isso o botao direito
+          // ficava preso RIGHTDOWN na maquina remota apos cada clique direito
+          send({ t: 'mu', b: 'right', x: p.x, y: p.y });
+          if (!wasDrag) send({ t: 'mc', b: 'right', x: p.x, y: p.y });
         }
       });
-    }).catch(function(){});
-  },1000);
-}
-function sv(id,text,cls){ var el=$(id); el.textContent=text; el.className='sv '+cls; }
-function stopStats(){ if(statsTimer){clearInterval(statsTimer);statsTimer=null;} }
 
-selDest('explorer');
-</script>
+      v.addEventListener('dblclick', function (e) {
+        if (paused || viewOnly) return;
+        e.preventDefault();
+        var p = relPos(e);
+        send({ t: 'mdc', x: p.x, y: p.y });
+      });
+
+      v.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+      v.addEventListener('wheel', function (e) {
+        if (paused || viewOnly) return;
+        e.preventDefault();
+        if (e.deltaY) send({ t: 'ms', d: e.deltaY > 0 ? -3 : 3 });
+        if (e.deltaX) send({ t: 'msh', d: e.deltaX > 0 ? -3 : 3 });
+      }, { passive: false });
+
+      // Cancela _mouseDown se mouse sai do vídeo durante drag
+      // CLIP-B4: reseta _inVideoFocus ao sair do vídeo
+      v.addEventListener('mouseleave', function () {
+        if (_mouseDown) {
+          _mouseDown = false; _mouseMoved = false;
+        }
+        _inVideoFocus = false;
+      });
+
+      var CODE_TO_VK = {
+        "KeyA": 0x41, "KeyB": 0x42, "KeyC": 0x43, "KeyD": 0x44, "KeyE": 0x45, "KeyF": 0x46, "KeyG": 0x47, "KeyH": 0x48, "KeyI": 0x49, "KeyJ": 0x4A, "KeyK": 0x4B, "KeyL": 0x4C, "KeyM": 0x4D, "KeyN": 0x4E, "KeyO": 0x4F, "KeyP": 0x50, "KeyQ": 0x51, "KeyR": 0x52, "KeyS": 0x53, "KeyT": 0x54, "KeyU": 0x55, "KeyV": 0x56, "KeyW": 0x57, "KeyX": 0x58, "KeyY": 0x59, "KeyZ": 0x5A,
+        "Digit1": 0x31, "Digit2": 0x32, "Digit3": 0x33, "Digit4": 0x34, "Digit5": 0x35, "Digit6": 0x36, "Digit7": 0x37, "Digit8": 0x38, "Digit9": 0x39, "Digit0": 0x30,
+        "Escape": 0x1B, "Backspace": 0x08, "Tab": 0x09, "Enter": 0x0D, "Space": 0x20,
+        "ShiftLeft": 0xA0, "ShiftRight": 0xA1, "ControlLeft": 0xA2, "ControlRight": 0xA3, "AltLeft": 0xA4, "AltRight": 0xA5, "MetaLeft": 0x5B, "MetaRight": 0x5C,
+        "Insert": 0x2D, "Delete": 0x2E, "Home": 0x24, "End": 0x23, "PageUp": 0x21, "PageDown": 0x22, "ArrowUp": 0x26, "ArrowDown": 0x28, "ArrowLeft": 0x25, "ArrowRight": 0x27,
+        "CapsLock": 0x14, "ScrollLock": 0x91, "NumLock": 0x90, "Pause": 0x13, "PrintScreen": 0x2C, "ContextMenu": 0x5D,
+        "F1": 0x70, "F2": 0x71, "F3": 0x72, "F4": 0x73, "F5": 0x74, "F6": 0x75, "F7": 0x76, "F8": 0x77, "F9": 0x78, "F10": 0x79, "F11": 0x7A, "F12": 0x7B,
+        "Numpad0": 0x60, "Numpad1": 0x61, "Numpad2": 0x62, "Numpad3": 0x63, "Numpad4": 0x64, "Numpad5": 0x65, "Numpad6": 0x66, "Numpad7": 0x67, "Numpad8": 0x68, "Numpad9": 0x69, "NumpadMultiply": 0x6A, "NumpadAdd": 0x6B, "NumpadSubtract": 0x6D, "NumpadDecimal": 0x6E, "NumpadDivide": 0x6F, "NumpadEnter": 0x0D,
+        "Semicolon": 0xBA, "Equal": 0xBB, "Comma": 0xBC, "Minus": 0xBD, "Period": 0xBE, "Slash": 0xBF, "Backquote": 0xC0, "BracketLeft": 0xDB, "Backslash": 0xDC, "BracketRight": 0xDD, "Quote": 0xDE,
+        "IntlRo": 0xC1, "IntlBackslash": 0xE2
+      };
+
+      // ── CLIPBOARD BRIDGE ────────────────────────────────────────────────────
+      // CLIP-B1: Ctrl+C interceptado ANTES do browser copiar texto local.
+      //   e.preventDefault() cancela a ação nativa do browser.
+      //   O agente injeta Ctrl+C na máquina remota E responde com clipboard_req
+      //   para sincronizar o conteúdo de volta ao browser.
+      //
+      // CLIP-B2: Ctrl+V interceptado ANTES do browser colar conteúdo local.
+      //   1ª opção: usa _remoteClipboard (recebido via datachannel) — zero latência.
+      //   2ª opção: lê navigator.clipboard (requer HTTPS + permissão).
+      //   3ª opção: usa panel clipboard se preenchido.
+      //   Envia {t:'paste'} ao agente com o texto determinado.
+      //
+      // CLIP-B3: Ctrl+X — idem ao Ctrl+C mas também injeta o corte na remota.
+      //
+      // CLIP-B4: ao entrar no foco do vídeo (mousedown), sincroniza clipboard
+      //   local → remoto automaticamente para que Ctrl+V funcione imediatamente.
+      // ────────────────────────────────────────────────────────────────────────
+
+      function _bridgeCtrlC(e, cut) {
+        e.preventDefault();
+        send({ t: 'kc', k: cut ? 'x' : 'c', mods: ['ctrl'] });
+        send({ t: 'clipboard_req' });
+        toast(cut ? 'Ctrl+X enviado' : 'Ctrl+C enviado', 'info', 1800);
+      }
+
+      function _bridgeCtrlV(e) {
+        e.preventDefault();
+        if (_remoteClipboard) {
+          send({ t: 'paste', text: _remoteClipboard });
+          return;
+        }
+        // Prioridade 2: Clipboard API do browser (HTTPS obrigatório)
+        if (_clipApiAvailable) {
+          navigator.clipboard.readText().then(function (text) {
+            if (text) send({ t: 'paste', text: text });
+            else toast('Clipboard local vazio', 'warn', 2000);
+          }).catch(function () {
+            // Permissão negada ou não-HTTPS: usa painel clipboard se preenchido
+            var panelText = $('clipta').value.trim();
+            if (panelText) send({ t: 'paste', text: panelText });
+            else toast('Permissão de clipboard negada — use o painel Clipboard', 'warn', 3500);
+          });
+          return;
+        }
+        // Prioridade 3: fallback para painel clipboard
+        var panelText = $('clipta').value.trim();
+        if (panelText) { send({ t: 'paste', text: panelText }); return; }
+        toast('Use o painel Clipboard para colar texto', 'info', 3000);
+      }
+
+      document.addEventListener('keydown', function (e) {
+        if (!$('vw').classList.contains('show')) return;
+        if (paused || viewOnly) return;
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+        e.preventDefault();
+
+        // Bridge shortcuts for clipboard
+        if (!e.repeat && e.ctrlKey && e.code) {
+          if (e.code === 'KeyC') { _bridgeCtrlC(e, false); return; }
+          if (e.code === 'KeyX') { _bridgeCtrlC(e, true); return; }
+          if (e.code === 'KeyV') { _bridgeCtrlV(e); return; }
+        }
+
+        var vk = CODE_TO_VK[e.code];
+        if (vk) send({ t: 'kd', vk: vk });
+      });
+
+      document.addEventListener('keyup', function (e) {
+        if (!$('vw').classList.contains('show')) return;
+        if (paused || viewOnly) return;
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+        e.preventDefault();
+
+        var vk = CODE_TO_VK[e.code];
+        if (vk) send({ t: 'ku', vk: vk });
+      });
+    }
+
+    function sendCAD() {
+      send({ t: 'cad' }); toast('Ctrl+Alt+Del enviado', 'info');
+    }
+
+    // ═══════════════════════════════════════
+    // DATA CHANNEL
+    // FIX P12: trata 'quality_applied' — confirmação do agente
+    // ═══════════════════════════════════════
+    function handleDC(e) {
+      try {
+        var m = JSON.parse(e.data);
+        if (m.t === 'monitors_list') {
+          renderMonitorButtons(m.monitors || [], m.current || 1);
+          sbMsg((m.monitors ? m.monitors.length : 0) + ' monitor(es) encontrado(s).');
+          return;
+        }
+        if (m.t === 'monitor_switched') {
+          $('monitorselector').querySelectorAll('.monbtn').forEach(function (b, i) {
+            b.classList.toggle('active', _monitors[i] && _monitors[i].id === m.index);
+          });
+          toast('Monitor ' + m.index + ' ativo', 'ok', 2000);
+          sbMsg('Monitor ' + m.index + ' ativo.');
+          return;
+        }
+        // FIX P12: confirmação de qualidade aplicada no agente
+        if (m.t === 'quality_applied') {
+          sbMsg('Qualidade aplicada no agente: ' + (m.quality || '').toUpperCase());
+          return;
+        }
+        if (m.t === 'screen_locked') { toast('Tela bloqueada confirmada', 'warn', 2000); return; }
+        if (m.t === 'screen_unlocked') { toast('Tela desbloqueada confirmada', 'ok', 2000); return; }
+        if (m.t === 'clipboard') {
+          // CLIP-B1: armazena o clipboard remoto para Ctrl+V local via bridge
+          _remoteClipboard = m.text || '';
+          $('clipta').value = _remoteClipboard;
+          // Tenta escrever no clipboard do browser para que Ctrl+V nativo também funcione
+          if (_clipApiAvailable && _remoteClipboard) {
+            navigator.clipboard.writeText(_remoteClipboard).catch(function () { });
+          }
+          toast('Clipboard recebido', 'ok');
+        }
+        if (m.t === 'file_done') toast('Arquivo recebido: ' + (m.name || ''), 'ok');
+        if (m.t === 'file_err') toast('Erro: ' + (m.reason || ''), 'err');
+        if (m.t === 'ping') { } // keepalive — ignora silenciosamente
+      } catch (ex) { }
+    }
+
+    // ═══════════════════════════════════════
+    // CLIPBOARD
+    // FIX P3: sendClip usava t:'clipboard_set' — agente espera t:'paste'
+    // ═══════════════════════════════════════
+    function sendClip() {
+      var t = $('clipta').value;
+      if (!t) { toast('Nenhum texto', 'warn'); return; }
+      // FIX P3: tipo correto — agente trata 'paste' com pyperclip + ctrl+v
+      send({ t: 'paste', text: t });
+      toast('Clipboard enviado', 'ok');
+    }
+    function reqClip() { send({ t: 'clipboard_req' }); sbMsg('Solicitando clipboard remoto…'); }
+
+    // ═══════════════════════════════════════
+    // ARQUIVOS — protocolo com header fid
+    //
+    // Protocolo binário (alinhado com agent_tray v3.5.0):
+    //   chunk: [2 bytes big-endian = len(fid)] + [fid UTF-8] + [dados]
+    //   controle: JSON no canal "files"
+    //     file_start: { t, id, name, size, dest }
+    //     file_end:   { t, id }
+    // ═══════════════════════════════════════
+    function setupFileDC(ch) {
+      fileDC = ch;
+      fileDC.binaryType = 'arraybuffer';
+      fileDC.onerror = function () { toast('Erro canal arquivos', 'err'); };
+    }
+    function uploadFiles(files) {
+      if (!fileDC || fileDC.readyState !== 'open') { toast('Canal de arquivos indisponível', 'err'); return; }
+      Array.from(files).forEach(function (f) { uploadFile(f); });
+    }
+
+    function uploadFile(file) {
+      var id = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+      var CHUNK = 16384;
+      var dest = getDestPath();
+
+      // UI
+      var item = document.createElement('div'); item.className = 'fi';
+      item.innerHTML = '<div class="fi-row"><svg class="fii" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5A1.5 1.5 0 013.5 2H7l2 2h3.5A1.5 1.5 0 0114 5.5v7A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5z"/></svg><span class="fin">' + file.name + '</span><span class="fis">' + fmtSize(file.size) + '</span></div><div class="fi-prog"><div class="fi-bar" id="fb-' + id + '"></div></div><div class="fi-st" id="fs-' + id + '">Preparando…</div>';
+      $('flist').prepend(item);
+      var bar = $('fb-' + id), status = $('fs-' + id);
+
+      // Sinaliza início
+      fileDC.send(JSON.stringify({ t: 'file_start', id: id, name: file.name, size: file.size, dest: dest }));
+      status.textContent = 'Enviando…';
+
+      file.arrayBuffer().then(function (buf) {
+        var sent = 0;
+
+        function sendChunk() {
+          if (sent >= file.size) {
+            fileDC.send(JSON.stringify({ t: 'file_end', id: id }));
+            status.textContent = 'Aguardando confirmação…';
+            bar.classList.add('done');
+            return;
+          }
+          // Backpressure — aguarda esvaziamento do buffer
+          if (fileDC.bufferedAmount > 4 * 1024 * 1024) { setTimeout(sendChunk, 50); return; }
+
+          var chunkData = buf.slice(sent, sent + CHUNK);
+          sent += chunkData.byteLength;
+
+          // Monta chunk com header: [2 bytes len(id)][id UTF-8][dados]
+          var idBytes = new TextEncoder().encode(id);
+          var header = new Uint8Array(2 + idBytes.length);
+          header[0] = (idBytes.length >> 8) & 0xff;
+          header[1] = idBytes.length & 0xff;
+          header.set(idBytes, 2);
+
+          var payload = new Uint8Array(header.length + chunkData.byteLength);
+          payload.set(header, 0);
+          payload.set(new Uint8Array(chunkData), header.length);
+          fileDC.send(payload.buffer);
+
+          var pct = Math.round(sent / file.size * 100);
+          bar.style.width = pct + '%';
+          status.textContent = 'Enviando… ' + pct + '%';
+          setTimeout(sendChunk, 0);
+        }
+
+        sendChunk();
+      }).catch(function (e) {
+        status.textContent = 'Erro ao ler arquivo';
+        bar.classList.add('err');
+        toast('Erro ao ler arquivo: ' + file.name, 'err');
+      });
+    }
+
+    function fmtSize(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+      if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+      return (b / 1073741824).toFixed(2) + ' GB';
+    }
+
+    // ═══════════════════════════════════════
+    // STATS
+    // FIX P8: readCodecFromStats usa codecId do getStats, não track.kind
+    // ═══════════════════════════════════════
+    function startStats() {
+      stopStats(); var lb = 0, lf = 0, lt = Date.now();
+      statsTimer = setInterval(function () {
+        if (!pc) return;
+        pc.getStats().then(function (ss) {
+          ss.forEach(function (r) {
+            if (r.type === 'inbound-rtp' && r.kind === 'video') {
+              var now = Date.now(), dt = (now - lt) / 1000; if (dt <= 0) return;
+              var fps = Math.round((r.framesDecoded - lf) / dt);
+              var bwK = Math.round((r.bytesReceived - lb) / dt * 8 / 1024);
+              lf = r.framesDecoded; lb = r.bytesReceived; lt = now;
+              sv('sfps', fps + ' fps', fps >= 25 ? 'g' : fps >= 15 ? 'w' : 'b');
+              sv('sbw', bwK >= 1024 ? (bwK / 1024).toFixed(1) + ' Mbps' : bwK + ' kbps', bwK >= 1000 ? 'g' : bwK >= 200 ? 'w' : 'b');
+              sv('sloss', (r.packetsLost || 0) + '', (r.packetsLost || 0) === 0 ? 'g' : (r.packetsLost || 0) < 20 ? 'w' : 'b');
+              if (r.frameWidth) { $('sres').textContent = r.frameWidth + '×' + r.frameHeight; screenW = r.frameWidth; screenH = r.frameHeight; }
+              // FIX P8: atualiza codec a cada ciclo de stats
+              if (r.codecId) {
+                var codec = ss.get(r.codecId);
+                if (codec && codec.mimeType) {
+                  var name = codec.mimeType.split('/')[1] || 'VIDEO';
+                  $('sbcodec').textContent = name.toUpperCase();
+                }
+              }
+            }
+            if (r.type === 'candidate-pair' && r.state === 'succeeded') {
+              var rtt = Math.round((r.currentRoundTripTime || 0) * 1000);
+              sv('srtt', rtt + ' ms', rtt < 50 ? 'g' : rtt < 150 ? 'w' : 'b');
+            }
+          });
+        }).catch(function () { });
+      }, 1000);
+    }
+    function sv(id, text, cls) { var el = $(id); el.textContent = text; el.className = 'sv ' + cls; }
+    function stopStats() { if (statsTimer) { clearInterval(statsTimer); statsTimer = null; } }
+
+    selDest('explorer');
+  </script>
 </body>
+
 </html>

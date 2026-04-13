@@ -34,6 +34,7 @@ from .views import (
     AgentValidateTokenAPIView, AgentCheckUpdateAPIView, AgentDownloadAPIView, AgentHealthCheckAPIView,
     AgentTokenDeactivateView, AgentTokenCreateView, AgentTokenListView, BulkNotificationCreateView,
     AgentMachineInfoAPIView, AgentDownloadLogAPIView, BulkRunCommandView,
+    AgentUpdateScriptAPIView, AgentUpdateReportAPIView,
 )
 
 app_name = 'inventario'
@@ -158,5 +159,17 @@ urlpatterns = [
         "inventario/agent/download-logs/",
         AgentDownloadLogAPIView.as_view(),
         name="api_download_logs",
+    ),
+
+    # Hot-update enquanto o agente está em execução
+    path(
+        "inventario/agent/update-script/",
+        AgentUpdateScriptAPIView.as_view(),
+        name="api_update_script",
+    ),
+    path(
+        "inventario/agent/update-report/",
+        AgentUpdateReportAPIView.as_view(),
+        name="api_update_report",
     ),
 ]

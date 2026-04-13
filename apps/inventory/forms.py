@@ -255,7 +255,7 @@ class AgentVersionForm(forms.ModelForm):
         help_texts = {
             'version': 'Formato MAJOR.MINOR.PATCH — ex: 3.2.0',
             'agent_type': 'service = agent_service.exe · tray = agent_tray.exe',
-            'file_path': 'Tamanho máximo 50 MB',
+            'file_path': 'Tamanho máximo 300 MB',
             'release_notes': 'Descreva o que mudou nesta versão',
             'is_mandatory': 'Se marcado, todos os agentes deste tipo serão forçados a atualizar',
         }
@@ -280,8 +280,8 @@ class AgentVersionForm(forms.ModelForm):
             ext = file.name.rsplit('.', 1)[-1].lower() if '.' in file.name else ''
             if ext not in ('py', 'exe'):
                 raise forms.ValidationError('Extensão inválida. Use .py (dev) ou .exe (produção).')
-            if file.size > 50 * 1024 * 1024:
-                raise forms.ValidationError('Arquivo muito grande. Limite: 50 MB.')
+            if file.size > 300 * 1024 * 1024:
+                raise forms.ValidationError('Arquivo muito grande. Limite: 300 MB.')
         return file
 
     def clean(self):

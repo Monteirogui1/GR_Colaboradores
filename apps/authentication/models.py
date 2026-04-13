@@ -9,7 +9,7 @@ class User(AbstractUser):
         help_text="HTML da assinatura exibida automaticamente no editor de resposta"
     )
     cliente = models.ForeignKey(
-        'self',
+        'shared.Cliente',
         on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name='usuarios'

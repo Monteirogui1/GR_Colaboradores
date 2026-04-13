@@ -100,24 +100,28 @@ AUTH_USER_MODEL = 'authentication.User'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': os.getenv('DB_NAME', 'inventory_db'),
-#         'USER': os.getenv('DB_USER', 'inventory_user'),
-#         'PASSWORD': os.getenv('DB_PASSWORD', ''),
-#         'HOST': os.getenv('DB_HOST', 'localhost'),
-#         'PORT': os.getenv('DB_PORT', '5432'),
-#         'CONN_MAX_AGE': 60,  # conexões persistentes — melhora performance
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
 #     }
 # }
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME', 'inventory_db'),
+        'USER': os.getenv('DB_USER', 'inventory_user'),
+        'PASSWORD': os.getenv('DB_PASSWORD', ''),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
+        'CONN_MAX_AGE': 0,  # conexões persistentes — melhora performance
+         # Timeout de conexão (segundos) — evita travamento se postgres cair
+         'OPTIONS': {
+            'connect_timeout': 10,
+        },
+    }
+}
 
 
 # Password validation
@@ -176,6 +180,10 @@ SPECTACULAR_SETTINGS = {
 
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = 'media/'
+
+# Limite de upload — agents chegam a ~150 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 300 * 1024 * 1024   # 300 MB (multipart fields em memória)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 300 * 1024 * 1024   # 300 MB (antes de escrever em disco)
 
 
 
