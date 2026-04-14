@@ -1689,7 +1689,7 @@ try {{
             )
 
         # Descobre a versão corrente da máquina a partir do último download log
-        machine_name = self._get_machine_name(request)
+        machine_name = self._get_machine_name(request, agent_token)
         last_log = (
             AgentDownloadLog.objects
             .filter(machine_name=machine_name, agent_version__agent_type=agent_type)
@@ -1749,7 +1749,7 @@ class AgentUpdateReportAPIView(AgentTokenRequiredMixin, APIView):
 
         status_val   = request.data.get("status", "").strip()
         agent_type   = request.data.get("agent_type", "").strip().lower()
-        machine_name = (request.data.get("machine_name") or self._get_machine_name(request) or "").strip()
+        machine_name = (request.data.get("machine_name") or self._get_machine_name(request, agent_token) or "").strip()
         from_version = request.data.get("from_version", "").strip()
         to_version_id = request.data.get("to_version_id")
         message      = request.data.get("message", "").strip()
@@ -1823,7 +1823,7 @@ class AgentActivityAPIView(AgentTokenRequiredMixin, APIView):
         if error_response:
             return error_response
 
-        machine_name = self._get_machine_name(request)
+        machine_name = self._get_machine_name(request, agent_token)
         if not machine_name:
             return Response({"error": "X-Machine-Name ausente."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1840,6 +1840,7 @@ class AgentActivityAPIView(AgentTokenRequiredMixin, APIView):
             return Response({"error": "'events' deve ser uma lista."}, status=status.HTTP_400_BAD_REQUEST)
 
         criados = 0
+        duplicados = 0
         erros   = 0
         for ev in events:
             try:
@@ -1870,22 +1871,33 @@ class AgentActivityAPIView(AgentTokenRequiredMixin, APIView):
                 if _nome_usuario in {"SYSTEM", "LOCAL SERVICE", "NETWORK SERVICE", ""}:
                     continue
 
-                LogAtividade.objects.create(
+                detalhes = ev.get("detalhes") if isinstance(ev.get("detalhes"), dict) else {}
+
+                _, created = LogAtividade.objects.get_or_create(
                     machine         = machine,
                     tipo            = tipo,
                     usuario_windows = usuario_windows[:200],
                     app_nome        = str(ev.get("app_nome",  ""))[:255],
                     app_exe         = str(ev.get("app_exe",   ""))[:255],
                     app_path        = str(ev.get("app_path",  ""))[:500],
-                    detalhes        = ev.get("detalhes") if isinstance(ev.get("detalhes"), dict) else {},
+                    detalhes        = detalhes,
                     ocorrido_em     = ocorrido_em,
                 )
-                criados += 1
+                if created:
+                    criados += 1
+                else:
+                    duplicados += 1
             except Exception:
                 erros += 1
 
-        logger.info("ActivityLog | máquina=%s criados=%d erros=%d", machine_name, criados, erros)
-        return Response({"ok": True, "criados": criados, "erros": erros})
+        logger.info(
+            "ActivityLog | máquina=%s criados=%d duplicados=%d erros=%d",
+            machine_name,
+            criados,
+            duplicados,
+            erros,
+        )
+        return Response({"ok": True, "criados": criados, "duplicados": duplicados, "erros": erros})
 
 
 @method_decorator(csrf_exempt, name='dispatch')
