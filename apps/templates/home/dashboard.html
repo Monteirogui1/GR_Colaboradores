@@ -265,6 +265,24 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const cs = getComputedStyle(document.documentElement);
+    const clrText     = cs.getPropertyValue('--color-text').trim();
+    const clrMuted    = cs.getPropertyValue('--color-text-muted').trim();
+    const clrBorder   = cs.getPropertyValue('--color-border').trim();
+    const clrBgEl     = cs.getPropertyValue('--color-bg-elevated').trim();
+
+    const chartDefaults = {
+        plugins: {
+            legend: {
+                labels: { color: clrText, font: { family: 'Segoe UI, sans-serif', size: 12 } }
+            }
+        },
+        scales: {
+            x: { ticks: { color: clrMuted }, grid: { color: clrBorder } },
+            y: { ticks: { color: clrMuted }, grid: { color: clrBorder } }
+        }
+    };
+
     {% if has_tickets and tickets_por_status %}
     // Gráfico de Status
     const statusCtx = document.getElementById('statusChart');
@@ -277,13 +295,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     label: 'Tickets',
                     data: [{% for item in tickets_por_status %}{{ item.total }},{% endfor %}],
                     backgroundColor: [{% for item in tickets_por_status %}'{{ item.status__cor }}',{% endfor %}],
+                    borderRadius: 4,
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                scales: {
+                    x: { ticks: { color: clrMuted }, grid: { color: clrBorder } },
+                    y: { beginAtZero: true, ticks: { stepSize: 1, color: clrMuted }, grid: { color: clrBorder } }
+                }
             }
         });
     }
@@ -299,13 +321,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 labels: [{% for item in tickets_por_categoria %}'{{ item.categoria__nome|default:"Sem categoria" }}',{% endfor %}],
                 datasets: [{
                     data: [{% for item in tickets_por_categoria %}{{ item.total }},{% endfor %}],
-                    backgroundColor: ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'],
+                    backgroundColor: ['#0b66c3', '#764ba2', '#0e9f6e', '#c53030', '#b7791f'],
+                    borderColor: clrBgEl,
+                    borderWidth: 2,
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom' } }
+                plugins: { legend: { position: 'bottom', labels: { color: clrText, font: { family: 'Segoe UI, sans-serif', size: 12 } } } }
             }
         });
     }
@@ -321,13 +345,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 labels: [{% for item in ativos_por_categoria %}'{{ item.categoria__nome|default:"Sem categoria" }}',{% endfor %}],
                 datasets: [{
                     data: [{% for item in ativos_por_categoria %}{{ item.total }},{% endfor %}],
-                    backgroundColor: ['#4facfe', '#00f2fe', '#43e97b', '#38f9d7', '#fa709a'],
+                    backgroundColor: ['#0b66c3', '#0e9f6e', '#b7791f', '#764ba2', '#c53030'],
+                    borderColor: clrBgEl,
+                    borderWidth: 2,
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom' } }
+                plugins: { legend: { position: 'bottom', labels: { color: clrText, font: { family: 'Segoe UI, sans-serif', size: 12 } } } }
             }
         });
     }
