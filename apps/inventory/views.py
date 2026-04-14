@@ -1839,9 +1839,19 @@ class AgentActivityAPIView(AgentTokenRequiredMixin, APIView):
         if not isinstance(events, list):
             return Response({"error": "'events' deve ser uma lista."}, status=status.HTTP_400_BAD_REQUEST)
 
-        criados = 0
+        from django.utils.dateparse import parse_datetime
+        from django.utils.timezone import is_naive, make_aware
+        from django.utils.timezone import now as tz_now
+        from datetime import timedelta as _td
+
+        # Janelas de dedup por tipo
+        _APP_DEDUP_HORAS   = 1    # app_iniciado: mesmo exe+usuário em < 1h → ignora
+        _LOGIN_DEDUP_MINS  = 3    # login/logoff: mesmo usuário em < 3min → ignora
+
+        criados    = 0
         duplicados = 0
-        erros   = 0
+        erros      = 0
+
         for ev in events:
             try:
                 tipo = ev.get("tipo", "").strip()
@@ -1854,39 +1864,60 @@ class AgentActivityAPIView(AgentTokenRequiredMixin, APIView):
                     erros += 1
                     continue
 
-                from django.utils.dateparse import parse_datetime
                 ocorrido_em = parse_datetime(str(ocorrido_em_raw))
                 if not ocorrido_em:
                     erros += 1
                     continue
 
-                # Torna aware se vier sem timezone
-                from django.utils.timezone import is_naive, make_aware
                 if is_naive(ocorrido_em):
                     ocorrido_em = make_aware(ocorrido_em)
 
-                # Ignora eventos de contas de sistema do Windows
+                # Ignora contas de sistema do Windows
                 usuario_windows = str(ev.get("usuario_windows", "")).strip()
                 _nome_usuario = usuario_windows.split("\\")[-1].upper()
                 if _nome_usuario in {"SYSTEM", "LOCAL SERVICE", "NETWORK SERVICE", ""}:
                     continue
 
-                detalhes = ev.get("detalhes") if isinstance(ev.get("detalhes"), dict) else {}
+                # ── Dedup por janela de tempo ─────────────────────────────
+                if tipo == "app_iniciado":
+                    # Não registra o mesmo app+usuário se já existe nas últimas N horas
+                    janela_inicio = ocorrido_em - _td(hours=_APP_DEDUP_HORAS)
+                    ja_existe = LogAtividade.objects.filter(
+                        machine         = machine,
+                        tipo            = "app_iniciado",
+                        app_exe         = str(ev.get("app_exe", ""))[:255].lower(),
+                        usuario_windows__iexact = usuario_windows[:200],
+                        ocorrido_em__gte = janela_inicio,
+                    ).exists()
+                    if ja_existe:
+                        duplicados += 1
+                        continue
+                else:
+                    # login/logoff: ignora se mesmo usuário já registrado nos últimos N minutos
+                    janela_inicio = ocorrido_em - _td(minutes=_LOGIN_DEDUP_MINS)
+                    ja_existe = LogAtividade.objects.filter(
+                        machine         = machine,
+                        tipo            = tipo,
+                        usuario_windows__iexact = usuario_windows[:200],
+                        ocorrido_em__gte = janela_inicio,
+                        ocorrido_em__lte = ocorrido_em + _td(minutes=_LOGIN_DEDUP_MINS),
+                    ).exists()
+                    if ja_existe:
+                        duplicados += 1
+                        continue
 
-                _, created = LogAtividade.objects.get_or_create(
+                LogAtividade.objects.create(
                     machine         = machine,
                     tipo            = tipo,
                     usuario_windows = usuario_windows[:200],
                     app_nome        = str(ev.get("app_nome",  ""))[:255],
-                    app_exe         = str(ev.get("app_exe",   ""))[:255],
+                    app_exe         = str(ev.get("app_exe",   ""))[:255].lower(),
                     app_path        = str(ev.get("app_path",  ""))[:500],
-                    detalhes        = detalhes,
+                    detalhes        = ev.get("detalhes") if isinstance(ev.get("detalhes"), dict) else {},
                     ocorrido_em     = ocorrido_em,
                 )
-                if created:
-                    criados += 1
-                else:
-                    duplicados += 1
+                criados += 1
+
             except Exception:
                 erros += 1
 
