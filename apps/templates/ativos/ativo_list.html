@@ -78,7 +78,7 @@
                 <td>{{ ativo.categoria.nome|default:"-" }}</td>
                 <td>{{ ativo.localizacao.nome|default:"-" }}</td>
                 <td>
-                    <span style="color: {{ ativo.status.cor }};">●</span> {{ ativo.status.nome }}
+                    <span class="atv-status-dot atv-dynamic-color" data-color="{{ ativo.status.cor }}">●</span> {{ ativo.status.nome }}
                 </td>
                 <td>{{ ativo.data_compra|date:"d/m/Y"|default:"-" }}</td>
                 <td>

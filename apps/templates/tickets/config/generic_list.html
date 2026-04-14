@@ -14,7 +14,7 @@
 
     <div class="detail-card">
         <h2>Lista de {{ title }}</h2>
-        <div class="detail-content" style="padding: 0;">
+        <div class="detail-content generic-list-content">
             {% if object_list %}
                 <div class="table-responsive">
                     <table class="table">
@@ -29,9 +29,9 @@
                     </table>
                 </div>
             {% else %}
-                <div style="text-align: center; padding: 60px 20px; color: #999;">
-                    <i class="bi {{ icon }}" style="font-size: 64px; display: block; margin-bottom: 20px;"></i>
-                    <p style="font-size: 18px; margin-bottom: 20px;">Nenhum registro encontrado</p>
+                <div class="generic-list-empty">
+                    <i class="bi {{ icon }} generic-list-empty-icon"></i>
+                    <p class="generic-list-empty-text">Nenhum registro encontrado</p>
                     <a href="{{ create_url }}" class="btn btn-primary">
                         <i class="bi bi-plus-circle"></i> Criar Primeiro Registro
                     </a>

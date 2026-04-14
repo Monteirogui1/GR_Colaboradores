@@ -4,14 +4,14 @@
 <div class="page-header">
     <h1><i class="bi bi-bar-chart-line"></i> Relatório de Tickets</h1>
     <a href="?data_inicio={{ data_inicio }}&data_fim={{ data_fim }}&agente={{ agente_id }}&categoria={{ categoria_id }}&export=csv"
-       style="display:none;" id="link-csv"></a>
-    <button onclick="exportarCSV()" class="btn btn-secondary">
+       class="is-hidden" id="link-csv"></a>
+    <button id="btn-exportar-csv" class="btn btn-secondary">
         <i class="bi bi-download"></i> Exportar CSV
     </button>
 </div>
  
 <!-- Filtros -->
-<form method="get" class="detail-card" style="margin-bottom:16px;">
+<form method="get" class="detail-card tk-report-filter-card">
     <div class="form-grid">
         <div class="form-group">
             <label>Data início</label>
@@ -43,41 +43,41 @@
                 {% endfor %}
             </select>
         </div>
-        <div class="form-group" style="display:flex;align-items:flex-end;">
+        <div class="form-group tk-report-filter-submit">
             <button type="submit" class="btn btn-primary">Filtrar</button>
         </div>
     </div>
 </form>
  
 <!-- Métricas KPI -->
-<div class="metrics" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:20px;">
-    <div class="metric-card" style="border-left-color:#1a73e8;">
-        <h3>Total</h3><p style="color:#1a73e8;">{{ total }}</p><small>Tickets no período</small>
+<div class="metrics tk-report-metrics">
+    <div class="metric-card tk-report-metric tk-report-metric-total">
+        <h3>Total</h3><p class="tk-report-metric-value tk-report-value-total">{{ total }}</p><small>Tickets no período</small>
     </div>
-    <div class="metric-card" style="border-left-color:#16a34a;">
-        <h3>Resolvidos</h3><p style="color:#16a34a;">{{ total_fechados }}</p><small>Fechados/Resolvidos</small>
+    <div class="metric-card tk-report-metric tk-report-metric-resolved">
+        <h3>Resolvidos</h3><p class="tk-report-metric-value tk-report-value-resolved">{{ total_fechados }}</p><small>Fechados/Resolvidos</small>
     </div>
-    <div class="metric-card" style="border-left-color:#ef4444;">
-        <h3>Vencidos</h3><p style="color:#ef4444;">{{ total_vencidos }}</p><small>Fora do SLA</small>
+    <div class="metric-card tk-report-metric tk-report-metric-overdue">
+        <h3>Vencidos</h3><p class="tk-report-metric-value tk-report-value-overdue">{{ total_vencidos }}</p><small>Fora do SLA</small>
     </div>
-    <div class="metric-card" style="border-left-color:#7c3aed;">
+    <div class="metric-card tk-report-metric tk-report-metric-tmr">
         <h3>TMR</h3>
-        <p style="color:#7c3aed;">{% if tmr_horas %}{{ tmr_horas }}h{% else %}—{% endif %}</p>
+        <p class="tk-report-metric-value tk-report-value-tmr">{% if tmr_horas %}{{ tmr_horas }}h{% else %}—{% endif %}</p>
         <small>Tempo médio 1ª resposta</small>
     </div>
-    <div class="metric-card" style="border-left-color:#0891b2;">
+    <div class="metric-card tk-report-metric tk-report-metric-tma">
         <h3>TMA</h3>
-        <p style="color:#0891b2;">{% if tma_horas %}{{ tma_horas }}h{% else %}—{% endif %}</p>
+        <p class="tk-report-metric-value tk-report-value-tma">{% if tma_horas %}{{ tma_horas }}h{% else %}—{% endif %}</p>
         <small>Tempo médio atendimento</small>
     </div>
-    <div class="metric-card" style="border-left-color:#d97706;">
+    <div class="metric-card tk-report-metric tk-report-metric-fcr">
         <h3>FCR</h3>
-        <p style="color:#d97706;">{% if fcr_pct %}{{ fcr_pct }}%{% else %}—{% endif %}</p>
+        <p class="tk-report-metric-value tk-report-value-fcr">{% if fcr_pct %}{{ fcr_pct }}%{% else %}—{% endif %}</p>
         <small>Resolução 1º contato</small>
     </div>
-    <div class="metric-card" style="border-left-color:#db2777;">
+    <div class="metric-card tk-report-metric tk-report-metric-csat">
         <h3>CSAT</h3>
-        <p style="color:#db2777;">
+        <p class="tk-report-metric-value tk-report-value-csat">
             {% if csat_media %}{{ csat_media }}/5{% else %}—{% endif %}
         </p>
         <small>{% if csat_total %}{{ csat_total }} avaliações{% else %}Sem avaliações{% endif %}</small>
@@ -85,15 +85,15 @@
 </div>
  
 <!-- Tabelas de distribuição -->
-<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+<div class="tk-report-grid">
     <div class="detail-card">
         <h2>Por Status</h2>
-        <table class="table" style="margin-top:8px;">
+        <table class="table tk-report-table-gap">
             <thead><tr><th>Status</th><th>Total</th></tr></thead>
             <tbody>
             {% for row in por_status %}
             <tr>
-                <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ row.status__cor }};margin-right:6px;"></span>{{ row.status__nome }}</td>
+                <td><span class="tk-report-status-dot" data-color="{{ row.status__cor }}"></span>{{ row.status__nome }}</td>
                 <td>{{ row.total }}</td>
             </tr>
             {% endfor %}
@@ -102,7 +102,7 @@
     </div>
     <div class="detail-card">
         <h2>Por Categoria</h2>
-        <table class="table" style="margin-top:8px;">
+        <table class="table tk-report-table-gap">
             <thead><tr><th>Categoria</th><th>Total</th></tr></thead>
             <tbody>
             {% for row in por_categoria %}
@@ -116,7 +116,7 @@
     </div>
     <div class="detail-card">
         <h2>Por Agente</h2>
-        <table class="table" style="margin-top:8px;">
+        <table class="table tk-report-table-gap">
             <thead><tr><th>Agente</th><th>Total</th></tr></thead>
             <tbody>
             {% for row in por_agente %}
@@ -135,5 +135,9 @@ function exportarCSV() {
     const params = new URLSearchParams(window.location.search);
     window.location.href = '/tickets/relatorio/exportar-csv/?' + params.toString();
 }
+
+document.getElementById('btn-exportar-csv')?.addEventListener('click', function () {
+    exportarCSV();
+});
 </script>
 {% endblock %}

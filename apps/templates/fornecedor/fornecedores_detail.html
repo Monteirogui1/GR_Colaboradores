@@ -9,7 +9,7 @@
         <h1>Detalhe do Fornecedor: {{ fornecedor.nome }}</h1>
         <div class="filter-buttons">
             <a href="{% url 'fornecedores:fornecedores_form' fornecedor.id %}" class="btn btn-edit">Editar Fornecedor</a>
-            <button class="btn btn-delete" data-id="{{ fornecedor.id }}">Excluir Fornecedor</button>
+            <button class="btn btn-delete" data-id="{{ fornecedor.id }}" data-delete-url="{% url 'fornecedores:fornecedor_delete' fornecedor.id %}">Excluir Fornecedor</button>
             <a href="{% url 'fornecedores:fornecedores_list' %}" class="btn btn-secondary">Voltar</a>
         </div>
     </div>

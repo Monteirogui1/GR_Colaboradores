@@ -17,7 +17,10 @@
         <div class="form-grid">
             <div class="form-group">
                 {{ form.status.label_tag }}
-                {{ form.status }}
+                <label class="produto-status-toggle" for="{{ form.status.id_for_label }}">
+                    {{ form.status }}
+                    <span class="produto-status-text">Ativo</span>
+                </label>
                 {% if form.status.errors %}
                     <div class="text-danger">{{ form.status.errors }}</div>
                 {% endif %}

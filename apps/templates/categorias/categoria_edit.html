@@ -1,12 +1,12 @@
 {% extends 'layouts/base.html' %}
 
-{% block title %}{% if marca %}Editar Categoria{% else %}Nova Categoria{% endif %} - ERP{% endblock %}
+{% block title %}{% if form.instance.pk %}Editar Categoria{% else %}Nova Categoria{% endif %} - ERP{% endblock %}
 
 {% block conteudo %}
 <div class="content">
     <div class="page-header">
-        <h1>{% if categorias %}Editar Categoria{% else %}Nova Categoria{% endif %}</h1>
-        <a href="{% url 'marcas:marca_list' %}" class="btn btn-secondary">Voltar</a>
+        <h1>{% if form.instance.pk %}Editar Categoria{% else %}Nova Categoria{% endif %}</h1>
+        <a href="{% url 'categorias:categoria_list' %}" class="btn btn-secondary">Voltar</a>
     </div>
     <form method="post">
         {% csrf_token %}

@@ -1,8 +1,11 @@
 document.addEventListener('DOMContentLoaded', function () {
-    // Gráfico de Vendas por Categoria (Barra)
-    const vendasPorCategoriaData = JSON.parse(document.getElementById('vendasPorCategoriaData').textContent);
-    const vendasPorCategoriaCtx = document.getElementById('vendasPorCategoriaChart').getContext('2d');
-    new Chart(vendasPorCategoriaCtx, {
+    const categoriaDataNode = document.getElementById('vendasPorCategoriaData');
+    const categoriaChartNode = document.getElementById('vendasPorCategoriaChart');
+    if (categoriaDataNode && categoriaChartNode) {
+        // Gráfico de Vendas por Categoria (Barra)
+        const vendasPorCategoriaData = JSON.parse(categoriaDataNode.textContent);
+        const vendasPorCategoriaCtx = categoriaChartNode.getContext('2d');
+        new Chart(vendasPorCategoriaCtx, {
         type: 'bar',
         data: {
             labels: vendasPorCategoriaData.map(item => item.categoria),
@@ -42,12 +45,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         }
-    });
+        });
+    }
 
-    // Gráfico de Vendas por Período (Linha)
-    const vendasPorPeriodoData = JSON.parse(document.getElementById('vendasPorPeriodoData').textContent);
-    const vendasPorPeriodoCtx = document.getElementById('vendasPorPeriodoChart').getContext('2d');
-    new Chart(vendasPorPeriodoCtx, {
+    const periodoDataNode = document.getElementById('vendasPorPeriodoData');
+    const periodoChartNode = document.getElementById('vendasPorPeriodoChart');
+    if (periodoDataNode && periodoChartNode) {
+        // Gráfico de Vendas por Período (Linha)
+        const vendasPorPeriodoData = JSON.parse(periodoDataNode.textContent);
+        const vendasPorPeriodoCtx = periodoChartNode.getContext('2d');
+        new Chart(vendasPorPeriodoCtx, {
         type: 'line',
         data: {
             labels: vendasPorPeriodoData.labels,
@@ -87,5 +94,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         }
-    });
+        });
+    }
 });

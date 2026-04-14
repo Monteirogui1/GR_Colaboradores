@@ -1506,18 +1506,25 @@ param(
     [string]$Token       = "{token_hash}"
 )
 
+# Captura o caminho do proprio script ANTES de qualquer execucao.
+# $MyInvocation.MyCommand.Path pode ficar vazio dentro de finally;
+# capturar aqui garante que o arquivo seja deletado em qualquer cenario.
+$ScriptSelf = if ($MyInvocation.MyCommand.Path) {{ $MyInvocation.MyCommand.Path }} `
+              elseif ($PSCommandPath) {{ $PSCommandPath }} `
+              else {{ $null }}
+
 $FromVersion = "{from_version}"
 $ToVersion   = "{version}"
 
 function Send-Report([string]$StatusVal, [string]$Msg) {{
     try {{
         $body = @{{
-            status       = $StatusVal
-            agent_type   = "service"
-            machine_name = $env:COMPUTERNAME
-            from_version = $FromVersion
+            status        = $StatusVal
+            agent_type    = "service"
+            machine_name  = $env:COMPUTERNAME
+            from_version  = $FromVersion
             to_version_id = {version_id}
-            message      = $Msg
+            message       = $Msg
         }} | ConvertTo-Json -Compress
         Invoke-WebRequest -Uri $ReportUrl -Method POST -Body $body `
             -ContentType "application/json" `
@@ -1549,9 +1556,23 @@ try {{
         Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
     }} catch {{}}
 }} finally {{
+    # Remove binario temporario e backup
     Remove-Item -Path $NewExe -Force -ErrorAction SilentlyContinue
+    $bakExe = "$CurrentExe.bak"
+    Remove-Item -Path $bakExe -Force -ErrorAction SilentlyContinue
+
     Start-Sleep -Seconds 2
-    Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+
+    # Auto-delecao do script (contem token — nao deve permanecer em disco)
+    if ($ScriptSelf -and (Test-Path $ScriptSelf)) {{
+        Remove-Item -Path $ScriptSelf -Force -ErrorAction SilentlyContinue
+        # Fallback via cmd externo caso o PowerShell mantenha o handle aberto
+        if (Test-Path $ScriptSelf) {{
+            Start-Process -FilePath "cmd.exe" `
+                -ArgumentList "/c ping 127.0.0.1 -n 2 >nul & del /F /Q `"$ScriptSelf`"" `
+                -WindowStyle Hidden
+        }}
+    }}
 }}
 """
 
@@ -1566,6 +1587,11 @@ param(
     [string]$ReportUrl = "{report_url}",
     [string]$Token     = "{token_hash}"
 )
+
+# Captura o caminho do proprio script ANTES de qualquer execucao.
+$ScriptSelf = if ($MyInvocation.MyCommand.Path) {{ $MyInvocation.MyCommand.Path }} `
+              elseif ($PSCommandPath) {{ $PSCommandPath }} `
+              else {{ $null }}
 
 $FromVersion = "{from_version}"
 $ToVersion   = "{version}"
@@ -1613,9 +1639,23 @@ try {{
         }}
     }} catch {{}}
 }} finally {{
+    # Remove binario temporario e backup
     Remove-Item -Path $NewExe -Force -ErrorAction SilentlyContinue
+    $bakExe = "$CurrentExe.bak"
+    Remove-Item -Path $bakExe -Force -ErrorAction SilentlyContinue
+
     Start-Sleep -Seconds 2
-    Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+
+    # Auto-delecao do script (contem token — nao deve permanecer em disco)
+    if ($ScriptSelf -and (Test-Path $ScriptSelf)) {{
+        Remove-Item -Path $ScriptSelf -Force -ErrorAction SilentlyContinue
+        # Fallback via cmd externo caso o PowerShell mantenha o handle aberto
+        if (Test-Path $ScriptSelf) {{
+            Start-Process -FilePath "cmd.exe" `
+                -ArgumentList "/c ping 127.0.0.1 -n 2 >nul & del /F /Q `"$ScriptSelf`"" `
+                -WindowStyle Hidden
+        }}
+    }}
 }}
 """
 

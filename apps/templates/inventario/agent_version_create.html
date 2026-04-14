@@ -2,87 +2,14 @@
 {% block title %}Nova Versão — Agente{% endblock %}
 
 {% block conteudo %}
-<style>
-/* ── Escopo desta página ─────────────────────────────────────────── */
-.av-wrap{max-width:860px;}
-.av-card{background:#fff;border:1px solid #e8eaed;border-radius:10px;overflow:hidden;margin-bottom:20px;}
-.av-card-head{padding:16px 20px;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:10px;}
-.av-card-head i{font-size:16px;color:#1a73e8;}
-.av-card-head h2{font-size:15px;font-weight:600;color:#1e293b;margin:0;}
-.av-card-body{padding:20px;}
-
-/* Grid do form */
-.av-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-.av-grid .span2{grid-column:1/-1;}
-.fg{display:flex;flex-direction:column;gap:5px;}
-.fg label{font-size:12px;font-weight:600;color:#374151;letter-spacing:.02em;}
-.fg .form-control,.fg select.form-control{width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:14px;color:#1e293b;background:#fff;transition:border .15s,box-shadow .15s;}
-.fg .form-control:focus,.fg select.form-control:focus{outline:none;border-color:#1a73e8;box-shadow:0 0 0 3px rgba(26,115,232,.12);}
-.fg textarea.form-control{min-height:110px;resize:vertical;}
-.fg .hint{font-size:11px;color:#9ca3af;margin-top:2px;}
-.fg .field-err{font-size:11px;color:#dc2626;margin-top:3px;}
-
-/* Upload zone */
-.upload-zone{border:2px dashed #d1d5db;border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all .15s;background:#fafafa;}
-.upload-zone:hover,.upload-zone.drag{border-color:#1a73e8;background:#eff6ff;}
-.upload-zone i{font-size:28px;color:#9ca3af;display:block;margin-bottom:6px;}
-.upload-zone .uz-label{font-size:13px;color:#374151;font-weight:500;}
-.upload-zone .uz-hint{font-size:11px;color:#9ca3af;margin-top:3px;}
-.upload-zone .uz-file{font-size:12px;color:#1a73e8;font-weight:600;margin-top:6px;display:none;}
-.upload-zone input[type=file]{display:none;}
-
-/* Badge tipo */
-.type-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.type-opt{border:2px solid #e8eaed;border-radius:8px;padding:12px 14px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:10px;}
-.type-opt:hover{border-color:#93c5fd;background:#eff6ff;}
-.type-opt.selected{border-color:#1a73e8;background:#eff6ff;}
-.type-opt i{font-size:20px;color:#6b7280;}
-.type-opt.selected i{color:#1a73e8;}
-.type-opt .to-name{font-size:13px;font-weight:600;color:#374151;}
-.type-opt .to-desc{font-size:11px;color:#9ca3af;}
-
-/* Checkbox obrigatória */
-.mandatory-box{display:flex;align-items:flex-start;gap:10px;padding:14px;border:1px solid #e8eaed;border-radius:8px;background:#fafafa;cursor:pointer;transition:all .15s;}
-.mandatory-box:hover{border-color:#fca5a5;background:#fff5f5;}
-.mandatory-box.active{border-color:#ef4444;background:#fff5f5;}
-.mandatory-box input{margin-top:2px;accent-color:#ef4444;width:16px;height:16px;cursor:pointer;flex-shrink:0;}
-.mandatory-box .mb-text .mb-title{font-size:13px;font-weight:600;color:#374151;}
-.mandatory-box .mb-text .mb-hint{font-size:11px;color:#9ca3af;margin-top:2px;}
-
-/* Info cards */
-.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-.info-item{padding:14px;border-radius:8px;border:1px solid #e8eaed;}
-.info-item .ii-head{font-size:12px;font-weight:700;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
-.info-item .ii-head i{font-size:14px;}
-.info-item ul{list-style:none;padding:0;margin:0;}
-.info-item ul li{font-size:12px;color:#6b7280;padding:3px 0;display:flex;align-items:flex-start;gap:6px;}
-.info-item ul li::before{content:"›";color:#9ca3af;flex-shrink:0;}
-
-/* Fluxo */
-.flow{display:flex;align-items:flex-start;gap:0;margin-top:4px;}
-.flow-step{flex:1;text-align:center;position:relative;}
-.flow-step:not(:last-child)::after{content:"";position:absolute;top:18px;left:60%;width:80%;height:2px;background:#e8eaed;}
-.flow-dot{width:36px;height:36px;border-radius:50%;background:#1a73e8;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;}
-.flow-label{font-size:11px;font-weight:600;color:#374151;}
-.flow-sub{font-size:10px;color:#9ca3af;margin-top:2px;}
-
-/* Errors */
-.form-errors{background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:14px 16px;margin-bottom:20px;}
-.form-errors strong{font-size:13px;color:#dc2626;display:flex;align-items:center;gap:6px;}
-.form-errors ul{margin:8px 0 0 4px;padding:0;list-style:none;}
-.form-errors ul li{font-size:12px;color:#dc2626;padding:2px 0;}
-
-/* Actions */
-.av-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:16px 20px;border-top:1px solid #f3f4f6;background:#fafafa;}
-</style>
 
 <div class="content av-wrap">
 
   <!-- Cabeçalho -->
   <div class="page-header">
     <div>
-      <h1 style="font-size:20px;color:#1e293b;">Nova Versão do Agente</h1>
-      <p style="font-size:13px;color:#9ca3af;margin-top:4px;">Faça upload do executável compilado para distribuição automática</p>
+      <h1 class="av-page-title">Nova Versão do Agente</h1>
+      <p class="av-page-subtitle">Faça upload do executável compilado para distribuição automática</p>
     </div>
     <a href="{% url 'inventario:version_list' %}" class="btn btn-secondary">
       <i class="bi bi-arrow-left"></i> Voltar
@@ -130,7 +57,7 @@
             <label>Tipo de agente</label>
             <div class="type-grid" id="type-grid">
               <div class="type-opt {% if form.agent_type.value == 'service' or not form.agent_type.value %}selected{% endif %}"
-                   data-val="service" onclick="selType(this)">
+                   data-val="service">
                 <i class="bi bi-gear-fill"></i>
                 <div>
                   <div class="to-name">Service</div>
@@ -138,7 +65,7 @@
                 </div>
               </div>
               <div class="type-opt {% if form.agent_type.value == 'tray' %}selected{% endif %}"
-                   data-val="tray" onclick="selType(this)">
+                   data-val="tray">
                 <i class="bi bi-window-sidebar"></i>
                 <div>
                   <div class="to-name">Tray</div>
@@ -165,10 +92,7 @@
       <div class="av-card-body">
         <div class="fg">
           <label>Selecione o arquivo</label>
-          <div class="upload-zone" id="upload-zone"
-               onclick="document.getElementById('{{ form.file_path.id_for_label }}').click()"
-               ondragover="uzDrag(event,true)" ondragleave="uzDrag(event,false)"
-               ondrop="uzDrop(event)">
+          <div class="upload-zone" id="upload-zone">
             <i class="bi bi-cloud-upload"></i>
             <span class="uz-label">Clique para selecionar ou arraste o arquivo aqui</span>
             <span class="uz-hint">.py (desenvolvimento) · .exe (produção PyInstaller) · máx 300 MB</span>
@@ -178,7 +102,7 @@
                  id="{{ form.file_path.id_for_label }}"
                  name="{{ form.file_path.html_name }}"
                  accept=".py,.exe"
-                 onchange="uzPick(this)">
+                 >
           {% for e in form.file_path.errors %}<span class="field-err">{{ e }}</span>{% endfor %}
         </div>
       </div>
@@ -190,7 +114,7 @@
         <i class="bi bi-journal-text"></i>
         <h2>Notas &amp; Configurações</h2>
       </div>
-      <div class="av-card-body" style="display:flex;flex-direction:column;gap:16px;">
+      <div class="av-card-body av-inline-stack">
 
         <!-- Notas de lançamento -->
         <div class="fg">
@@ -205,14 +129,13 @@
 
         <!-- Atualização obrigatória -->
         <div>
-          <label style="font-size:12px;font-weight:600;color:#374151;">Obrigatoriedade</label>
+          <label>Obrigatoriedade</label>
           <label class="mandatory-box {% if form.is_mandatory.value %}active{% endif %}" id="mandatory-box"
                  for="{{ form.is_mandatory.id_for_label }}">
             <input type="checkbox"
                    id="{{ form.is_mandatory.id_for_label }}"
                    name="{{ form.is_mandatory.html_name }}"
-                   {% if form.is_mandatory.value %}checked{% endif %}
-                   onchange="toggleMandatory(this)">
+                   {% if form.is_mandatory.value %}checked{% endif %}>
             <div class="mb-text">
               <div class="mb-title">Atualização obrigatória</div>
               <div class="mb-hint">Todos os agentes deste tipo serão forçados a atualizar imediatamente, independente da versão atual</div>
@@ -234,8 +157,8 @@
 
   <!-- Info cards -->
   <div class="info-grid">
-    <div class="info-item" style="background:#eff6ff;border-color:#bfdbfe;">
-      <div class="ii-head" style="color:#1d4ed8;"><i class="bi bi-info-circle-fill"></i> Versionamento semântico</div>
+    <div class="info-item info-item-primary">
+      <div class="ii-head ii-head-primary"><i class="bi bi-info-circle-fill"></i> Versionamento semântico</div>
       <ul>
         <li><strong>MAJOR</strong> — mudanças incompatíveis com versão anterior</li>
         <li><strong>MINOR</strong> — novas funcionalidades compatíveis</li>
@@ -243,8 +166,8 @@
         <li>Cada par versão + tipo deve ser único</li>
       </ul>
     </div>
-    <div class="info-item" style="background:#f0fdf4;border-color:#bbf7d0;">
-      <div class="ii-head" style="color:#15803d;"><i class="bi bi-shield-fill-check"></i> Segurança do update</div>
+    <div class="info-item info-item-success">
+      <div class="ii-head ii-head-success"><i class="bi bi-shield-fill-check"></i> Segurança do update</div>
       <ul>
         <li>SHA-256 calculado automaticamente ao salvar</li>
         <li>Agente verifica hash antes de aplicar</li>
@@ -255,7 +178,7 @@
   </div>
 
   <!-- Fluxo de atualização -->
-  <div class="av-card" style="margin-top:14px;">
+  <div class="av-card av-card-top">
     <div class="av-card-head">
       <i class="bi bi-arrow-repeat"></i>
       <h2>Fluxo de atualização automática</h2>
@@ -303,5 +226,35 @@ function uzDrop(e){
 function toggleMandatory(cb){
   document.getElementById('mandatory-box').classList.toggle('active', cb.checked);
 }
+
+document.querySelectorAll('.type-opt').forEach(function (option) {
+  option.addEventListener('click', function () {
+    selType(this);
+  });
+});
+
+document.getElementById('upload-zone')?.addEventListener('click', function () {
+  document.getElementById('{{ form.file_path.id_for_label }}').click();
+});
+
+document.getElementById('upload-zone')?.addEventListener('dragover', function (event) {
+  uzDrag(event, true);
+});
+
+document.getElementById('upload-zone')?.addEventListener('dragleave', function (event) {
+  uzDrag(event, false);
+});
+
+document.getElementById('upload-zone')?.addEventListener('drop', function (event) {
+  uzDrop(event);
+});
+
+document.getElementById('{{ form.file_path.id_for_label }}')?.addEventListener('change', function () {
+  uzPick(this);
+});
+
+document.getElementById('{{ form.is_mandatory.id_for_label }}')?.addEventListener('change', function () {
+  toggleMandatory(this);
+});
 </script>
 {% endblock %}

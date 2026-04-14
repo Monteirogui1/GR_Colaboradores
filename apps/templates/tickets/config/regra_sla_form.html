@@ -40,7 +40,7 @@
         <div class="detail-card">
             <h2>Condições</h2>
             <div class="form-grid">
-                <div class="form-group" style="grid-column: 1 / -1;">
+                <div class="form-group full-width">
                     {{ form.categorias.label_tag }}
                     {{ form.categorias }}
                     {% if form.categorias.errors %}
@@ -48,7 +48,7 @@
                     {% endif %}
                     <small>Deixe vazio para aplicar a todas</small>
                 </div>
-                <div class="form-group" style="grid-column: 1 / -1;">
+                <div class="form-group full-width">
                     {{ form.urgencias.label_tag }}
                     {{ form.urgencias }}
                     {% if form.urgencias.errors %}
@@ -56,7 +56,7 @@
                     {% endif %}
                     <small>Deixe vazio para aplicar a todas</small>
                 </div>
-                <div class="form-group" style="grid-column: 1 / -1;">
+                <div class="form-group full-width">
                     {{ form.servicos.label_tag }}
                     {{ form.servicos }}
                     {% if form.servicos.errors %}
@@ -70,14 +70,14 @@
         <div class="detail-card">
             <h2>Pausas</h2>
             <div class="form-grid">
-                <div class="form-group" style="grid-column: 1 / -1;">
+                <div class="form-group full-width">
                     {{ form.status_pausam.label_tag }}
                     {{ form.status_pausam }}
                     {% if form.status_pausam.errors %}
                         <div class="text-danger">{{ form.status_pausam.errors }}</div>
                     {% endif %}
                 </div>
-                <div class="form-group" style="grid-column: 1 / -1;">
+                <div class="form-group full-width">
                     {{ form.justificativas_pausam.label_tag }}
                     {{ form.justificativas_pausam }}
                     {% if form.justificativas_pausam.errors %}

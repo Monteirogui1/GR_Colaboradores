@@ -21,13 +21,13 @@
                     <td><strong>{{ tpl.nome }}</strong></td>
                     <td>{{ tpl.descricao|truncatewords:10|default:"—" }}</td>
                     <td>
-                        <span class="badge" style="background:{% if tpl.ativo %}#16a34a{% else %}#6c757d{% endif %};color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">
+                        <span class="badge {% if tpl.ativo %}tpl-status-active{% else %}tpl-status-inactive{% endif %}">
                             {% if tpl.ativo %}Ativo{% else %}Inativo{% endif %}
                         </span>
                     </td>
                     <td>
                         <a href="{% url 'tickets:template_resposta_update' tpl.pk %}" class="btn btn-sm btn-edit"><i class="bi bi-pencil"></i></a>
-                        <form method="post" action="{% url 'tickets:template_resposta_delete' tpl.pk %}" style="display:inline;" onsubmit="return confirm('Excluir template?')">
+                        <form method="post" action="{% url 'tickets:template_resposta_delete' tpl.pk %}" class="tpl-inline-form" data-confirm-submit="Excluir template?">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-sm btn-delete"><i class="bi bi-trash"></i></button>
                         </form>
@@ -37,8 +37,8 @@
             </tbody>
         </table>
         {% else %}
-        <div style="text-align:center;padding:60px;color:#999;">
-            <i class="bi bi-chat-square-text" style="font-size:48px;display:block;margin-bottom:16px;opacity:.4;"></i>
+        <div class="tpl-empty-state">
+            <i class="bi bi-chat-square-text tpl-empty-icon"></i>
             <p>Nenhum template cadastrado</p>
             <a href="{% url 'tickets:template_resposta_create' %}" class="btn btn-primary">Criar Primeiro</a>
         </div>

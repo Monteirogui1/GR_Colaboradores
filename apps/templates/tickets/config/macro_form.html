@@ -23,12 +23,12 @@
     <!-- Identificação -->
     <div class="detail-card">
       <h2>Identificação</h2>
-      <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+      <div class="form-grid macro-grid-two">
         <div class="form-group">
           <label class="form-label">Nome <span class="text-danger">*</span></label>
           {{ form.nome }}
         </div>
-        <div class="form-group" style="display:flex; align-items:center; gap:8px; padding-top:28px;">
+        <div class="form-group macro-active-group">
           {{ form.ativo }}
           <label class="form-check-label" for="{{ form.ativo.id_for_label }}">Macro ativa</label>
         </div>
@@ -48,7 +48,7 @@
 
       <!-- Estado vazio -->
       <div id="acoes-empty" class="acoes-empty-state">
-        <i class="bi bi-lightning" style="font-size:2rem; color:#ced4da;"></i>
+        <i class="bi bi-lightning macro-empty-icon"></i>
         <p>Nenhuma ação configurada ainda.</p>
       </div>
 
@@ -68,104 +68,6 @@
     </div>
   </form>
 </div>
-
-<style>
-/* ── Estado vazio ───────────────────────────────────────── */
-.acoes-empty-state {
-  text-align: center;
-  padding: 36px;
-  color: #adb5bd;
-  border: 2px dashed #dee2e6;
-  border-radius: 8px;
-  margin-bottom: 16px;
-}
-.acoes-empty-state p { margin: 8px 0 0; font-size: 14px; }
-
-/* ── Linha de seleção para nova ação ────────────────────── */
-.adicionar-acao-row {
-  margin-top: 4px;
-}
-.adicionar-acao-row select {
-  width: 100%;
-  padding: 9px 12px;
-  border: 1px dashed #0d6efd;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #0d6efd;
-  background: #f0f5ff;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-}
-.adicionar-acao-row select:focus { outline: none; border-color: #0d6efd; box-shadow: 0 0 0 3px rgba(13,110,253,.15); }
-
-/* ── Linha de ação ──────────────────────────────────────── */
-.acao-row {
-  display: grid;
-  grid-template-columns: 210px 1fr 38px;
-  gap: 10px;
-  align-items: start;
-  padding: 12px 14px;
-  background: #f8f9fa;
-  border: 1px solid #e0e0e0;
-  border-left: 3px solid #0d6efd;
-  border-radius: 8px;
-  margin-bottom: 8px;
-}
-.acao-row select,
-.acao-row input[type=text],
-.acao-row textarea {
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 14px;
-  background: #fff;
-  box-sizing: border-box;
-}
-.acao-row textarea { resize: vertical; min-height: 72px; }
-.acao-row select:focus,
-.acao-row input:focus,
-.acao-row textarea:focus { outline: none; border-color: #86b7fe; box-shadow: 0 0 0 2px rgba(13,110,253,.15); }
-
-/* Tipo (coluna 1) */
-.acao-tipo-badge {
-  padding: 7px 10px;
-  background: #fff;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #495057;
-}
-
-/* Label mini acima do campo */
-.acao-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #6c757d;
-  text-transform: uppercase;
-  letter-spacing: .4px;
-  margin-bottom: 5px;
-}
-
-/* Botão remover */
-.btn-remove-acao {
-  width: 34px;
-  height: 34px;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  background: #fff;
-  color: #adb5bd;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  transition: all .15s;
-  margin-top: 22px; /* alinha com o campo */
-}
-.btn-remove-acao:hover { border-color: #dc3545; color: #dc3545; background: #fff5f5; }
-</style>
 
 <script>
 const LISTAS = {

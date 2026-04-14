@@ -742,18 +742,28 @@ def aplicar_macro_ao_ticket(ticket, macro, usuario):
 
 
 def _macro_opcoes_contexto(user):
-    """Dicionário de listas para o construtor visual de ações de macro."""
+    """Dicionário de listas para o construtor visual de ações de macro.
+
+    Nos modelos de tickets (Status, Categoria, Urgencia, Macro) o campo
+    `cliente` é FK para `authentication.User` (o staff dono dos registros).
+    Já em `User.cliente` o campo aponta para `shared.Cliente`.
+    Por isso cada queryset usa o campo correto:
+      - Status/Categoria/Urgencia → filter(cliente=user)
+      - User (responsáveis)       → filter(cliente=user.cliente)
+    """
     from django.contrib.auth import get_user_model
     User = get_user_model()
-    cliente = user.cliente  # Cliente (apps.shared), não User
-    responsaveis = (
-        User.objects.filter(is_staff=True, cliente=cliente, is_active=True)
-        .values('id', 'first_name', 'last_name', 'username')
-    )
+
+    responsaveis_qs = User.objects.filter(is_staff=True, is_active=True)
+    if hasattr(user, 'cliente') and user.cliente is not None:
+        responsaveis_qs = responsaveis_qs.filter(cliente=user.cliente)
+
+    responsaveis = responsaveis_qs.values('id', 'first_name', 'last_name', 'username')
+
     return {
-        'macro_status_list':      list(Status.objects.filter(cliente=cliente, ativo=True).values('id', 'nome')),
-        'macro_categoria_list':   list(Categoria.objects.filter(cliente=cliente, ativo=True).values('id', 'nome')),
-        'macro_urgencia_list':    list(Urgencia.objects.filter(cliente=cliente, ativo=True).values('id', 'nome')),
+        'macro_status_list':      list(Status.objects.filter(cliente=user, ativo=True).values('id', 'nome')),
+        'macro_categoria_list':   list(Categoria.objects.filter(cliente=user, ativo=True).values('id', 'nome')),
+        'macro_urgencia_list':    list(Urgencia.objects.filter(cliente=user, ativo=True).values('id', 'nome')),
         'macro_responsavel_list': [
             {
                 'id': r['id'],
@@ -2050,13 +2060,40 @@ class AgentTicketReplyAPIView(AgentTokenRequiredMixin, APIView):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
+class AgentCategoriasAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    GET /tickets/api/agent/categorias/
+    Authorization: Bearer <token_hash>
+
+    Retorna as categorias ativas do cliente dono do token, para popular
+    o dropdown de abertura de chamado no agente.
+    """
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        agent_token, err = self._authenticate(request)
+        if err:
+            return err
+
+        owner = agent_token.created_by
+        categorias = (
+            Categoria.objects
+            .filter(cliente=owner, ativo=True)
+            .order_by('nome')
+            .values('id', 'nome')
+        )
+        return Response({'ok': True, 'categorias': list(categorias)})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
     """
     POST /tickets/api/agent/criar/
     Authorization: Bearer <token_hash>
     X-Machine-Name: DESKTOP-ABC123
 
-    Body: { email_solicitante, logged_user, tipo_chamado, assunto, descricao }
+    Body: { email_solicitante, logged_user, categoria_id, assunto, descricao }
     """
     authentication_classes = []
     permission_classes = []
@@ -2071,7 +2108,7 @@ class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
 
         email_solicitante = request.data.get('email_solicitante', '').strip()
         logged_user = request.data.get('logged_user', '').strip()
-        tipo_chamado_nome = request.data.get('tipo_chamado', '').strip()
+        categoria_id = request.data.get('categoria_id')
         assunto = request.data.get('assunto', '').strip()
         descricao = request.data.get('descricao', '').strip()
 
@@ -2092,10 +2129,17 @@ class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
             return Response(
                 {'ok': False, 'error': 'Nenhum status "Aberto" configurado.'}, status=500)
 
-        servico = None
-        if tipo_chamado_nome:
-            servico = Servico.objects.filter(
-                nome__icontains=tipo_chamado_nome, ativo=True).first()
+        # Resolve categoria pelo ID enviado pelo agente
+        categoria = None
+        if categoria_id:
+            owner = agent_token.created_by
+            try:
+                categoria = Categoria.objects.get(
+                    pk=int(categoria_id), cliente=owner, ativo=True)
+            except (Categoria.DoesNotExist, ValueError, TypeError):
+                return Response(
+                    {'ok': False, 'error': 'Categoria inválida ou inativa.'},
+                    status=400)
 
         # Resolve máquina via header X-Machine-Name (multi-máquina)
         machine = None
@@ -2115,7 +2159,7 @@ class AgentTicketCreateAPIView(AgentTokenRequiredMixin, APIView):
             solicitante=solicitante,
             machine=machine,
             status=status_inicial,
-            servico=servico,
+            categoria=categoria,
             assunto=assunto,
             descricao=descricao,
             canal_abertura='api',

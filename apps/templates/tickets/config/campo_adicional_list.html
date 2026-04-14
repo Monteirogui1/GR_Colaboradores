@@ -1,34 +1,80 @@
 {% extends "layouts/base.html" %}
-{% block title %}Campo Adicionals{% endblock %}
+{% block title %}Campos Adicionais{% endblock %}
 {% block conteudo %}
 <div class="content">
     <div class="page-header">
-        <h1><i class="bi bi-tools"></i> Campo Adicionals</h1>
-        <a href="{% url 'tickets:campo_adicional_create' %}" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Nova Campo Adicional</a>
+        <h1><i class="bi bi-sliders"></i> Campos Adicionais</h1>
+        <a href="{% url 'tickets:campo_adicional_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Novo Campo
+        </a>
     </div>
+
     <div class="detail-card">
-        <h2>Lista</h2>
-        <div class="detail-content" style="padding: 0;">
+        <div class="detail-content generic-list-content">
             {% if object_list %}
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead><tr><th>Nome</th><th>Status</th><th>Ações</th></tr></thead>
-                        <tbody>
-                            {% for obj in object_list %}
-                            <tr>
-                                <td><strong>{{ obj.nome }}</strong></td>
-                                <td><span class="badge" style="background-color: {% if obj.ativo %}#28a745{% else %}#6c757d{% endif %}; color: white;">{% if obj.ativo %}Ativo{% else %}Inativo{% endif %}</span></td>
-                                <td>
-                                    <a href="{% url 'tickets:campo_adicional_update' obj.pk %}" class="btn btn-sm btn-edit"><i class="bi bi-pencil"></i></a>
-                                    <form method="post" action="{% url 'tickets:campo_adicional_delete' obj.pk %}" style="display: inline;" onsubmit="return confirm('Tem certeza?');">{% csrf_token %}<button type="submit" class="btn btn-sm btn-delete"><i class="bi bi-trash"></i></button></form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Tipo</th>
+                            <th>Descrição</th>
+                            <th>Status</th>
+                            <th class="ca-col-actions">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for obj in object_list %}
+                        <tr>
+                            <td><strong>{{ obj.nome }}</strong></td>
+                            <td>
+                                <span class="badge ca-badge-tipo">
+                                    {% if obj.tipo == 'texto_linha' %}<i class="bi bi-input-cursor-text"></i>
+                                    {% elif obj.tipo == 'texto_multiplas' %}<i class="bi bi-textarea"></i>
+                                    {% elif obj.tipo == 'lista' %}<i class="bi bi-list-ul"></i>
+                                    {% elif obj.tipo == 'numerico' %}<i class="bi bi-123"></i>
+                                    {% elif obj.tipo == 'data' %}<i class="bi bi-calendar"></i>
+                                    {% elif obj.tipo == 'hora' %}<i class="bi bi-clock"></i>
+                                    {% elif obj.tipo == 'data_hora' %}<i class="bi bi-calendar-event"></i>
+                                    {% elif obj.tipo == 'arquivo' %}<i class="bi bi-paperclip"></i>
+                                    {% elif obj.tipo == 'telefone' %}<i class="bi bi-telephone"></i>
+                                    {% else %}<i class="bi bi-braces"></i>
+                                    {% endif %}
+                                    {{ obj.get_tipo_display }}
+                                </span>
+                            </td>
+                            <td class="ca-list-desc">{{ obj.descricao|default:"—"|truncatechars:60 }}</td>
+                            <td>
+                                <span class="badge {% if obj.ativo %}generic-status-active{% else %}generic-status-inactive{% endif %}">
+                                    {% if obj.ativo %}Ativo{% else %}Inativo{% endif %}
+                                </span>
+                            </td>
+                            <td class="ca-cell-actions">
+                                <a href="{% url 'tickets:campo_adicional_update' obj.pk %}" class="btn btn-sm btn-edit" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="post" action="{% url 'tickets:campo_adicional_delete' obj.pk %}"
+                                      class="generic-inline-form" data-confirm-submit="Excluir o campo '{{ obj.nome }}'?">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-delete" title="Excluir">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
             {% else %}
-                <div style="text-align: center; padding: 60px;"><p>Nenhum registro</p><a href="{% url 'tickets:campo_adicional_create' %}" class="btn btn-primary">Criar Primeiro</a></div>
+            <div class="ca-empty-state">
+                <i class="bi bi-sliders ca-empty-icon"></i>
+                <p class="ca-empty-title">Nenhum campo adicional criado</p>
+                <p class="ca-empty-sub">Campos adicionais permitem personalizar as informações coletadas nos tickets.</p>
+                <a href="{% url 'tickets:campo_adicional_create' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Criar primeiro campo
+                </a>
+            </div>
             {% endif %}
         </div>
     </div>

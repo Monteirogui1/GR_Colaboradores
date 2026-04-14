@@ -4,409 +4,7 @@
 {% block conteudo %}
 {% load static %}
 
-<style>
-  /* ── RESET DO PORTAL-MAIN para tela cheia ── */
-  .portal-main { padding: 0 !important; max-width: 100% !important; }
-
-  /* ── TOPBAR DO TICKET ── */
-  .tk-topbar {
-    height: 48px;
-    background: #fff;
-    border-bottom: 1px solid #e0e0e0;
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
-    gap: 12px;
-    position: sticky;
-    top: 56px;
-    z-index: 90;
-  }
-  .tk-topbar .tk-breadcrumb {
-    font-size: 13px;
-    color: #666;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-    min-width: 0;
-  }
-  .tk-topbar .tk-breadcrumb a { color: #1a73e8; text-decoration: none; }
-  .tk-topbar .tk-breadcrumb a:hover { text-decoration: underline; }
-  .tk-topbar .tk-breadcrumb .sep { color: #ccc; }
-  .tk-topbar .tk-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #333;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 500px;
-  }
-  .tk-topbar .tk-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-  .tk-status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 5px 14px;
-    border-radius: 4px;
-    font-size: 13px;
-    font-weight: 600;
-    border: none;
-    cursor: pointer;
-  }
-  .tk-btn-opcoes {
-    padding: 6px 16px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    color: #333;
-    cursor: pointer;
-  }
-  .tk-btn-opcoes:hover { background: #f5f5f5; }
-
-  /* ── LAYOUT PRINCIPAL: sidebar + conteúdo ── */
-  .tk-layout {
-    display: flex;
-    height: calc(100vh - 104px); /* topbar portal + topbar ticket */
-    overflow: hidden;
-  }
-
-  /* ── SIDEBAR ESQUERDA ── */
-  .tk-sidebar {
-    width: 280px;
-    min-width: 280px;
-    border-right: 1px solid #e0e0e0;
-    background: #fff;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* Abas Público / Interno */
-  .tk-tabs {
-    display: flex;
-    border-bottom: 1px solid #e0e0e0;
-  }
-  .tk-tab {
-    flex: 1;
-    padding: 11px 0;
-    text-align: center;
-    font-size: 13px;
-    font-weight: 600;
-    color: #888;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    background: none;
-    border-top: none;
-    border-left: none;
-    border-right: none;
-    transition: all .15s;
-  }
-  .tk-tab.active { color: #1a73e8; border-bottom-color: #1a73e8; }
-
-  /* Seções da sidebar */
-  .tk-section {
-    padding: 14px 16px 12px;
-    border-bottom: 1px solid #f0f0f0;
-  }
-  .tk-section-label {
-    font-size: 11px;
-    font-weight: 700;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: .5px;
-    margin-bottom: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .tk-section-label a { font-size: 11px; color: #1a73e8; text-decoration: none; font-weight: 500; text-transform: none; }
-
-  /* Solicitante card */
-  .tk-user-card {
-    background: #f5f7fa;
-    border: 1px solid #e0e0e0;
-    border-radius: 5px;
-    padding: 10px 12px;
-    margin-top: 6px;
-  }
-  .tk-user-card .tk-user-name {
-    font-size: 13px;
-    font-weight: 700;
-    color: #222;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .tk-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .tk-dot.online { background: #22c55e; }
-  .tk-dot.offline { background: #ef4444; }
-  .tk-user-card .tk-user-warning { font-size: 11px; color: #ef4444; margin-top: 3px; }
-  .tk-user-card .tk-user-email { font-size: 12px; color: #777; margin-top: 2px; }
-
-  /* Campos de select na sidebar */
-  .tk-select {
-    width: 100%;
-    border: 1px solid #d0d0d0;
-    border-radius: 4px;
-    padding: 7px 10px;
-    font-size: 13px;
-    color: #333;
-    background: #fff;
-    margin-top: 6px;
-  }
-  .tk-select:focus { outline: none; border-color: #1a73e8; }
-
-  /* Dois selects lado a lado */
-  .tk-row2 { display: flex; gap: 8px; margin-top: 8px; }
-  .tk-row2 > div { flex: 1; }
-  .tk-field-label { font-size: 11px; color: #888; margin-bottom: 3px; }
-
-  /* Previsão de solução */
-  .tk-previsao {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 6px;
-  }
-  .tk-previsao-value {
-    font-size: 13px;
-    padding: 5px 10px;
-    border-radius: 4px;
-    font-weight: 500;
-    flex: 1;
-    margin-right: 6px;
-  }
-  .tk-previsao-value.ok { background: #e6f9ed; color: #16a34a; border: 1px solid #bbf7d0; }
-  .tk-previsao-value.vencido { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
-
-  /* ── ÁREA DIREITA ── */
-  .tk-main {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    background: #f5f7fa;
-  }
-
-  /* Cabeçalho do assunto */
-  .tk-subject {
-    background: #fff;
-    padding: 16px 24px 12px;
-    border-bottom: 1px solid #e8eaed;
-  }
-  .tk-subject h2 { font-size: 16px; font-weight: 700; color: #1f2937; margin: 0 0 4px; }
-  .tk-subject .tk-meta { font-size: 12px; color: #888; }
-  .tk-subject .tk-meta strong { color: #444; }
-
-  /* Banner de ticket pai */
-  .tk-parent-banner {
-    background: #e8f0fe;
-    border-left: 4px solid #1a73e8;
-    padding: 10px 20px;
-    font-size: 13px;
-    color: #1a73e8;
-    margin: 12px 24px 0;
-    border-radius: 0 6px 6px 0;
-  }
-  .tk-parent-banner a { color: #1a73e8; font-weight: 600; }
-
-  /* Editor de ação */
-  .tk-editor-wrap {
-    background: #fff;
-    margin: 14px 24px 0;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    overflow: hidden;
-  }
-  .tk-editor-tabs {
-    display: flex;
-    border-bottom: 1px solid #e0e0e0;
-    background: #fafafa;
-    padding: 0 12px;
-    gap: 2px;
-  }
-  .tk-editor-tab {
-    padding: 10px 14px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #888;
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    cursor: pointer;
-    transition: all .15s;
-  }
-  .tk-editor-tab.active { color: #1a73e8; border-bottom-color: #1a73e8; }
-
-  .tk-editor-textarea {
-    width: 100%;
-    min-height: 130px;
-    border: none;
-    outline: none;
-    padding: 14px 16px;
-    font-size: 14px;
-    color: #333;
-    resize: vertical;
-    font-family: inherit;
-    line-height: 1.6;
-  }
-  .tk-word-count {
-    text-align: right;
-    padding: 2px 14px 6px;
-    font-size: 12px;
-    color: #ccc;
-  }
-  .tk-editor-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    border-top: 1px solid #f0f0f0;
-    background: #fafafa;
-    flex-wrap: wrap;
-  }
-  .tk-toolbar-btn {
-    background: none;
-    border: none;
-    color: #666;
-    font-size: 17px;
-    padding: 5px 7px;
-    cursor: pointer;
-    border-radius: 4px;
-  }
-  .tk-toolbar-btn:hover { background: #eee; }
-  .tk-toolbar-sep { width: 1px; height: 22px; background: #e0e0e0; margin: 0 2px; }
-  .tk-macro-select {
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    padding: 5px 10px;
-    font-size: 13px;
-    color: #333;
-    background: #fff;
-  }
-  .tk-status-select {
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    padding: 5px 10px;
-    font-size: 13px;
-    color: #333;
-    background: #fff;
-    margin-left: auto;
-  }
-  .tk-btn-add {
-    background: #1a73e8;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    padding: 8px 18px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    letter-spacing: .3px;
-  }
-  .tk-btn-add:hover { background: #1557b0; }
-
-  /* Filtros de visualização */
-  .tk-vis-bar {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 14px;
-    padding: 10px 24px;
-    font-size: 13px;
-    color: #555;
-  }
-  .tk-vis-bar label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
-  .tk-vis-bar input[type=checkbox] { accent-color: #1a73e8; }
-
-  /* ── TIMELINE ── */
-  .tk-timeline { padding: 0 24px 30px; display: flex; flex-direction: column; gap: 0; }
-
-  .tk-action {
-    display: flex;
-    gap: 12px;
-    padding: 14px 0;
-    border-bottom: 1px solid #eee;
-  }
-  .tk-action:last-child { border-bottom: none; }
-
-  .tk-avatar {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: #1a73e8;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 15px;
-    font-weight: 700;
-    flex-shrink: 0;
-    overflow: hidden;
-  }
-  .tk-action-body { flex: 1; min-width: 0; }
-  .tk-action-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
-  }
-  .tk-action-author { font-size: 14px; font-weight: 700; color: #1f2937; }
-  .tk-action-date { font-size: 12px; color: #999; }
-  .tk-action-type {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 3px;
-  }
-  .tk-type-publica { background: #dbeafe; color: #1d4ed8; }
-  .tk-type-interna { background: #fef3c7; color: #92400e; }
-
-  .tk-action-content {
-    font-size: 14px;
-    color: #374151;
-    line-height: 1.7;
-    white-space: pre-wrap;
-  }
-  .tk-action-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-  .tk-attach-link {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    background: #f3f4f6;
-    border: 1px solid #e0e0e0;
-    border-radius: 5px;
-    font-size: 12px;
-    color: #444;
-    text-decoration: none;
-  }
-  .tk-attach-link:hover { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
-
-  /* Histórico de alterações */
-  .tk-hist-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 0;
-    border-bottom: 1px solid #f0f0f0;
-    font-size: 13px;
-    color: #666;
-  }
-  .tk-hist-item:last-child { border-bottom: none; }
-  .tk-hist-campo { font-weight: 600; color: #333; }
-  .tk-hist-arrow { color: #ccc; }
-  .tk-hist-novo { color: #16a34a; font-weight: 600; }
-</style>
+<div class="tk-portal-full">
 
 <!-- TOPBAR DO TICKET -->
 <div class="tk-topbar">
@@ -416,9 +14,9 @@
         <span class="tk-title">#{{ ticket.numero }} — {{ ticket.assunto }}</span>
     </div>
     <div class="tk-actions">
-        <span class="tk-status-badge"
-              style="background:{{ ticket.status.cor }}22; color:{{ ticket.status.cor }}; border:1px solid {{ ticket.status.cor }}55;">
-            <i class="bi bi-circle-fill" style="font-size:8px;"></i>
+        <span class="tk-status-badge tk-dynamic-badge"
+              data-color="{{ ticket.status.cor }}">
+            <i class="bi bi-circle-fill tk-status-dot-icon"></i>
             {{ ticket.status.nome }}
         </span>
         {% if user.is_staff %}
@@ -426,7 +24,7 @@
             Editar
         </a>
         {% endif %}
-        <a href="{% url 'tickets:ticket_list' %}" class="tk-btn-opcoes" style="color:#666;">
+        <a href="{% url 'tickets:ticket_list' %}" class="tk-btn-opcoes tk-btn-opcoes-muted">
             <i class="bi bi-arrow-left"></i> Voltar
         </a>
     </div>
@@ -442,10 +40,10 @@
 
         <!-- Abas -->
         <div class="tk-tabs">
-            <button class="tk-tab active" id="tab-pub" onclick="setTab('pub')">
-                <i class="bi bi-check2" style="margin-right:4px;"></i> PÚBLICO
+            <button class="tk-tab active" id="tab-pub">
+                <i class="bi bi-check2 tk-icon-gap-sm"></i> PÚBLICO
             </button>
-            <button class="tk-tab" id="tab-int" onclick="setTab('int')">
+            <button class="tk-tab" id="tab-int">
                 INTERNO
             </button>
         </div>
@@ -476,30 +74,27 @@
         {% if ticket.machine %}
         <div class="tk-section">
             <div class="tk-section-label">
-                <span><i class="bi bi-pc-display" style="margin-right:4px;"></i> Máquina de origem</span>
+                <span><i class="bi bi-pc-display tk-icon-gap-sm"></i> Máquina de origem</span>
             </div>
-            <div style="background:#f5f7fa; border:1px solid #e0e0e0; border-radius:4px; padding:9px 12px; margin-top:6px;">
-                <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
-                    <span style="
-                        width:8px; height:8px; border-radius:50%; flex-shrink:0;
-                        background:{% if ticket.machine.is_online %}#22c55e{% else %}#ef4444{% endif %};
-                    "></span>
-                    <span style="font-size:13px; font-weight:700; color:#222;">{{ ticket.machine.hostname }}</span>
+            <div class="tk-sub-card">
+                <div class="tk-sub-card-head">
+                    <span class="tk-dot {% if ticket.machine.is_online %}online{% else %}offline{% endif %}"></span>
+                    <span class="tk-sub-card-title">{{ ticket.machine.hostname }}</span>
                 </div>
                 {% if ticket.machine.ip_address %}
-                <div style="font-size:11px; color:#888;">{{ ticket.machine.ip_address }}</div>
+                <div class="tk-sub-card-meta">{{ ticket.machine.ip_address }}</div>
                 {% endif %}
                 {% if ticket.machine.loggedUser %}
-                <div style="font-size:11px; color:#888; margin-top:2px;">
-                    <i class="bi bi-person" style="margin-right:2px;"></i>{{ ticket.machine.loggedUser }}
+                <div class="tk-sub-card-meta tk-meta-spaced-top">
+                    <i class="bi bi-person tk-icon-gap-xs"></i>{{ ticket.machine.loggedUser }}
                 </div>
                 {% endif %}
                 {% if ticket.machine.os_version %}
-                <div style="font-size:11px; color:#aaa; margin-top:2px;">{{ ticket.machine.os_version }}</div>
+                <div class="tk-sub-card-meta tk-sub-card-meta-muted tk-meta-spaced-top">{{ ticket.machine.os_version }}</div>
                 {% endif %}
                 {% if user.is_staff %}
                 <a href="{% url 'inventario:machine_detail' ticket.machine.pk %}"
-                   style="display:inline-block; margin-top:6px; font-size:11px; color:#1a73e8; text-decoration:none;">
+                   class="tk-sub-card-link">
                     Ver máquina →
                 </a>
                 {% endif %}
@@ -511,14 +106,14 @@
         <div class="tk-section">
             <div class="tk-section-label">Serviço</div>
             {% if ticket.servico %}
-            <div style="background:#f5f7fa; border:1px solid #e0e0e0; border-radius:4px; padding:9px 12px; margin-top:6px;">
-                <div style="font-size:13px; font-weight:600; color:#222;">{{ ticket.servico.nome }}</div>
+            <div class="tk-sub-card">
+                <div class="tk-sub-card-title tk-sub-card-title-regular">{{ ticket.servico.nome }}</div>
                 {% if ticket.servico.categoria %}
-                <div style="font-size:12px; color:#888; margin-top:2px;">{{ ticket.servico.categoria.nome }}</div>
+                <div class="tk-sub-card-meta tk-meta-spaced-top">{{ ticket.servico.categoria.nome }}</div>
                 {% endif %}
             </div>
             {% else %}
-            <div style="font-size:13px; color:#bbb; margin-top:6px;">—</div>
+            <div class="tk-placeholder">—</div>
             {% endif %}
         </div>
 
@@ -527,24 +122,19 @@
             <div class="tk-row2">
                 <div>
                     <div class="tk-field-label">Categoria</div>
-                    <div style="font-size:13px; color:#333; padding:6px 0;">
+                    <div class="tk-field-value">
                         {{ ticket.categoria.nome|default:"—" }}
                     </div>
                 </div>
                 <div>
                     <div class="tk-field-label">Urgência</div>
                     {% if ticket.urgencia %}
-                    <div style="margin-top:4px;">
-                        <span style="
-                            display:inline-block; padding:3px 10px; border-radius:20px;
-                            font-size:12px; font-weight:600;
-                            background:{{ ticket.urgencia.cor }}22;
-                            color:{{ ticket.urgencia.cor }};
-                            border:1px solid {{ ticket.urgencia.cor }}55;
-                        ">{{ ticket.urgencia.nome }}</span>
+                    <div class="tk-urgency-wrap">
+                        <span class="tk-dynamic-chip"
+                              data-color="{{ ticket.urgencia.cor }}">{{ ticket.urgencia.nome }}</span>
                     </div>
                     {% else %}
-                    <div style="font-size:13px; color:#bbb; padding:6px 0;">—</div>
+                    <div class="tk-placeholder tk-placeholder-padded">—</div>
                     {% endif %}
                 </div>
             </div>
@@ -558,7 +148,7 @@
                 <a href="{% url 'tickets:ticket_update' ticket.pk %}">Atribuir para mim</a>
                 {% endif %}
             </div>
-            <div style="font-size:13px; color:#333; margin-top:4px;">
+            <div class="tk-field-value tk-field-value-top">
                 {{ ticket.responsavel.get_full_name|default:"—" }}
             </div>
         </div>
@@ -568,79 +158,52 @@
             <div class="tk-section-label">Ativos</div>
 
             <!-- Lista dos ativos já vinculados -->
-            <div id="ativos-list" style="display:flex; flex-direction:column; gap:5px; margin-top:6px;">
+            <div id="ativos-list" class="tk-assets-list">
                 {% for ativo in ativos_vinculados %}
-                <div style="
-                    display:flex; align-items:center; justify-content:space-between;
-                    background:#f5f7fa; border:1px solid #e0e0e0; border-radius:5px;
-                    padding:7px 10px; gap:6px;
-                ">
-                    <div style="min-width:0; flex:1;">
-                        <div style="font-size:12px; font-weight:700; color:#1a73e8;
-                                    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+                <div class="tk-asset-item">
+                    <div class="tk-asset-main">
+                        <div class="tk-asset-tag"
                              title="{{ ativo.etiqueta }} — {{ ativo.nome }}">
                             {{ ativo.etiqueta }}
                         </div>
-                        <div style="font-size:11px; color:#666; white-space:nowrap;
-                                    overflow:hidden; text-overflow:ellipsis;"
+                        <div class="tk-asset-name"
                              title="{{ ativo.nome }}">
                             {{ ativo.nome|truncatechars:28 }}
                         </div>
                         {% if ativo.status %}
-                        <div style="margin-top:3px;">
-                            <span style="
-                                font-size:10px; font-weight:600; padding:1px 7px;
-                                border-radius:20px;
-                                background:{{ ativo.status.cor }}22;
-                                color:{{ ativo.status.cor }};
-                                border:1px solid {{ ativo.status.cor }}44;
-                            ">{{ ativo.status.nome }}</span>
+                        <div class="tk-asset-status-wrap">
+                            <span class="tk-dynamic-chip tk-dynamic-chip-xs"
+                                  data-color="{{ ativo.status.cor }}">{{ ativo.status.nome }}</span>
                         </div>
                         {% endif %}
                     </div>
                     <!-- Botão remover -->
                     <form method="post" action="{% url 'tickets:gerenciar_ativos' ticket.pk %}"
-                          style="flex-shrink:0;">
+                          class="tk-asset-remove-form" data-confirm-submit="Desvincular {{ ativo.etiqueta }}?">
                         {% csrf_token %}
                         <input type="hidden" name="acao" value="remover">
                         <input type="hidden" name="ativo_id" value="{{ ativo.pk }}">
                         <button type="submit"
                                 title="Desvincular ativo"
-                                onclick="return confirm('Desvincular {{ ativo.etiqueta }}?')"
-                                style="
-                                    background:none; border:none; cursor:pointer;
-                                    color:#ccc; font-size:14px; padding:4px;
-                                    border-radius:4px; line-height:1;
-                                "
-                                onmouseover="this.style.color='#dc2626'; this.style.background='#fee2e2';"
-                                onmouseout="this.style.color='#ccc'; this.style.background='none';">
+                                class="tk-remove-btn">
                             <i class="bi bi-x-lg"></i>
                         </button>
                     </form>
                 </div>
                 {% empty %}
-                <div style="font-size:12px; color:#bbb; text-align:center; padding:8px 0;">
+                <div class="tk-assets-empty">
                     Nenhum ativo vinculado
                 </div>
                 {% endfor %}
             </div>
 
             <!-- Campo de busca para adicionar ativo -->
-            <div style="margin-top:8px; position:relative;">
+            <div class="tk-assets-search-wrap">
                 <input type="text" id="ativo-search" autocomplete="off"
-                       placeholder="Buscar ativo (etiqueta ou nome)..."
-                       style="
-                           width:100%; border:1px solid #d0d0d0; border-radius:4px;
-                           padding:7px 10px; font-size:12px; color:#333;
-                           box-sizing:border-box;
-                       ">
+                        placeholder="Buscar ativo (etiqueta ou nome)..."
+                        class="tk-assets-search-input">
                 <!-- Dropdown de resultados -->
-                <div id="ativo-dropdown" style="
-                    display:none; position:absolute; top:100%; left:0; right:0; z-index:200;
-                    background:#fff; border:1px solid #d0d0d0; border-top:none;
-                    border-radius:0 0 5px 5px; max-height:200px; overflow-y:auto;
-                    box-shadow:0 4px 12px rgba(0,0,0,.12);
-                "></div>
+                <div id="ativo-dropdown" class="tk-assets-dropdown"></div>
             </div>
         </div>
 
@@ -655,7 +218,7 @@
                 </div>
             </div>
             {% else %}
-            <div style="font-size:13px; color:#bbb; margin-top:4px;">Não definida</div>
+            <div class="tk-placeholder tk-placeholder-top">Não definida</div>
             {% endif %}
         </div>
 
@@ -667,13 +230,7 @@
             <form method="post" action="{% url 'tickets:alterar_status' ticket.pk %}">
                 {% csrf_token %}
                 {{ alterar_status_form.status }}
-                <button type="submit" style="
-                    width:100%; margin-top:8px;
-                    background:#1a73e8; color:#fff;
-                    border:none; border-radius:4px;
-                    padding:8px; font-size:13px;
-                    font-weight:600; cursor:pointer;
-                ">Salvar Status</button>
+                <button type="submit" class="tk-save-status-btn">Salvar Status</button>
             </form>
         </div>
         {% endif %}
@@ -681,13 +238,13 @@
         <!-- Datas -->
         <div class="tk-section">
             <div class="tk-section-label">Datas</div>
-            <div style="font-size:12px; color:#777; line-height:1.9; margin-top:4px;">
-                <div>Criado: <strong style="color:#333;">{{ ticket.criado_em|date:"d/m/Y H:i" }}</strong></div>
+            <div class="tk-dates-wrap">
+                <div>Criado: <strong class="tk-strong">{{ ticket.criado_em|date:"d/m/Y H:i" }}</strong></div>
                 {% if ticket.primeira_resposta_em %}
-                <div>1ª Resposta: <strong style="color:#333;">{{ ticket.primeira_resposta_em|date:"d/m/Y H:i" }}</strong></div>
+                <div>1ª Resposta: <strong class="tk-strong">{{ ticket.primeira_resposta_em|date:"d/m/Y H:i" }}</strong></div>
                 {% endif %}
                 {% if ticket.resolvido_em %}
-                <div>Resolvido: <strong style="color:#333;">{{ ticket.resolvido_em|date:"d/m/Y H:i" }}</strong></div>
+                <div>Resolvido: <strong class="tk-strong">{{ ticket.resolvido_em|date:"d/m/Y H:i" }}</strong></div>
                 {% endif %}
             </div>
         </div>
@@ -725,7 +282,7 @@
 
         <!-- Descrição original (se houver) -->
         {% if ticket.descricao %}
-        <div style="margin:12px 24px 0; background:#fff; border:1px solid #e0e0e0; border-radius:6px; padding:16px 18px; font-size:14px; color:#374151; line-height:1.7; white-space:pre-wrap;">
+        <div class="tk-description-box">
             {{ ticket.descricao }}
         </div>
         {% endif %}
@@ -743,16 +300,14 @@
 
                 <!-- Abas pública / interna -->
                 <div class="tk-editor-tabs">
-                    <button type="button" class="tk-editor-tab active" id="etab-pub"
-                            onclick="setEditorTab('pub')">Ação pública</button>
+                    <button type="button" class="tk-editor-tab active" id="etab-pub">Ação pública</button>
                     {% if user.is_staff %}
-                    <button type="button" class="tk-editor-tab" id="etab-int"
-                            onclick="setEditorTab('int')">Ação interna</button>
+                    <button type="button" class="tk-editor-tab" id="etab-int">Ação interna</button>
                     {% endif %}
                 </div>
 
                 <!-- Container Quill -->
-                <div id="quill-editor" style="min-height:130px; font-size:14px; font-family:inherit;"></div>
+                <div id="quill-editor" class="tk-quill-editor"></div>
                 <div class="tk-word-count">Words : <span id="word-count">0</span></div>
 
                 <!-- Toolbar inferior -->
@@ -760,20 +315,20 @@
                     <!-- Anexo -->
                     <label class="tk-toolbar-btn" title="Anexar arquivo">
                         <i class="bi bi-paperclip"></i>
-                        <input type="file" name="arquivo" style="display:none;" multiple>
+                        <input type="file" name="arquivo" class="tk-hidden-file" multiple>
                     </label>
                     <div class="tk-toolbar-sep"></div>
 
                     {% if user.is_staff %}
                     <!-- Tempo trabalhado -->
-                    <i class="bi bi-clock" style="color:#888;font-size:15px;"></i>
+                    <i class="bi bi-clock tk-clock-icon"></i>
                     <input type="text" name="tempo_trabalhado"
                            placeholder="HH:MM:SS" title="Tempo trabalhado"
-                           style="width:90px;border:1px solid #ccc;border-radius:4px;padding:4px 8px;font-size:12px;">
+                           class="tk-time-input">
                     <div class="tk-toolbar-sep"></div>
 
                     <!-- Templates de resposta rápida -->
-                    <select id="sel-template" class="tk-macro-select" onchange="aplicarTemplate(this.value)">
+                    <select id="sel-template" class="tk-macro-select">
                         <option value="">📋 Templates ▾</option>
                         {% for tpl in templates_resposta %}
                         <option value="{{ tpl.pk }}">{{ tpl.nome }}</option>
@@ -782,9 +337,8 @@
 
                     <!-- Macro -->
                     {% if acao_form.aplicar_macro.field.queryset.exists %}
-                    <div style="display:inline-flex; gap:0; border:1px solid #ccc; border-radius:4px; overflow:hidden;">
-                      <select id="sel-macro-direto" class="tk-macro-select" name="aplicar_macro"
-                              style="border:none; border-radius:0; border-right:1px solid #ccc;"
+                    <div class="tk-macro-wrap">
+                      <select id="sel-macro-direto" class="tk-macro-select tk-macro-select-split" name="aplicar_macro"
                               title="Selecione uma macro">
                         <option value="">⚡ Macro ▾</option>
                         {% for m in acao_form.aplicar_macro.field.queryset %}
@@ -794,8 +348,7 @@
                         {% endfor %}
                       </select>
                       <button type="button" id="btn-macro-direto"
-                              class="tk-macro-select"
-                              style="border:none; border-radius:0; background:#f8f9fa; padding:5px 10px; cursor:pointer; font-size:13px;"
+                              class="tk-macro-apply-btn"
                               title="Aplicar macro agora (sem adicionar ação)">
                         Aplicar
                       </button>
@@ -814,7 +367,7 @@
                         {% endfor %}
                     </select>
 
-                    <button type="submit" class="tk-btn-add" onclick="prepararEnvio()">
+                    <button type="submit" class="tk-btn-add" id="btn-add-acao">
                         ADICIONAR AÇÃO
                     </button>
                 </div>
@@ -823,9 +376,9 @@
 
         <!-- Anexos do ticket -->
         {% if anexos %}
-        <div style="margin: 12px 24px 0; padding: 10px 14px; background:#fff; border:1px solid #e0e0e0; border-radius:6px;">
-            <div style="font-size:12px; color:#888; margin-bottom:8px; font-weight:600;">ANEXOS DO TICKET</div>
-            <div style="display:flex; flex-wrap:wrap; gap:6px;">
+        <div class="tk-ticket-attachments">
+            <div class="tk-ticket-attachments-title">ANEXOS DO TICKET</div>
+            <div class="tk-ticket-attachments-list">
                 {% for anexo in anexos %}
                 <a href="{{ anexo.arquivo.url }}" target="_blank" class="tk-attach-link">
                     <i class="bi bi-file-earmark"></i>
@@ -839,12 +392,12 @@
         <!-- Barra de filtros da timeline -->
         <div class="tk-vis-bar">
             <span>Visualizar:</span>
-            <label><input type="checkbox" id="vis-pub" checked onchange="filtrarTimeline()">
+            <label><input type="checkbox" id="vis-pub" checked>
                 Ações públicas</label>
             {% if user.is_staff %}
-            <label><input type="checkbox" id="vis-int" checked onchange="filtrarTimeline()">
+            <label><input type="checkbox" id="vis-int" checked>
                 Ações internas</label>
-            <label><input type="checkbox" id="vis-hist" onchange="filtrarTimeline()">
+            <label><input type="checkbox" id="vis-hist">
                 Histórico de alterações</label>
             {% endif %}
         </div>
@@ -870,7 +423,7 @@
                             {{ acao.get_tipo_display }}
                         </span>
                         {% if acao.tempo_trabalhado %}
-                        <span style="font-size:12px; color:#9ca3af; margin-left:auto;">
+                        <span class="tk-time-chip">
                             <i class="bi bi-clock"></i> {{ acao.tempo_trabalhado }}
                         </span>
                         {% endif %}
@@ -896,26 +449,26 @@
                 </div>
             </div>
             {% empty %}
-            <div style="padding:40px 0; text-align:center; color:#bbb;">
-                <i class="bi bi-chat-square" style="font-size:36px; display:block; margin-bottom:10px;"></i>
-                <p style="font-size:14px;">Nenhuma ação registrada ainda.</p>
+            <div class="tk-empty-actions">
+                <i class="bi bi-chat-square tk-empty-actions-icon"></i>
+                <p class="tk-empty-actions-text">Nenhuma ação registrada ainda.</p>
             </div>
             {% endfor %}
 
             <!-- Histórico de alterações (oculto por padrão) -->
             {% if historico %}
-            <div id="bloco-historico" style="display:none; padding:14px 0;">
-                <div style="font-size:12px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px;">
+            <div id="bloco-historico" class="tk-history-block">
+                <div class="tk-history-title">
                     Histórico de Alterações
                 </div>
                 {% for h in historico %}
                 <div class="tk-hist-item">
                     <span class="tk-hist-campo">{{ h.campo }}</span>
                     <span class="tk-hist-arrow">→</span>
-                    <span style="color:#888; font-size:12px;">{{ h.valor_anterior|default:"—" }}</span>
+                    <span class="tk-history-old">{{ h.valor_anterior|default:"—" }}</span>
                     <span class="tk-hist-arrow">→</span>
                     <span class="tk-hist-novo">{{ h.valor_novo|default:"—" }}</span>
-                    <span style="margin-left:auto; font-size:12px; color:#aaa;">
+                    <span class="tk-history-meta">
                         {{ h.usuario.get_full_name|default:h.usuario.username }}
                         · {{ h.criado_em|date:"d/m H:i" }}
                     </span>
@@ -968,6 +521,34 @@ function filtrarTimeline() {
     if (blocoHist) blocoHist.style.display = visHist ? '' : 'none';
 }
 
+document.getElementById('tab-pub')?.addEventListener('click', function () {
+    setTab('pub');
+});
+
+document.getElementById('tab-int')?.addEventListener('click', function () {
+    setTab('int');
+});
+
+document.getElementById('etab-pub')?.addEventListener('click', function () {
+    setEditorTab('pub');
+});
+
+document.getElementById('etab-int')?.addEventListener('click', function () {
+    setEditorTab('int');
+});
+
+document.getElementById('sel-template')?.addEventListener('change', function () {
+    aplicarTemplate(this.value);
+});
+
+document.getElementById('btn-add-acao')?.addEventListener('click', function () {
+    prepararEnvio();
+});
+
+['vis-pub', 'vis-int', 'vis-hist'].forEach(function (id) {
+    document.getElementById(id)?.addEventListener('change', filtrarTimeline);
+});
+
 // ── Autocomplete de ativos ──
 (function () {
     const input    = document.getElementById('ativo-search');
@@ -988,20 +569,20 @@ function filtrarTimeline() {
                 .then(data => {
                     dropdown.innerHTML = '';
                     if (!data.ativos || data.ativos.length === 0) {
-                        dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#aaa;">Nenhum resultado</div>';
+                        dropdown.innerHTML = '<div class="tk-dropdown-empty">Nenhum resultado</div>';
                         dropdown.style.display = 'block';
                         return;
                     }
                     data.ativos.forEach(a => {
                         const item = document.createElement('div');
-                        item.style.cssText = 'padding:9px 12px; cursor:pointer; border-bottom:1px solid #f0f0f0; font-size:12px;';
+                        item.className = 'tk-asset-option';
                         item.innerHTML = `
-                            <div style="font-weight:700; color:#1a73e8;">${a.etiqueta}</div>
-                            <div style="color:#555;">${a.nome}</div>
-                            ${a.status ? `<span style="font-size:10px; font-weight:600; padding:1px 7px; border-radius:20px; background:${a.status_cor}22; color:${a.status_cor}; border:1px solid ${a.status_cor}44;">${a.status}</span>` : ''}
+                            <div class="tk-asset-option-tag">${a.etiqueta}</div>
+                            <div class="tk-asset-option-name">${a.nome}</div>
+                            ${a.status ? `<span class="tk-dynamic-chip tk-dynamic-chip-xs" data-color="${a.status_cor}">${a.status}</span>` : ''}
                         `;
-                        item.addEventListener('mouseover', () => item.style.background = '#f0f4ff');
-                        item.addEventListener('mouseout',  () => item.style.background = '');
+                        item.addEventListener('mouseover', () => item.classList.add('is-hover'));
+                        item.addEventListener('mouseout',  () => item.classList.remove('is-hover'));
                         item.addEventListener('click', () => vincularAtivo(a.id, a.etiqueta));
                         dropdown.appendChild(item);
                     });
@@ -1127,7 +708,7 @@ function aplicarTemplate(templateId) {
       if (data.ok) {
         // Feedback visual e recarrega a página para refletir as mudanças
         const msg = document.createElement('div');
-        msg.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;background:#198754;color:#fff;padding:12px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.2);font-size:14px;';
+        msg.className = 'tk-toast-success';
         msg.textContent = '✓ ' + data.mensagem;
         document.body.appendChild(msg);
         setTimeout(() => location.reload(), 900);
@@ -1155,14 +736,14 @@ function setEditorTab(tab) {
     // Muda visual do editor para ação interna
     const editorEl = document.getElementById('quill-editor');
     if (!isPub) {
-        editorEl.style.background = '#fffbeb';
-        editorEl.style.borderTop = '2px solid #f59e0b';
+        editorEl.classList.add('tk-editor-internal-mode');
     } else {
-        editorEl.style.background = '';
-        editorEl.style.borderTop = '';
+        editorEl.classList.remove('tk-editor-internal-mode');
     }
 }
+
 </script>
 <!-- Quill JS (carregar antes do script acima) -->
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+</div>
 {% endblock %}

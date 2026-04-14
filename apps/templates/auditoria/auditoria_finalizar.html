@@ -10,12 +10,12 @@
     </div>
 
     <!-- Resumo da Auditoria -->
-    <div class="detail-card" style="border: 2px solid #ff9800;">
-        <h2 style="color: #ff9800;"><i class="bi bi-exclamation-triangle"></i> Atenção</h2>
-        <p style="font-size: 16px; margin: 15px 0;">
+    <div class="detail-card aud-fin-alert">
+        <h2 class="aud-fin-alert-title"><i class="bi bi-exclamation-triangle"></i> Atenção</h2>
+        <p class="aud-fin-alert-lead">
             Você está prestes a finalizar a auditoria "<strong>{{ auditoria.titulo }}</strong>".
         </p>
-        <p style="color: #666;">
+        <p class="aud-fin-muted">
             Após finalizar, não será mais possível verificar novos ativos ou modificar as informações da auditoria.
         </p>
     </div>
@@ -23,28 +23,28 @@
     <!-- Estatísticas -->
     <div class="detail-card">
         <h2>Resumo da Auditoria</h2>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px;">
-            <div style="padding: 20px; background: #f5f5f5; border-radius: 8px; text-align: center;">
-                <h3 style="font-size: 36px; color: #1a73e8; margin: 0;">{{ auditoria.total_ativos }}</h3>
-                <p style="color: #666; margin: 10px 0 0 0;">Total de Ativos</p>
+        <div class="aud-fin-stats">
+            <div class="aud-fin-stat aud-fin-stat-total">
+                <h3 class="aud-fin-stat-value aud-fin-stat-value-total">{{ auditoria.total_ativos }}</h3>
+                <p class="aud-fin-stat-label">Total de Ativos</p>
             </div>
-            <div style="padding: 20px; background: #e8f5e9; border-radius: 8px; text-align: center;">
-                <h3 style="font-size: 36px; color: #4CAF50; margin: 0;">{{ auditoria.ativos_verificados }}</h3>
-                <p style="color: #666; margin: 10px 0 0 0;">Verificados</p>
+            <div class="aud-fin-stat aud-fin-stat-ok">
+                <h3 class="aud-fin-stat-value aud-fin-stat-value-ok">{{ auditoria.ativos_verificados }}</h3>
+                <p class="aud-fin-stat-label">Verificados</p>
             </div>
-            <div style="padding: 20px; background: #fff3e0; border-radius: 8px; text-align: center;">
-                <h3 style="font-size: 36px; color: #ff9800; margin: 0;">{{ auditoria.total_ativos|add:"-"|add:auditoria.ativos_verificados }}</h3>
-                <p style="color: #666; margin: 10px 0 0 0;">Não Verificados</p>
+            <div class="aud-fin-stat aud-fin-stat-pending">
+                <h3 class="aud-fin-stat-value aud-fin-stat-value-pending">{{ auditoria.total_ativos|add:"-"|add:auditoria.ativos_verificados }}</h3>
+                <p class="aud-fin-stat-label">Não Verificados</p>
             </div>
-            <div style="padding: 20px; background: #e3f2fd; border-radius: 8px; text-align: center;">
-                <h3 style="font-size: 36px; color: #2196F3; margin: 0;">{{ progresso }}%</h3>
-                <p style="color: #666; margin: 10px 0 0 0;">Progresso</p>
+            <div class="aud-fin-stat aud-fin-stat-progress">
+                <h3 class="aud-fin-stat-value aud-fin-stat-value-progress">{{ progresso }}%</h3>
+                <p class="aud-fin-stat-label">Progresso</p>
             </div>
         </div>
         
-        <div style="margin-top: 30px;">
-            <div style="width: 100%; height: 40px; background: #e0e0e0; border-radius: 20px; overflow: hidden;">
-                <div style="width: {{ progresso }}%; height: 100%; background: linear-gradient(90deg, #4CAF50, #8BC34A);"></div>
+        <div class="aud-fin-progress-wrap">
+            <div class="aud-fin-progress-track">
+                <div class="aud-fin-progress-fill" data-progress-fill="{{ progresso }}"></div>
             </div>
         </div>
     </div>
@@ -52,7 +52,7 @@
     <!-- Formulário de Finalização -->
     <div class="detail-card">
         <h2>Confirmação</h2>
-        <form method="post" style="margin-top: 20px;">
+        <form method="post" class="aud-fin-form">
             {% csrf_token %}
             
             <div class="form-group full-width">
@@ -63,21 +63,21 @@
                 {% endif %}
             </div>
 
-            <div class="form-group" style="margin-top: 30px; padding: 20px; background: #fff3cd; border-radius: 8px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="form-group aud-fin-confirm">
+                <div class="aud-fin-confirm-row">
                     {{ form.confirmar }}
                     {{ form.confirmar.label_tag }}
                 </div>
                 {% if form.confirmar.errors %}
-                    <div class="text-danger" style="margin-top: 10px;">{{ form.confirmar.errors }}</div>
+                    <div class="text-danger aud-fin-confirm-errors">{{ form.confirmar.errors }}</div>
                 {% endif %}
             </div>
 
-            <div class="form-actions" style="margin-top: 30px;">
-                <button type="submit" class="btn btn-primary" style="font-size: 18px; padding: 15px 40px;">
+            <div class="form-actions aud-fin-actions">
+                <button type="submit" class="btn btn-primary aud-fin-action-btn">
                     <i class="bi bi-flag-fill"></i> FINALIZAR AUDITORIA
                 </button>
-                <a href="{% url 'auditoria:auditoria_detail' auditoria.pk %}" class="btn btn-secondary" style="font-size: 18px; padding: 15px 40px;">
+                <a href="{% url 'auditoria:auditoria_detail' auditoria.pk %}" class="btn btn-secondary aud-fin-action-btn">
                     Cancelar
                 </a>
             </div>
@@ -86,15 +86,26 @@
 
     <!-- Avisos -->
     {% if progresso < 100 %}
-    <div class="detail-card" style="border: 2px solid #ff5722; background: #ffebee;">
-        <h3 style="color: #d32f2f; margin: 0 0 10px 0;">
+    <div class="detail-card aud-fin-warning">
+        <h3 class="aud-fin-warning-title">
             <i class="bi bi-exclamation-circle"></i> Auditoria Incompleta
         </h3>
-        <p style="margin: 0; color: #666;">
+        <p class="aud-fin-warning-text">
             Existem <strong>{{ auditoria.total_ativos|add:"-"|add:auditoria.ativos_verificados }}</strong> ativos que não foram verificados. 
             Certifique-se de que todos os ativos foram checados antes de finalizar, ou adicione observações explicando os motivos dos ativos não verificados.
         </p>
     </div>
     {% endif %}
 </div>
+
+<script>
+document.querySelectorAll('[data-progress-fill]').forEach(function (el) {
+    var value = parseFloat(el.getAttribute('data-progress-fill') || '0');
+    if (!isFinite(value)) {
+        value = 0;
+    }
+    var normalized = Math.max(0, Math.min(100, value));
+    el.style.width = normalized + '%';
+});
+</script>
 {% endblock %}

@@ -11,47 +11,47 @@
 
 <!-- Métricas principais -->
 <div class="metrics">
-    <div class="metric-card" style="border-left-color:#1a73e8;">
+    <div class="metric-card tk-dash-metric tk-dash-metric-open">
         <h3>Abertos</h3>
-        <p style="color:#1a73e8;">{{ stats.total_abertos }}</p>
+        <p class="tk-dash-value tk-dash-value-open">{{ stats.total_abertos }}</p>
         <small>Total em aberto</small>
     </div>
-    <div class="metric-card" style="border-left-color:#7c3aed;">
+    <div class="metric-card tk-dash-metric tk-dash-metric-today">
         <h3>Abertos Hoje</h3>
-        <p style="color:#7c3aed;">{{ stats.novos_hoje }}</p>
+        <p class="tk-dash-value tk-dash-value-today">{{ stats.novos_hoje }}</p>
         <small>Criados hoje</small>
     </div>
-    <div class="metric-card" style="border-left-color:#dc2626;">
+    <div class="metric-card tk-dash-metric tk-dash-metric-overdue">
         <h3>Vencidos</h3>
-        <p style="color:#dc2626;">{{ stats.vencidos }}</p>
+        <p class="tk-dash-value tk-dash-value-overdue">{{ stats.vencidos }}</p>
         <small>Fora do prazo SLA</small>
     </div>
-    <div class="metric-card" style="border-left-color:#16a34a;">
+    <div class="metric-card tk-dash-metric tk-dash-metric-solved">
         <h3>Resolvidos (Mês)</h3>
-        <p style="color:#16a34a;">{{ stats.resolvidos_mes }}</p>
+        <p class="tk-dash-value tk-dash-value-solved">{{ stats.resolvidos_mes }}</p>
         <small>Fechados este mês</small>
     </div>
     {% if user.is_staff %}
-    <div class="metric-card" style="border-left-color:#d97706;">
+    <div class="metric-card tk-dash-metric tk-dash-metric-mine">
         <h3>Meus Tickets</h3>
-        <p style="color:#d97706;">{{ meus_tickets|default:0 }}</p>
+        <p class="tk-dash-value tk-dash-value-mine">{{ meus_tickets|default:0 }}</p>
         <small>Sob minha responsabilidade</small>
     </div>
     {% endif %}
 </div>
 
 <!-- Gráficos -->
-<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+<div class="tk-dash-charts-grid">
     <div class="detail-card">
         <h2><i class="bi bi-bar-chart"></i> Tickets por Status</h2>
         <div class="detail-content">
-            <canvas id="statusChart" style="max-height:220px;"></canvas>
+            <canvas id="statusChart" class="tk-dash-chart"></canvas>
         </div>
     </div>
     <div class="detail-card">
         <h2><i class="bi bi-pie-chart"></i> Tickets por Categoria</h2>
         <div class="detail-content">
-            <canvas id="catChart" style="max-height:220px;"></canvas>
+            <canvas id="catChart" class="tk-dash-chart"></canvas>
         </div>
     </div>
 </div>
@@ -76,25 +76,25 @@
                 {% for ticket in tickets %}
                 <tr>
                     <td>
-                        <a href="{% url 'tickets:ticket_detail' ticket.pk %}" style="font-weight:700;color:#1a73e8;">
+                        <a href="{% url 'tickets:ticket_detail' ticket.pk %}" class="tk-dash-ticket-id">
                             #{{ ticket.numero }}
                         </a>
                     </td>
                     <td>{{ ticket.assunto|truncatewords:8 }}</td>
                     <td>{{ ticket.solicitante.get_full_name|default:ticket.solicitante.username }}</td>
                     <td>
-                        <span class="badge" style="background:{{ ticket.status.cor }}22;color:{{ ticket.status.cor }};border:1px solid {{ ticket.status.cor }}55;">
+                        <span class="badge tk-dynamic-chip" data-color="{{ ticket.status.cor }}">
                             {{ ticket.status.nome }}
                         </span>
                     </td>
                     <td>
                         {% if ticket.urgencia %}
-                        <span class="badge" style="background:{{ ticket.urgencia.cor }}22;color:{{ ticket.urgencia.cor }};border:1px solid {{ ticket.urgencia.cor }}55;">
+                        <span class="badge tk-dynamic-chip" data-color="{{ ticket.urgencia.cor }}">
                             {{ ticket.urgencia.nome }}
                         </span>
                         {% else %}-{% endif %}
                     </td>
-                    <td style="color:#9ca3af;font-size:13px;">{{ ticket.criado_em|date:"d/m H:i" }}</td>
+                    <td class="tk-dash-created-at">{{ ticket.criado_em|date:"d/m H:i" }}</td>
                     <td>
                         <a href="{% url 'tickets:ticket_detail' ticket.pk %}" class="btn btn-sm btn-secondary">
                             <i class="bi bi-eye"></i>

@@ -12,33 +12,33 @@
     <form method="post">
         {% csrf_token %}
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+        <div class="inv-bulk-grid">
 
             <!-- COLUNA ESQUERDA: Destinatários -->
             <div>
                 <!-- Grupos -->
-                <div class="detail-card" style="margin-bottom: 20px;">
+                <div class="detail-card inv-bulk-card-gap">
                     <h2><i class="bi bi-collection"></i> Grupos de máquinas</h2>
-                    <p style="color: #666; font-size: 14px; margin-bottom: 12px;">
+                    <p class="inv-bulk-help">
                         Selecionar um grupo marca automaticamente todas as máquinas dele.
                     </p>
 
                     {% if groups %}
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="inv-bulk-group-list">
                         {% for group in groups %}
-                        <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer; transition: background .15s;" onmouseenter="this.style.background='#f5f7fa'" onmouseleave="this.style.background='white'">
+                        <label class="inv-bulk-group-item">
                             <input type="checkbox" name="groups" value="{{ group.id }}"
-                                   onchange="toggleGroup({{ group.id }}, this.checked)"
-                                   style="width:16px; height:16px; cursor:pointer; accent-color:#1a3c5e;">
+                                   data-group-id="{{ group.id }}"
+                                   class="inv-bulk-group-checkbox js-group-toggle">
                             <div>
-                                <div style="font-weight: 500;">{{ group.name }}</div>
-                                <div style="font-size: 12px; color: #999;">{{ group.machine_set.count }} máquina(s)</div>
+                                <div class="inv-bulk-group-name">{{ group.name }}</div>
+                                <div class="inv-bulk-group-count">{{ group.machine_set.count }} máquina(s)</div>
                             </div>
                         </label>
                         {% endfor %}
                     </div>
                     {% else %}
-                    <p style="color: #999; font-size: 14px;">Nenhum grupo cadastrado.</p>
+                    <p class="inv-bulk-empty">Nenhum grupo cadastrado.</p>
                     {% endif %}
                 </div>
 
@@ -46,38 +46,35 @@
                 <div class="detail-card">
                     <h2><i class="bi bi-pc-display"></i> Máquinas individuais</h2>
 
-                    <div style="margin-bottom: 10px; display: flex; gap: 8px; align-items: center;">
+                    <div class="inv-bulk-machine-toolbar">
                         <input type="text" id="searchMachine" placeholder="Filtrar máquinas..."
-                               class="form-control" style="flex:1;"
-                               oninput="filterMachines(this.value)">
-                        <button type="button" class="btn btn-secondary" onclick="selectAll(true)" style="white-space:nowrap; font-size:13px;">
+                               class="form-control inv-bulk-machine-search">
+                        <button type="button" id="btn-select-all" class="btn btn-secondary inv-bulk-btn-small">
                             Todas
                         </button>
-                        <button type="button" class="btn btn-secondary" onclick="selectAll(false)" style="white-space:nowrap; font-size:13px;">
+                        <button type="button" id="btn-select-none" class="btn btn-secondary inv-bulk-btn-small">
                             Nenhuma
                         </button>
                     </div>
 
-                    <div id="machineList" style="max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;">
+                    <div id="machineList" class="inv-bulk-machine-list">
                         {% for machine in form.machines %}
-                        <label class="machine-item" data-name="{{ machine.choice_label|lower }}"
-                               style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer; transition: background .15s;"
-                               onmouseenter="this.style.background='#f5f7fa'" onmouseleave="this.style.background='white'">
+                        <label class="machine-item inv-bulk-machine-item" data-name="{{ machine.choice_label|lower }}">
                             {{ machine.tag }}
                             <div>
-                                <div style="font-weight: 500; font-size: 14px;">{{ machine.choice_label }}</div>
+                                <div class="inv-bulk-machine-name">{{ machine.choice_label }}</div>
                             </div>
                         </label>
                         {% endfor %}
                     </div>
 
                     <!-- Contador de selecionados -->
-                    <div style="margin-top: 10px; font-size: 13px; color: #666;">
+                    <div class="inv-bulk-selected">
                         <span id="selectedCount">0</span> máquina(s) selecionada(s)
                     </div>
 
                     {% if form.machines.errors %}
-                    <div style="color: #dc3545; font-size: 13px; margin-top: 6px;">{{ form.machines.errors }}</div>
+                    <div class="inv-bulk-error">{{ form.machines.errors }}</div>
                     {% endif %}
                 </div>
             </div>
@@ -85,39 +82,39 @@
             <!-- COLUNA DIREITA: Conteúdo -->
             <div>
                 <!-- Conteúdo -->
-                <div class="detail-card" style="margin-bottom: 20px;">
+                <div class="detail-card inv-bulk-card-gap">
                     <h2><i class="bi bi-chat-quote"></i> Conteúdo</h2>
 
                     <div class="form-group">
-                        <label style="font-weight: 500;">Título <span style="color:#dc3545;">*</span></label>
+                        <label class="inv-bulk-label">Título <span class="inv-bulk-required">*</span></label>
                         <input type="text" name="title" class="form-control"
                                placeholder="Título da notificação" maxlength="200"
                                value="{{ form.title.value|default:'' }}"
-                               oninput="updatePreview()" required>
+                               id="bulk-title" required>
                         {% if form.title.errors %}
-                        <div style="color: #dc3545; font-size: 13px; margin-top: 4px;">{{ form.title.errors }}</div>
+                        <div class="inv-bulk-error">{{ form.title.errors }}</div>
                         {% endif %}
                     </div>
 
-                    <div class="form-group" style="margin-top: 14px;">
-                        <label style="font-weight: 500;">Mensagem <span style="color:#dc3545;">*</span></label>
+                    <div class="form-group inv-bulk-gap-top">
+                        <label class="inv-bulk-label">Mensagem <span class="inv-bulk-required">*</span></label>
                         <textarea name="message" class="form-control" rows="5"
                                   placeholder="Mensagem que será exibida nas máquinas..."
-                                  oninput="updatePreview()" required>{{ form.message.value|default:'' }}</textarea>
+                                  id="bulk-message" required>{{ form.message.value|default:'' }}</textarea>
                         {% if form.message.errors %}
-                        <div style="color: #dc3545; font-size: 13px; margin-top: 4px;">{{ form.message.errors }}</div>
+                        <div class="inv-bulk-error">{{ form.message.errors }}</div>
                         {% endif %}
                     </div>
                 </div>
 
                 <!-- Configurações -->
-                <div class="detail-card" style="margin-bottom: 20px;">
+                <div class="detail-card inv-bulk-card-gap">
                     <h2><i class="bi bi-gear"></i> Configurações</h2>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                    <div class="inv-bulk-config-grid">
                         <div class="form-group">
-                            <label style="font-weight: 500;">Tipo</label>
-                            <select name="type" class="form-control" onchange="updatePreview()">
+                            <label class="inv-bulk-label">Tipo</label>
+                            <select name="type" class="form-control" id="bulk-type">
                                 <option value="info">Informação</option>
                                 <option value="success">Sucesso</option>
                                 <option value="warning">Aviso</option>
@@ -127,8 +124,8 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label style="font-weight: 500;">Prioridade</label>
-                            <select name="priority" class="form-control" onchange="updatePreview()">
+                            <label class="inv-bulk-label">Prioridade</label>
+                            <select name="priority" class="form-control" id="bulk-priority">
                                 <option value="low">Baixa</option>
                                 <option value="normal" selected>Normal</option>
                                 <option value="high">Alta</option>
@@ -137,24 +134,24 @@
                         </div>
                     </div>
 
-                    <div class="form-group" style="margin-top: 14px;">
-                        <label style="font-weight: 500;">Expira em (opcional)</label>
+                    <div class="form-group inv-bulk-gap-top">
+                        <label class="inv-bulk-label">Expira em (opcional)</label>
                         <input type="datetime-local" name="expires_at" class="form-control"
                                value="{{ form.expires_at.value|default:'' }}">
-                        <small style="color: #999;">Deixe em branco para não expirar automaticamente.</small>
+                        <small class="inv-bulk-hint">Deixe em branco para não expirar automaticamente.</small>
                     </div>
                 </div>
 
                 <!-- Preview -->
                 <div class="detail-card">
                     <h2><i class="bi bi-eye"></i> Preview</h2>
-                    <div id="previewCard" style="border-left: 4px solid #2196F3; border-radius: 6px; border: 1px solid #e0e0e0; padding: 14px; background: #f8f9fa;">
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
-                            <i id="previewIcon" class="bi bi-info-circle" style="font-size: 20px; color: #2196F3;"></i>
-                            <strong id="previewTitle" style="font-size: 15px;">Título da Notificação</strong>
-                            <span id="previewPriority" style="background:#2196F3; color:white; padding:1px 8px; border-radius:10px; font-size:11px;">Normal</span>
+                    <div id="previewCard" class="inv-bulk-preview-card">
+                        <div class="inv-bulk-preview-head">
+                            <i id="previewIcon" class="bi bi-info-circle inv-bulk-preview-icon"></i>
+                            <strong id="previewTitle" class="inv-bulk-preview-title">Título da Notificação</strong>
+                            <span id="previewPriority" class="inv-bulk-preview-priority">Normal</span>
                         </div>
-                        <p id="previewMessage" style="color: #555; margin: 0; font-size: 14px; line-height: 1.5;">
+                        <p id="previewMessage" class="inv-bulk-preview-message">
                             Mensagem da notificação aparecerá aqui...
                         </p>
                     </div>
@@ -163,11 +160,11 @@
         </div>
 
         <!-- Botão de envio -->
-        <div class="form-actions" style="margin-top: 20px;">
-            <button type="submit" class="btn btn-primary" style="padding: 10px 30px; font-size: 15px;">
+        <div class="form-actions inv-bulk-actions">
+            <button type="submit" class="btn btn-primary inv-bulk-submit">
                 <i class="bi bi-broadcast"></i> Enviar para máquinas selecionadas
             </button>
-            <a href="{% url 'inventario:notifications_list' %}" class="btn btn-secondary" style="margin-left: 10px;">
+            <a href="{% url 'inventario:notifications_list' %}" class="btn btn-secondary inv-bulk-cancel">
                 Cancelar
             </a>
         </div>
@@ -253,5 +250,32 @@ function updatePreview() {
 
 updatePreview();
 updateCount();
+
+document.querySelectorAll('.js-group-toggle').forEach(function (checkbox) {
+    checkbox.addEventListener('change', function () {
+        var groupId = parseInt(this.getAttribute('data-group-id'), 10);
+        toggleGroup(groupId, this.checked);
+    });
+});
+
+document.getElementById('searchMachine')?.addEventListener('input', function () {
+    filterMachines(this.value);
+});
+
+document.getElementById('btn-select-all')?.addEventListener('click', function () {
+    selectAll(true);
+});
+
+document.getElementById('btn-select-none')?.addEventListener('click', function () {
+    selectAll(false);
+});
+
+['bulk-title', 'bulk-message'].forEach(function (id) {
+    document.getElementById(id)?.addEventListener('input', updatePreview);
+});
+
+['bulk-type', 'bulk-priority'].forEach(function (id) {
+    document.getElementById(id)?.addEventListener('change', updatePreview);
+});
 </script>
 {% endblock %}

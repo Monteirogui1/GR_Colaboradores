@@ -187,11 +187,7 @@ class CampoAdicionalForm(forms.ModelForm):
             'nome': forms.TextInput(attrs={'class': 'form-control'}),
             'tipo': forms.Select(attrs={'class': 'form-control'}),
             'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-            'opcoes': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 5,
-                'placeholder': '["Opção 1", "Opção 2", "Opção 3"]'
-            }),
+            'opcoes': forms.HiddenInput(),
             'multipla_selecao': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'casas_decimais': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 10}),
             'expressao_regular': forms.TextInput(attrs={'class': 'form-control'}),

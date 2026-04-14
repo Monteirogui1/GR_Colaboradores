@@ -1,10 +1,24 @@
 {% extends 'layouts/base.html' %}
+
+{% block title %}Excluir Usuário{% endblock %}
+
 {% block conteudo %}
-<h1>Excluir Usuário</h1>
-<p>Tem certeza que deseja excluir o usuário "{{ object }}"?</p>
-<form method="post">
-    {% csrf_token %}
-    <button type="submit" class="btn btn-danger">Confirmar Exclusão</button>
-</form>
-<a href="{% url 'authentication:clienteuser_list' %}">Cancelar</a>
+<div class="content">
+    <div class="page-header">
+        <h1>Excluir Usuário</h1>
+        <a href="{% url 'authentication:clienteuser_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+
+    <div class="detail-card">
+        <h2>Confirmação</h2>
+        <div class="detail-content">
+            <p>Tem certeza que deseja excluir o usuário <strong>{{ object }}</strong>?</p>
+            <form method="post" class="form-actions">
+                {% csrf_token %}
+                <a href="{% url 'authentication:clienteuser_list' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-danger">Confirmar Exclusão</button>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

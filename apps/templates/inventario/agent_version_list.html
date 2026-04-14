@@ -2,76 +2,13 @@
 {% block title %}Versões do Agente{% endblock %}
 
 {% block conteudo %}
-<style>
-/* ── Escopo desta página ─────────────────────────────────────────── */
-.av-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
-.av-stat{background:#fff;border:1px solid #e8eaed;border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;}
-.av-stat .st-val{font-size:26px;font-weight:700;color:#1e293b;}
-.av-stat .st-lbl{font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;}
-.av-stat .st-ico{font-size:20px;margin-bottom:4px;}
-
-/* Tabela */
-.av-table-wrap{background:#fff;border:1px solid #e8eaed;border-radius:10px;overflow:hidden;}
-.av-table{width:100%;border-collapse:collapse;font-size:13px;}
-.av-table thead th{padding:10px 14px;background:#f8f9fb;font-weight:600;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e8eaed;white-space:nowrap;}
-.av-table tbody td{padding:12px 14px;border-bottom:1px solid #f3f4f6;color:#374151;vertical-align:middle;}
-.av-table tbody tr:last-child td{border-bottom:none;}
-.av-table tbody tr:hover{background:#fafbff;}
-
-/* Badges */
-.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
-.badge-success{background:#dcfce7;color:#16a34a;}
-.badge-danger{background:#fee2e2;color:#dc2626;}
-.badge-warning{background:#fef9c3;color:#ca8a04;}
-.badge-secondary{background:#f3f4f6;color:#6b7280;}
-.badge-info{background:#dbeafe;color:#1d4ed8;}
-
-/* Tipo chip */
-.type-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;}
-.type-service{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;}
-.type-tray{background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;}
-
-/* Versão */
-.ver-code{font-family:monospace;font-size:14px;font-weight:700;color:#1e293b;}
-.sha-code{font-family:monospace;font-size:10px;color:#9ca3af;display:block;margin-top:2px;}
-
-/* Notes toggle */
-.notes-toggle{cursor:pointer;color:#1a73e8;font-size:11px;text-decoration:none;display:flex;align-items:center;gap:4px;background:none;border:none;padding:0;}
-.notes-toggle:hover{text-decoration:underline;}
-.notes-panel{display:none;margin-top:8px;padding:10px 12px;background:#f8f9fb;border-radius:7px;border:1px solid #e8eaed;font-size:12px;color:#374151;white-space:pre-wrap;max-height:140px;overflow-y:auto;}
-.notes-panel.open{display:block;}
-
-/* Ações */
-.act-group{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;}
-.av-table .btn-sm{padding:4px 10px;font-size:11px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;}
-.btn-toggle-on{background:#fef3c7;color:#d97706;border:1px solid #fcd34d;}
-.btn-toggle-on:hover{background:#fde68a;}
-.btn-toggle-off{background:#dcfce7;color:#15803d;border:1px solid #86efac;}
-.btn-toggle-off:hover{background:#bbf7d0;}
-.btn-dl{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;}
-.btn-dl:hover{background:#dbeafe;}
-
-/* Empty */
-.empty-state{text-align:center;padding:60px 20px;color:#9ca3af;}
-.empty-state i{font-size:52px;display:block;margin-bottom:12px;color:#d1d5db;}
-.empty-state p{font-size:14px;margin-bottom:16px;}
-
-/* Info box */
-.av-info{background:#fff;border:1px solid #e8eaed;border-radius:10px;padding:16px 20px;margin-top:18px;}
-.av-info h3{font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;display:flex;align-items:center;gap:7px;}
-.av-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.av-info-row{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#6b7280;padding:6px 0;border-bottom:1px solid #f3f4f6;}
-.av-info-row:last-child{border-bottom:none;}
-.av-info-row i{color:#9ca3af;font-size:13px;flex-shrink:0;margin-top:1px;}
-</style>
-
 <div class="content">
 
   <!-- Cabeçalho -->
   <div class="page-header">
     <div>
-      <h1 style="font-size:20px;color:#1e293b;">Versões do Agente</h1>
-      <p style="font-size:13px;color:#9ca3af;margin-top:4px;">Gerencie os executáveis distribuídos para agent_service e agent_tray</p>
+      <h1 class="av-page-title">Versões do Agente</h1>
+      <p class="av-page-subtitle">Gerencie os executáveis distribuídos para agent_service e agent_tray</p>
     </div>
     <a href="{% url 'inventario:version_create' %}" class="btn btn-primary">
       <i class="bi bi-plus-lg"></i> Nova Versão
@@ -81,23 +18,23 @@
   <!-- Estatísticas -->
   <div class="av-stats">
     <div class="av-stat">
-      <span class="st-ico" style="color:#1a73e8;">📦</span>
+      <span class="st-ico st-ico-brand">📦</span>
       <span class="st-val">{{ total_versions }}</span>
       <span class="st-lbl">Total</span>
     </div>
     <div class="av-stat">
-      <span class="st-ico" style="color:#16a34a;">✅</span>
-      <span class="st-val" style="color:#16a34a;">{{ active_versions }}</span>
+      <span class="st-ico st-ico-success">✅</span>
+      <span class="st-val st-val-success">{{ active_versions }}</span>
       <span class="st-lbl">Ativas</span>
     </div>
     <div class="av-stat">
-      <span class="st-ico" style="color:#1d4ed8;">⚙️</span>
-      <span class="st-val" style="color:#1d4ed8;">{{ versions|length }}</span>
+      <span class="st-ico st-ico-info">⚙️</span>
+      <span class="st-val st-val-info">{{ versions|length }}</span>
       <span class="st-lbl">Nesta página</span>
     </div>
     <div class="av-stat">
-      <span class="st-ico" style="color:#d97706;">⚠️</span>
-      <span class="st-val" style="color:#d97706;">
+      <span class="st-ico st-ico-warning">⚠️</span>
+      <span class="st-val st-val-warning">
         {% with mand=versions|dictsort:"is_mandatory" %}{{ versions|length }}{% endwith %}
       </span>
       <span class="st-lbl">Obrigatórias</span>
@@ -116,7 +53,7 @@
           <th>Criado por</th>
           <th>Data</th>
           <th>Notas</th>
-          <th style="text-align:right;">Ações</th>
+          <th class="av-th-right">Ações</th>
         </tr>
       </thead>
       <tbody>
@@ -127,7 +64,7 @@
           <td>
             <span class="ver-code">v{{ v.version }}</span>
             {% if v.is_mandatory %}
-            <span class="badge badge-danger" style="font-size:10px;margin-top:3px;">OBRIGATÓRIA</span>
+            <span class="badge badge-danger badge-mandatory">OBRIGATÓRIA</span>
             {% endif %}
           </td>
 
@@ -138,16 +75,16 @@
             {% elif v.agent_type == 'tray' %}
               <span class="type-chip type-tray"><i class="bi bi-window-sidebar"></i> tray</span>
             {% else %}
-              <span class="type-chip" style="background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;">{{ v.agent_type|default:"—" }}</span>
+              <span class="type-chip type-default">{{ v.agent_type|default:"—" }}</span>
             {% endif %}
           </td>
 
           <!-- Status -->
           <td>
             {% if v.is_active %}
-              <span class="badge badge-success"><i class="bi bi-circle-fill" style="font-size:7px;"></i> Ativa</span>
+              <span class="badge badge-success"><i class="bi bi-circle-fill av-empty-marker"></i> Ativa</span>
             {% else %}
-              <span class="badge badge-secondary"><i class="bi bi-circle" style="font-size:7px;"></i> Inativa</span>
+              <span class="badge badge-secondary"><i class="bi bi-circle av-empty-marker"></i> Inativa</span>
             {% endif %}
           </td>
 
@@ -156,38 +93,38 @@
             {% if v.sha256 %}
               <span class="sha-code" title="{{ v.sha256 }}">{{ v.sha256|slice:":16" }}…</span>
             {% else %}
-              <span style="font-size:11px;color:#d1d5db;">—</span>
+              <span class="av-empty-marker">—</span>
             {% endif %}
           </td>
 
           <!-- Criado por -->
-          <td style="font-size:12px;color:#6b7280;">
+          <td class="av-created-by">
             {{ v.created_by.get_full_name|default:v.created_by.username|default:"—" }}
           </td>
 
           <!-- Data -->
-          <td style="font-size:12px;color:#6b7280;white-space:nowrap;">
+          <td class="av-created-date">
             {{ v.created_at|date:"d/m/Y H:i" }}
           </td>
 
           <!-- Notas -->
-          <td style="max-width:200px;">
+          <td class="av-notes-cell">
             {% if v.release_notes %}
-              <button class="notes-toggle" onclick="toggleNotes({{ v.pk }})">
+              <button class="notes-toggle js-notes-toggle" data-note-id="{{ v.pk }}">
                 <i class="bi bi-journal-text"></i> Ver notas
               </button>
               <div class="notes-panel" id="notes-{{ v.pk }}">{{ v.release_notes }}</div>
             {% else %}
-              <span style="font-size:11px;color:#d1d5db;">—</span>
+              <span class="av-empty-marker">—</span>
             {% endif %}
           </td>
 
           <!-- Ações -->
           <td>
-            <div class="act-group" style="justify-content:flex-end;">
+            <div class="act-group act-group-right">
 
               <!-- Toggle ativo/inativo -->
-              <form method="post" action="{% url 'inventario:version_toggle' v.pk %}" style="margin:0;">
+              <form method="post" action="{% url 'inventario:version_toggle' v.pk %}" class="av-inline-form-reset">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-sm {% if v.is_active %}btn-toggle-on{% else %}btn-toggle-off{% endif %}"
                         title="{% if v.is_active %}Desativar{% else %}Ativar{% endif %}">
@@ -230,7 +167,7 @@
 
   <!-- Paginação -->
   {% if is_paginated %}
-  <nav style="margin-top:14px;display:flex;justify-content:flex-end;">
+  <nav class="av-pagination-wrap">
     <ul class="pagination">
       {% if page_obj.has_previous %}
         <li class="page-item"><a class="page-link" href="?page=1">«</a></li>
@@ -249,7 +186,7 @@
 
   <!-- Info -->
   <div class="av-info">
-    <h3><i class="bi bi-info-circle" style="color:#1a73e8;"></i> Informações sobre o sistema de update</h3>
+    <h3><i class="bi bi-info-circle av-info-icon"></i> Informações sobre o sistema de update</h3>
     <div class="av-info-grid">
       <div>
         <div class="av-info-row"><i class="bi bi-check2-circle"></i> Apenas versões ativas são oferecidas para download pelos agentes</div>
@@ -269,5 +206,12 @@ function toggleNotes(id){
   const el = document.getElementById('notes-'+id);
   el.classList.toggle('open');
 }
+
+document.querySelectorAll('.js-notes-toggle').forEach(function (button) {
+  button.addEventListener('click', function () {
+    const id = this.getAttribute('data-note-id');
+    toggleNotes(id);
+  });
+});
 </script>
 {% endblock %}

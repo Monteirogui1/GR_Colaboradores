@@ -36,7 +36,7 @@
                 </div>
             </div>
             <div class="form-grid">
-                <div class="form-group" style="grid-column: 1 / -1;">
+                <div class="form-group full-width">
                     {{ form.descricao.label_tag }}
                     {{ form.descricao }}
                     {% if form.descricao.errors %}
@@ -47,16 +47,16 @@
         </div>
         <div class="detail-card">
             <h2>Urgências permitidas</h2>
-            <p class="form-hint" style="margin-bottom: 12px;">
+            <p class="form-hint cat-form-hint-gap">
                 Selecione as urgências que podem ser usadas com esta categoria.
                 Se nenhuma for selecionada, todas as urgências estarão disponíveis.
             </p>
 
             {% if form.urgencias_permitidas_sel.field.queryset %}
                 <div class="form-group">
-                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    <div class="cat-form-chips-wrap">
                         {% for checkbox in form.urgencias_permitidas_sel %}
-                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                        <label class="cat-form-chip-item">
                             {{ checkbox.tag }}
                             {{ checkbox.choice_label }}
                         </label>

@@ -9,7 +9,7 @@
             <form method="post" class="form">
                 {% csrf_token %}
                 {% for field in form %}
-                    <div class="form-group" {% if field.name == 'descricao' or field.name == 'condicoes' or field.name == 'acoes' or field.name == 'opcoes' %}style="grid-column: 1 / -1;"{% endif %}>
+                    <div class="form-group {% if field.name == 'descricao' or field.name == 'condicoes' or field.name == 'acoes' or field.name == 'opcoes' %}full-width{% endif %}">
                         <label>{{ field.label }}{% if field.field.required %} *{% endif %}</label>
                         {{ field }}
                         {% if field.errors %}<span class="error">{{ field.errors.0 }}</span>{% endif %}

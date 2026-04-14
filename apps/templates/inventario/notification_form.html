@@ -13,7 +13,7 @@
         {% csrf_token %}
         
         <!-- Destinatário -->
-        <div class="detail-card" style="margin-bottom: 20px;">
+        <div class="detail-card inv-card-gap">
             <h2><i class="bi bi-pc-display"></i> Destinatário</h2>
             <div class="form-grid">
                 <div class="form-group full-width">
@@ -22,7 +22,7 @@
                     {% if form.machine.errors %}
                         <div class="text-danger">{{ form.machine.errors }}</div>
                     {% endif %}
-                    <small style="color: #666; display: block; margin-top: 5px;">
+                    <small class="inv-form-hint">
                         Selecione a máquina que receberá a notificação
                     </small>
                 </div>
@@ -30,7 +30,7 @@
         </div>
 
         <!-- Conteúdo -->
-        <div class="detail-card" style="margin-bottom: 20px;">
+        <div class="detail-card inv-card-gap">
             <h2><i class="bi bi-chat-quote"></i> Conteúdo</h2>
             <div class="form-grid">
                 <div class="form-group full-width">
@@ -39,7 +39,7 @@
                     {% if form.title.errors %}
                         <div class="text-danger">{{ form.title.errors }}</div>
                     {% endif %}
-                    <small style="color: #666; display: block; margin-top: 5px;">
+                    <small class="inv-form-hint">
                         Título curto e descritivo (máximo 200 caracteres)
                     </small>
                 </div>
@@ -49,7 +49,7 @@
                     {% if form.message.errors %}
                         <div class="text-danger">{{ form.message.errors }}</div>
                     {% endif %}
-                    <small style="color: #666; display: block; margin-top: 5px;">
+                    <small class="inv-form-hint">
                         Mensagem detalhada que será exibida ao usuário
                     </small>
                 </div>
@@ -57,7 +57,7 @@
         </div>
 
         <!-- Configurações -->
-        <div class="detail-card" style="margin-bottom: 20px;">
+        <div class="detail-card inv-card-gap">
             <h2><i class="bi bi-gear"></i> Configurações</h2>
             <div class="form-grid">
                 <div class="form-group">
@@ -66,7 +66,7 @@
                     {% if form.type.errors %}
                         <div class="text-danger">{{ form.type.errors }}</div>
                     {% endif %}
-                    <small style="color: #666; display: block; margin-top: 5px;">
+                    <small class="inv-form-hint">
                         Define o ícone e cor da notificação
                     </small>
                 </div>
@@ -76,7 +76,7 @@
                     {% if form.priority.errors %}
                         <div class="text-danger">{{ form.priority.errors }}</div>
                     {% endif %}
-                    <small style="color: #666; display: block; margin-top: 5px;">
+                    <small class="inv-form-hint">
                         Nível de urgência da notificação
                     </small>
                 </div>
@@ -86,7 +86,7 @@
                     {% if form.expires_at.errors %}
                         <div class="text-danger">{{ form.expires_at.errors }}</div>
                     {% endif %}
-                    <small style="color: #666; display: block; margin-top: 5px;">
+                    <small class="inv-form-hint">
                         A notificação será marcada como expirada após esta data (opcional)
                     </small>
                 </div>
@@ -94,43 +94,22 @@
         </div>
 
         <!-- Preview -->
-        <div class="detail-card" style="margin-bottom: 20px;">
+        <div class="detail-card inv-card-gap">
             <h2><i class="bi bi-eye"></i> Preview</h2>
-            <div id="previewCard" style="
-                border-left: 4px solid #2196F3; 
-                padding: 20px; 
-                background: #f5f5f5; 
-                border-radius: 8px;
-                transition: all 0.3s ease;
-            ">
-                <div style="display: flex; align-items: start; gap: 15px;">
-                    <div style="
-                        width: 50px; 
-                        height: 50px; 
-                        border-radius: 50%; 
-                        display: flex; 
-                        align-items: center; 
-                        justify-content: center;
-                        background: rgba(33, 150, 243, 0.1);
-                    ">
-                        <i id="previewIcon" class="bi bi-info-circle" style="font-size: 24px; color: #2196F3;"></i>
+            <div id="previewCard" class="inv-preview-card">
+                <div class="inv-preview-row">
+                    <div class="inv-preview-icon-wrap">
+                        <i id="previewIcon" class="bi bi-info-circle inv-preview-icon"></i>
                     </div>
-                    <div style="flex: 1;">
-                        <div style="display: flex; gap: 10px; margin-bottom: 8px;">
-                            <strong id="previewTitle" style="font-size: 16px;">Título da Notificação</strong>
-                            <span id="previewPriority" style="
-                                background: #2196F3; 
-                                color: white; 
-                                padding: 2px 8px; 
-                                border-radius: 12px; 
-                                font-size: 12px; 
-                                font-weight: 500;
-                            ">Normal</span>
+                    <div class="inv-preview-body">
+                        <div class="inv-preview-head">
+                            <strong id="previewTitle" class="inv-preview-title">Título da Notificação</strong>
+                            <span id="previewPriority" class="inv-preview-priority">Normal</span>
                         </div>
-                        <p id="previewMessage" style="color: #666; margin: 0 0 10px 0;">
+                        <p id="previewMessage" class="inv-preview-message">
                             Mensagem da notificação aparecerá aqui...
                         </p>
-                        <div style="font-size: 14px; color: #999;">
+                        <div class="inv-preview-machine">
                             <i class="bi bi-pc-display"></i> <span id="previewMachine">Selecione uma máquina</span>
                         </div>
                     </div>

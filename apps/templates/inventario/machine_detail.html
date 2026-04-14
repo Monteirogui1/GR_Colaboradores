@@ -8,13 +8,16 @@
     <!-- CABEÇALHO -->
     <div class="page-header">
         <h1><i class="bi bi-pc-display"></i> {{ machine.hostname }}</h1>
-        <div class="filter-buttons">
+        <div class="filter-buttons inv-machine-actions">
+            <a href="{% url 'inventario:machine_activity_log' machine.pk %}" class="btn btn-secondary">
+                <i class="bi bi-clock-history"></i> Log de Atividades
+            </a>
             {% if user.is_staff %}
             <a href="{% url 'inventario:machine_update' machine.pk %}" class="btn btn-edit">
                 <i class="bi bi-pencil"></i> Editar
             </a>
             {% endif %}
-            <button class="btn btn-delete" data-id="{{ machine.id }}">
+            <button class="btn btn-delete" data-id="{{ machine.id }}" data-delete-url="{% url 'inventario:machine_delete' machine.id %}">
                 <i class="bi bi-trash"></i> Excluir
             </button>
             <a href="{% url 'inventario:machine_list' %}" class="btn btn-secondary">
@@ -32,9 +35,9 @@
                     <span class="detail-label">Status:</span>
                     <span class="detail-value">
                     {% if machine.is_currently_online %}
-                        <span style="color:#22c55e;font-weight:600;">● Online</span>
+                        <span class="inv-status-online">● Online</span>
                     {% else %}
-                        <span style="color:#ef4444;font-weight:600;">● Offline</span>
+                        <span class="inv-status-offline">● Offline</span>
                     {% endif %}
                     </span>
                 </div>
@@ -111,7 +114,7 @@
             </div>
         </div>
         {% if machine.memory_modules %}
-        <table class="table" style="margin-top:12px;">
+        <table class="table inv-table-top">
             <thead>
                 <tr>
                     <th>Banco</th>
@@ -152,7 +155,7 @@
             </div>
         </div>
         {% if machine.disks %}
-        <table class="table" style="margin-top:12px;">
+        <table class="table inv-table-top">
             <thead>
                 <tr>
                     <th>Disco</th>
@@ -226,7 +229,7 @@
             </div>
         </div>
         {% if machine.network_info %}
-        <table class="table" style="margin-top:12px;">
+        <table class="table inv-table-top">
             <thead>
                 <tr>
                     <th>Nome</th>
@@ -254,7 +257,7 @@
     </div>
 
     <!-- SEGURANÇA -->
-    <div class="detail-card">
+    <div class="detail-card inv-security-card">
         <h2><i class="bi bi-shield-check"></i> Segurança</h2>
         <div class="detail-content">
             <div class="detail-info">
@@ -269,8 +272,8 @@
             </div>
         </div>
         {% if machine.tpm %}
-        <h3 style="margin-top:16px;font-size:14px;color:#555;">TPM (Trusted Platform Module)</h3>
-        <div class="detail-info" style="margin-top:8px;">
+        <h3 class="inv-tpm-title">TPM (Trusted Platform Module)</h3>
+        <div class="detail-info inv-tpm-info">
             <div class="detail-row">
                 <span class="detail-label">Presente:</span>
                 <span class="detail-value">{{ machine.tpm.present|yesno:"Sim,Não" }}</span>
@@ -297,92 +300,47 @@
 
     <!-- TERMINAL REMOTO -->
     {% if user.is_staff %}
-    <div class="detail-card" id="terminal-card">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-            <h2 style="margin:0;"><i class="bi bi-terminal-fill"></i> Terminal Remoto</h2>
-            <div style="display:flex; gap:8px; align-items:center;">
-                <span style="
-                    font-size:12px; padding:3px 10px; border-radius:20px; font-weight:600;
-                    background:{% if machine.is_currently_online %}#dcfce7{% else %}#fee2e2{% endif %};
-                    color:{% if machine.is_currently_online %}#166534{% else %}#991b1b{% endif %};">
+    <div class="detail-card inv-terminal-card" id="terminal-card">
+        <div class="inv-terminal-head">
+            <h2 class="inv-terminal-title"><i class="bi bi-terminal-fill"></i> Terminal Remoto</h2>
+            <div class="inv-terminal-tools">
+                <span class="inv-agent-pill {% if machine.is_currently_online %}inv-agent-pill-online{% else %}inv-agent-pill-offline{% endif %}">
                     {% if machine.is_currently_online %}● Agente Online{% else %}● Agente Offline{% endif %}
                 </span>
-                <select id="cmd-type" style="
-                    font-family:'Consolas',monospace; font-size:12px;
-                    background:#2d2d2d; color:#c9d1d9;
-                    border:1px solid #444; border-radius:5px;
-                    padding:4px 8px; cursor:pointer;">
+                <select id="cmd-type" class="inv-terminal-select">
                     <option value="powershell">PowerShell</option>
                     <option value="cmd">CMD</option>
                 </select>
-                <button onclick="clearTerminal()" title="Limpar terminal" style="
-                    background:#2d2d2d; color:#8b949e; border:1px solid #444;
-                    border-radius:5px; padding:4px 10px; cursor:pointer; font-size:13px;">
+                <button id="btn-clear-terminal" title="Limpar terminal" class="inv-terminal-clear-btn">
                     <i class="bi bi-trash"></i>
                 </button>
             </div>
         </div>
 
-        <div id="terminal-output" style="
-            background:#0d1117; color:#e6edf3;
-            font-family:'Consolas','Courier New',monospace;
-            font-size:13px; line-height:1.55;
-            padding:14px 16px; border-radius:8px;
-            border:1px solid #30363d; height:360px;
-            overflow-y:auto; white-space:pre-wrap;
-            word-break:break-all; margin-bottom:10px;
-        "></div>
+        <div id="terminal-output" class="inv-terminal-output"></div>
 
-        <div style="display:flex; gap:6px; align-items:center;">
-            <span id="term-prompt" style="
-                color:#58a6ff; font-family:'Consolas',monospace;
-                font-size:13px; white-space:nowrap;
-                padding:0 4px; line-height:38px;">PS&gt;</span>
+        <div class="inv-terminal-input-row">
+            <span id="term-prompt" class="inv-terminal-prompt">PS&gt;</span>
             <input type="text" id="terminal-input"
                 placeholder="Get-ComputerInfo | Select-Object CsName, OsName"
                 autocomplete="off" autocorrect="off" spellcheck="false"
-                style="flex:1; font-family:'Consolas',monospace; font-size:13px;
-                       background:#161b22; color:#e6edf3;
-                       border:1px solid #30363d; border-radius:6px;
-                       padding:7px 12px; outline:none;" />
-            <button id="btn-run" onclick="runCommand()" style="
-                background:#238636; color:#fff; border:none;
-                border-radius:6px; padding:7px 18px; font-size:13px;
-                cursor:pointer; white-space:nowrap;
-                display:flex; align-items:center; gap:5px;">
+                class="inv-terminal-input" />
+            <button id="btn-run" class="inv-terminal-run-btn">
                 <i class="bi bi-play-fill"></i> Executar
             </button>
         </div>
 
-        <div style="margin-top:8px; font-size:11px; color:#8b949e;">
+        <div class="inv-terminal-hint">
             <i class="bi bi-info-circle"></i>
-            <kbd style="background:#21262d;border:1px solid #30363d;border-radius:3px;padding:1px 5px;">Enter</kbd> executar &nbsp;·&nbsp;
-            <kbd style="background:#21262d;border:1px solid #30363d;border-radius:3px;padding:1px 5px;">↑</kbd>
-            <kbd style="background:#21262d;border:1px solid #30363d;border-radius:3px;padding:1px 5px;">↓</kbd> histórico &nbsp;·&nbsp;
+            <kbd class="inv-terminal-kbd">Enter</kbd> executar &nbsp;·&nbsp;
+            <kbd class="inv-terminal-kbd">↑</kbd>
+            <kbd class="inv-terminal-kbd">↓</kbd> histórico &nbsp;·&nbsp;
             Timeout máximo: 60s &nbsp;·&nbsp;
         </div>
     </div>
     {% endif %}
 
     <!-- SCRIPTS -->
-    <script>
-    /* ── Exclusão de máquina ─────────────────────────────────────────────────── */
-    document.querySelectorAll('.btn-delete[data-id]').forEach(function(btn) {
-        btn.addEventListener('click', function () {
-            var id = this.dataset.id;
-            if (confirm('Tem certeza que deseja excluir esta máquina?')) {
-                fetch('/machines/' + id + '/delete/', {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
-                }).then(function(r) {
-                    if (r.ok || r.redirected) {
-                        window.location.href = "{% url 'inventario:machine_list' %}";
-                    }
-                });
-            }
-        });
-    });
-    </script>
 
     {% if user.is_staff %}
     <script>
@@ -392,9 +350,10 @@
     var HOSTNAME   = "{{ machine.hostname }}";
     var IS_ONLINE  = {% if machine.is_currently_online %}true{% else %}false{% endif %};
 
-    var _output  = document.getElementById('terminal-output');
-    var _input   = document.getElementById('terminal-input');
-    var _btnRun  = document.getElementById('btn-run');
+var _output  = document.getElementById('terminal-output');
+var _input   = document.getElementById('terminal-input');
+var _btnRun  = document.getElementById('btn-run');
+var _btnClear = document.getElementById('btn-clear-terminal');
     var _prompt  = document.getElementById('term-prompt');
     var _cmdType = document.getElementById('cmd-type');
 
@@ -445,7 +404,7 @@
         _prompt.style.color = this.value === 'cmd' ? '#ffa657' : '#58a6ff';
     });
 
-    _input.addEventListener('keydown', function (e) {
+_input.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') { runCommand(); return; }
         if (e.key === 'ArrowUp') {
             e.preventDefault();
@@ -457,7 +416,19 @@
             if (_histIdx > 0) { _histIdx--; _input.value = _history[_histIdx] || ''; }
             else { _histIdx = -1; _input.value = ''; }
         }
+});
+
+if (_btnRun) {
+    _btnRun.addEventListener('click', function () {
+        runCommand();
     });
+}
+
+if (_btnClear) {
+    _btnClear.addEventListener('click', function () {
+        clearTerminal();
+    });
+}
 
     // _input.focus();
 

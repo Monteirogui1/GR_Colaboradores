@@ -43,10 +43,10 @@
             {% for status in status_list %}
             <tr>
                 <td>
-                    <span style="color: {{ status.cor }};">●</span> {{ status.nome }}
+                    <span class="atv-status-dot atv-dynamic-color" data-color="{{ status.cor }}">●</span> {{ status.nome }}
                 </td>
                 <td>
-                    <div style="width: 30px; height: 30px; background-color: {{ status.cor }}; border-radius: 5px; border: 1px solid #ddd;"></div>
+                    <div class="atv-status-chip atv-dynamic-color" data-color="{{ status.cor }}"></div>
                 </td>
                 <td>{{ status.descricao|default:"-" }}</td>
                 <td>{{ status.is_active|yesno:"Sim,Não" }}</td>

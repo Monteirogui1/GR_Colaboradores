@@ -6,8 +6,8 @@
     <div class="page-header">
         <h1>Detalhe do Produto: {{ produto.nome }}</h1>
         <div class="filter-buttons">
-            <a href="{% url 'produtos:produtos_form' produto.id %}" class="btn btn-edit">Editar Fornecedor</a>
-            <button class="btn btn-delete" data-id="{{ produto.id }}">Excluir Fornecedor</button>
+            <a href="{% url 'produtos:produtos_form' produto.id %}" class="btn btn-edit">Editar Produto</a>
+            <button class="btn btn-delete" data-id="{{ produto.id }}" data-delete-url="{% url 'produtos:produtos_delete' produto.id %}">Excluir Produto</button>
             <a href="{% url 'produtos:produtos_list' %}" class="btn btn-secondary">Voltar</a>
         </div>
     </div>
@@ -92,10 +92,13 @@
             </tbody>
         </table>
     </div>
-    <div class="detail-row"><span class="detail-label">Parâmetros de Estoque:</span>
-        Mínimo: {{ produto.parametroestoque.estoque_minimo|default:"-" }}<br>
-        Máximo: {{ produto.parametroestoque.estoque_maximo|default:"-" }}<br>
-        Alerta de reposição: {{ produto.parametroestoque.alerta_reposicao|yesno:"Sim,Não" }}
+    <div class="detail-card">
+        <h2>Parâmetros de Estoque</h2>
+        <div class="detail-info">
+            <div class="detail-row"><span class="detail-label">Mínimo:</span><span class="detail-value">{{ produto.parametroestoque.estoque_minimo|default:"-" }}</span></div>
+            <div class="detail-row"><span class="detail-label">Máximo:</span><span class="detail-value">{{ produto.parametroestoque.estoque_maximo|default:"-" }}</span></div>
+            <div class="detail-row"><span class="detail-label">Alerta de reposição:</span><span class="detail-value">{{ produto.parametroestoque.alerta_reposicao|yesno:"Sim,Não" }}</span></div>
+        </div>
     </div>
 
     <div class="detail-card">

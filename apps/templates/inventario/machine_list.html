@@ -74,9 +74,9 @@
                 <td>{{ machine.disk_free_gb|floatformat:2|default:"-" }}</td>
                 <td>
                     {% if machine.is_currently_online %}
-                        <span style="color:#22c55e;font-weight:600;">● Online</span>
+                        <span class="inv-status-online">● Online</span>
                     {% else %}
-                        <span style="color:#ef4444;font-weight:600;">● Offline</span>
+                        <span class="inv-status-offline">● Offline</span>
                     {% endif %}
                 </td>
                 <td>{{ machine.last_seen|date:"d/m/Y H:i" }}</td>

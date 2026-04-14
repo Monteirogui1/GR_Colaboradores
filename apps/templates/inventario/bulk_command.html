@@ -12,7 +12,7 @@
     </a>
   </div>
 
-  <div style="display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start;">
+  <div class="bc-layout">
 
     <!-- ═══════════════════════════════════
          COLUNA ESQUERDA — Configuração
@@ -20,18 +20,18 @@
     <div>
 
       <!-- Seleção de alvos -->
-      <div class="detail-card" style="margin-bottom:16px;">
-        <h2 style="margin-bottom:14px;"><i class="bi bi-pc-display"></i> Alvos</h2>
+      <div class="detail-card bc-card-gap">
+        <h2 class="bc-head-h2-gap"><i class="bi bi-pc-display"></i> Alvos</h2>
 
         <!-- Abas de seleção -->
-        <div style="display:flex; gap:4px; margin-bottom:14px; background:#f1f5f9; border-radius:8px; padding:4px;">
-          <button type="button" class="bc-tab bc-tab-active" onclick="switchTab('machines')" id="tab-machines">
+        <div class="bc-tabs-wrap">
+          <button type="button" class="bc-tab bc-tab-active" data-tab="machines" id="tab-machines">
             Máquinas
           </button>
-          <button type="button" class="bc-tab" onclick="switchTab('groups')" id="tab-groups">
+          <button type="button" class="bc-tab" data-tab="groups" id="tab-groups">
             Grupos
           </button>
-          <button type="button" class="bc-tab" onclick="switchTab('all')" id="tab-all">
+          <button type="button" class="bc-tab" data-tab="all" id="tab-all">
             Todas
           </button>
         </div>
@@ -39,62 +39,57 @@
         <!-- Aba: Máquinas individuais -->
         <div id="pane-machines">
           <input type="text" id="searchMachine" placeholder="Filtrar por hostname…"
-                 class="form-control" style="margin-bottom:8px; font-size:13px;"
-                 oninput="filterMachines(this.value)">
-          <div style="display:flex; gap:6px; margin-bottom:8px;">
-            <button type="button" class="btn btn-secondary" style="font-size:12px; padding:4px 10px;"
-                    onclick="toggleAll(true)">Marcar todas</button>
-            <button type="button" class="btn btn-secondary" style="font-size:12px; padding:4px 10px;"
-                    onclick="toggleAll(false)">Desmarcar</button>
+                 class="form-control bc-input-sm">
+          <div class="bc-inline-actions">
+            <button type="button" class="btn btn-secondary bc-btn-sm" id="btn-toggle-all-on">Marcar todas</button>
+            <button type="button" class="btn btn-secondary bc-btn-sm" id="btn-toggle-all-off">Desmarcar</button>
           </div>
-          <div id="machineList" style="max-height:280px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px;">
+          <div id="machineList" class="bc-machine-list">
             {% for m in machines %}
             <label class="bc-machine-item" data-name="{{ m.hostname|lower }}" data-id="{{ m.id }}">
-              <input type="checkbox" class="bc-machine-cb" value="{{ m.id }}"
-                     style="accent-color:#1a73e8; width:15px; height:15px; flex-shrink:0;">
+              <input type="checkbox" class="bc-machine-cb" value="{{ m.id }}">
               <span class="bc-status-dot {% if m.is_currently_online %}bc-online{% else %}bc-offline{% endif %}"></span>
-              <div style="min-width:0;">
-                <div style="font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                  {{ m.hostname }}
+                <div class="bc-machine-meta">
+                  <div class="bc-machine-name">
+                    {{ m.hostname }}
+                  </div>
+                  <div class="bc-machine-sub">{{ m.ip_address }} · {{ m.group.name|default:"Sem grupo" }}</div>
                 </div>
-                <div style="font-size:11px; color:#94a3b8;">{{ m.ip_address }} · {{ m.group.name|default:"Sem grupo" }}</div>
-              </div>
-            </label>
+              </label>
             {% empty %}
-            <p style="padding:14px; text-align:center; color:#94a3b8; font-size:13px;">Nenhuma máquina com IP cadastrado.</p>
+            <p class="bc-empty-msg">Nenhuma máquina com IP cadastrado.</p>
             {% endfor %}
           </div>
-          <div style="margin-top:6px; font-size:12px; color:#64748b;">
+          <div class="bc-selected-count">
             <span id="selectedCount">0</span> selecionada(s) de {{ machines|length }}
           </div>
         </div>
 
         <!-- Aba: Grupos -->
-        <div id="pane-groups" style="display:none;">
-          <div style="max-height:320px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+        <div id="pane-groups" class="bc-pane-hidden">
+          <div class="bc-groups-list">
             {% for g in groups %}
             <label class="bc-group-item">
-              <input type="checkbox" class="bc-group-cb" value="{{ g.id }}"
-                     style="accent-color:#1a73e8; width:15px; height:15px; flex-shrink:0;">
-              <div>
-                <div style="font-size:13px; font-weight:500;">{{ g.name }}</div>
-                <div style="font-size:11px; color:#94a3b8;">{{ g.machine_set.count }} máquina(s)</div>
-              </div>
-            </label>
+              <input type="checkbox" class="bc-group-cb" value="{{ g.id }}">
+                <div>
+                  <div class="bc-group-name">{{ g.name }}</div>
+                  <div class="bc-group-sub">{{ g.machine_set.count }} máquina(s)</div>
+                </div>
+              </label>
             {% empty %}
-            <p style="color:#94a3b8; font-size:13px;">Nenhum grupo cadastrado.</p>
+            <p class="bc-group-sub">Nenhum grupo cadastrado.</p>
             {% endfor %}
           </div>
         </div>
 
         <!-- Aba: Todas -->
-        <div id="pane-all" style="display:none;">
-          <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:14px;">
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-              <i class="bi bi-exclamation-triangle-fill" style="color:#d97706;"></i>
-              <span style="font-weight:600; font-size:13px; color:#92400e;">Atenção</span>
+        <div id="pane-all" class="bc-pane-hidden">
+          <div class="bc-warning-box">
+            <div class="bc-warning-head">
+              <i class="bi bi-exclamation-triangle-fill bc-warning-icon"></i>
+              <span class="bc-warning-title">Atenção</span>
             </div>
-            <p style="font-size:13px; color:#78350f; margin:0;">
+            <p class="bc-warning-text">
               O comando será executado em <strong>todas as {{ machines|length }} máquinas</strong> com IP cadastrado simultaneamente.
             </p>
           </div>
@@ -103,30 +98,30 @@
 
       <!-- Configurações do comando -->
       <div class="detail-card">
-        <h2 style="margin-bottom:14px;"><i class="bi bi-gear"></i> Configuração</h2>
+        <h2 class="bc-head-h2-gap"><i class="bi bi-gear"></i> Configuração</h2>
 
-        <div class="form-group" style="margin-bottom:12px;">
-          <label style="font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; display:block;">Tipo</label>
-          <select id="cmdType" class="form-control" style="font-size:13px;">
+        <div class="form-group bc-form-group-sm">
+          <label class="bc-label-sm">Tipo</label>
+          <select id="cmdType" class="form-control bc-input-sm">
             <option value="powershell">PowerShell</option>
             <option value="cmd">CMD</option>
           </select>
         </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div class="bc-grid-two">
           <div class="form-group">
-            <label style="font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; display:block;">
+            <label class="bc-label-sm">
               Timeout (s)
             </label>
             <input type="number" id="timeout" value="60" min="5" max="120"
-                   class="form-control" style="font-size:13px;">
+                   class="form-control bc-input-sm">
           </div>
           <div class="form-group">
-            <label style="font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; display:block;">
+            <label class="bc-label-sm">
               Paralelo
             </label>
             <input type="number" id="maxWorkers" value="10" min="1" max="30"
-                   class="form-control" style="font-size:13px;">
+                   class="form-control bc-input-sm">
           </div>
         </div>
       </div>
@@ -138,27 +133,24 @@
     <div>
 
       <!-- Editor de comando -->
-      <div class="detail-card" style="margin-bottom:16px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-          <h2 style="margin:0;"><i class="bi bi-code-slash"></i> Comando</h2>
-          <div style="display:flex; gap:6px;">
-            <button type="button" class="btn btn-secondary" style="font-size:12px; padding:5px 12px;"
-                    onclick="clearCommand()">
+      <div class="detail-card bc-card-gap">
+        <div class="bc-editor-head">
+          <h2><i class="bi bi-code-slash"></i> Comando</h2>
+          <div class="bc-editor-actions">
+            <button type="button" class="btn btn-secondary bc-btn-sm" id="btn-clear-command">
               <i class="bi bi-trash"></i> Limpar
             </button>
-            <button type="button" id="btnRun" onclick="runBulk()"
-                    style="background:#16a34a; color:#fff; border:none; border-radius:6px;
-                           padding:7px 20px; font-size:13px; cursor:pointer; font-weight:600;
-                           display:flex; align-items:center; gap:6px;">
+            <button type="button" id="btnRun"
+                    class="bc-run-btn">
               <i class="bi bi-play-fill"></i> Executar
             </button>
           </div>
         </div>
 
         <!-- Comandos rápidos -->
-        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+        <div class="bc-quick-wrap">
           {% for label, cmd in quick_commands %}
-          <button type="button" class="bc-quick-btn" onclick="setCommand(this.dataset.cmd)"
+          <button type="button" class="bc-quick-btn"
                   data-cmd="{{ cmd }}">{{ label }}</button>
           {% endfor %}
         </div>
@@ -166,58 +158,54 @@
         <textarea id="commandInput"
                   placeholder="Get-ComputerInfo | Select-Object CsName, OsName, OsVersion"
                   spellcheck="false"
-                  style="width:100%; height:120px; font-family:'Consolas',monospace;
-                         font-size:13px; background:#0d1117; color:#e6edf3;
-                         border:1px solid #30363d; border-radius:8px;
-                         padding:12px 14px; resize:vertical; outline:none;
-                         line-height:1.55;"></textarea>
+                  class="bc-command-input"></textarea>
       </div>
 
       <!-- Barra de progresso -->
-      <div id="progressBar" style="display:none; margin-bottom:16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-          <span style="font-size:13px; font-weight:600; color:#374151;" id="progressLabel">Executando…</span>
-          <span style="font-size:12px; color:#64748b;" id="progressTime"></span>
+      <div id="progressBar" class="bc-progress">
+        <div class="bc-progress-head">
+          <span class="bc-progress-label" id="progressLabel">Executando…</span>
+          <span class="bc-progress-time" id="progressTime"></span>
         </div>
-        <div style="background:#e2e8f0; border-radius:99px; height:6px; overflow:hidden;">
-          <div id="progressFill" style="height:100%; background:#1a73e8; width:0%; transition:width .3s;"></div>
+        <div class="bc-progress-track">
+          <div id="progressFill" class="bc-progress-fill"></div>
         </div>
       </div>
 
       <!-- Sumário -->
-      <div id="summaryBar" style="display:none; margin-bottom:16px;">
-        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px;">
-          <div class="bc-summary-card" style="border-color:#e2e8f0;">
-            <div class="bc-summary-num" id="sTotal" style="color:#374151;">0</div>
+      <div id="summaryBar" class="bc-summary">
+        <div class="bc-summary-grid">
+          <div class="bc-summary-card bc-border-default">
+            <div class="bc-summary-num bc-num-default" id="sTotal">0</div>
             <div class="bc-summary-lbl">Total</div>
           </div>
-          <div class="bc-summary-card" style="border-color:#bbf7d0;">
-            <div class="bc-summary-num" id="sSuccess" style="color:#16a34a;">0</div>
+          <div class="bc-summary-card bc-border-success">
+            <div class="bc-summary-num bc-num-success" id="sSuccess">0</div>
             <div class="bc-summary-lbl">Sucesso</div>
           </div>
-          <div class="bc-summary-card" style="border-color:#fecaca;">
-            <div class="bc-summary-num" id="sFailed" style="color:#dc2626;">0</div>
+          <div class="bc-summary-card bc-border-danger">
+            <div class="bc-summary-num bc-num-danger" id="sFailed">0</div>
             <div class="bc-summary-lbl">Erro</div>
           </div>
-          <div class="bc-summary-card" style="border-color:#fed7aa;">
-            <div class="bc-summary-num" id="sOffline" style="color:#ea580c;">0</div>
+          <div class="bc-summary-card bc-border-warning">
+            <div class="bc-summary-num bc-num-warning" id="sOffline">0</div>
             <div class="bc-summary-lbl">Offline</div>
           </div>
-          <div class="bc-summary-card" style="border-color:#e2e8f0;">
-            <div class="bc-summary-num" id="sSkipped" style="color:#64748b;">0</div>
+          <div class="bc-summary-card bc-border-default">
+            <div class="bc-summary-num bc-num-muted" id="sSkipped">0</div>
             <div class="bc-summary-lbl">Ignorado</div>
           </div>
         </div>
       </div>
 
       <!-- Filtro de resultados -->
-      <div id="resultFilters" style="display:none; margin-bottom:10px; display:none; gap:6px; flex-wrap:wrap;">
-        <button class="bc-filter-btn bc-filter-active" onclick="filterResults('all', this)">Todos</button>
-        <button class="bc-filter-btn" onclick="filterResults('ok', this)" style="color:#16a34a; border-color:#bbf7d0;">✓ Sucesso</button>
-        <button class="bc-filter-btn" onclick="filterResults('error', this)" style="color:#dc2626; border-color:#fecaca;">✗ Erro</button>
-        <button class="bc-filter-btn" onclick="filterResults('offline', this)" style="color:#ea580c; border-color:#fed7aa;">⚡ Offline</button>
-        <div style="margin-left:auto;">
-          <button class="btn btn-secondary" style="font-size:12px; padding:4px 10px;" onclick="exportCSV()">
+      <div id="resultFilters" class="bc-result-filters">
+        <button class="bc-filter-btn bc-filter-active" data-filter-status="all">Todos</button>
+        <button class="bc-filter-btn bc-filter-success" data-filter-status="ok">✓ Sucesso</button>
+        <button class="bc-filter-btn bc-filter-danger" data-filter-status="error">✗ Erro</button>
+        <button class="bc-filter-btn bc-filter-warning" data-filter-status="offline">⚡ Offline</button>
+        <div class="bc-export-wrap">
+          <button class="btn btn-secondary bc-btn-sm" id="btn-export-csv">
             <i class="bi bi-download"></i> Exportar CSV
           </button>
         </div>
@@ -233,86 +221,6 @@
 <!-- ═══════════════════════════════════════════
      ESTILOS
 ════════════════════════════════════════════ -->
-<style>
-.bc-tab {
-  flex: 1; padding: 7px 0; border: none; border-radius: 6px;
-  background: transparent; font-size: 13px; font-weight: 500;
-  color: #64748b; cursor: pointer; transition: all .15s;
-}
-.bc-tab-active {
-  background: #fff; color: #1e293b;
-  box-shadow: 0 1px 3px rgba(0,0,0,.1);
-}
-.bc-machine-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px; cursor: pointer;
-  border-bottom: 1px solid #f1f5f9; transition: background .1s;
-}
-.bc-machine-item:last-child { border-bottom: none; }
-.bc-machine-item:hover { background: #f8fafc; }
-.bc-group-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; border: 1px solid #e2e8f0;
-  border-radius: 8px; cursor: pointer; transition: background .1s;
-}
-.bc-group-item:hover { background: #f8fafc; }
-.bc-status-dot {
-  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-}
-.bc-online  { background: #22c55e; }
-.bc-offline { background: #94a3b8; }
-.bc-quick-btn {
-  padding: 4px 10px; font-size: 12px; border-radius: 6px;
-  border: 1px solid #e2e8f0; background: #f8fafc;
-  color: #374151; cursor: pointer; transition: all .15s;
-  font-family: 'Consolas', monospace;
-}
-.bc-quick-btn:hover { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
-.bc-summary-card {
-  background: #fff; border: 1px solid; border-radius: 10px;
-  padding: 12px; text-align: center;
-}
-.bc-summary-num { font-size: 24px; font-weight: 700; line-height: 1; }
-.bc-summary-lbl { font-size: 11px; color: #94a3b8; margin-top: 4px; font-weight: 500; }
-.bc-filter-btn {
-  padding: 5px 12px; font-size: 12px; border-radius: 20px;
-  border: 1px solid #e2e8f0; background: #fff;
-  color: #374151; cursor: pointer; transition: all .15s; font-weight: 500;
-}
-.bc-filter-active { background: #1e293b; color: #fff; border-color: #1e293b; }
-.bc-result-card {
-  border: 1px solid #e2e8f0; border-radius: 10px;
-  margin-bottom: 8px; overflow: hidden; background: #fff;
-  transition: box-shadow .15s;
-}
-.bc-result-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-.bc-result-head {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 14px; cursor: pointer; user-select: none;
-}
-.bc-result-body {
-  display: none; padding: 0 14px 12px;
-  border-top: 1px solid #f1f5f9;
-}
-.bc-result-body.open { display: block; }
-.bc-result-pre {
-  background: #0d1117; color: #e6edf3;
-  font-family: 'Consolas', monospace; font-size: 12px;
-  border-radius: 6px; padding: 10px 12px;
-  max-height: 260px; overflow-y: auto;
-  white-space: pre-wrap; word-break: break-all;
-  margin-top: 8px; line-height: 1.5;
-}
-.bc-badge {
-  font-size: 11px; font-weight: 600; padding: 2px 9px;
-  border-radius: 20px; white-space: nowrap;
-}
-.bc-badge-ok      { background:#dcfce7; color:#16a34a; }
-.bc-badge-error   { background:#fee2e2; color:#dc2626; }
-.bc-badge-offline { background:#ffedd5; color:#ea580c; }
-.bc-badge-skipped { background:#f1f5f9; color:#64748b; }
-</style>
-
 <!-- ═══════════════════════════════════════════
      JAVASCRIPT
 ════════════════════════════════════════════ -->
@@ -346,7 +254,7 @@ var QUICK_CMDS = [
 (function(){
   var wrap = document.querySelector('[data-quick-wrap]') || (function(){
     var d = document.createElement('div');
-    d.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;';
+    d.className = 'bc-quick-wrap';
     d.setAttribute('data-quick-wrap','');
     document.getElementById('commandInput').before(d);
     return d;
@@ -356,7 +264,7 @@ var QUICK_CMDS = [
     b.type = 'button';
     b.className = 'bc-quick-btn';
     b.textContent = q.label;
-    b.onclick = function(){ setCommand(q.cmd); };
+    b.addEventListener('click', function(){ setCommand(q.cmd); });
     wrap.appendChild(b);
   });
 })();
@@ -507,7 +415,7 @@ function renderResults(results) {
   container.innerHTML = '';
 
   if (!results.length) {
-    container.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px;">Nenhum resultado.</p>';
+    container.innerHTML = '<p class="bc-no-results">Nenhum resultado.</p>';
     return;
   }
 
@@ -515,7 +423,7 @@ function renderResults(results) {
     var badgeClass = {ok:'bc-badge-ok', error:'bc-badge-error',
                       offline:'bc-badge-offline', skipped:'bc-badge-skipped'}[r.status] || 'bc-badge-skipped';
     var badgeText  = {ok:'✓ OK', error:'✗ Erro', offline:'⚡ Offline', skipped:'— Ignorado'}[r.status] || r.status;
-    var exitColor  = r.exit_code === 0 ? '#16a34a' : '#dc2626';
+    var exitClass  = r.exit_code === 0 ? 'bc-exit-ok' : 'bc-exit-fail';
 
     var hasOutput = (r.stdout && r.stdout.trim()) || (r.stderr && r.stderr.trim()) || r.error;
 
@@ -524,30 +432,30 @@ function renderResults(results) {
     card.dataset.status = r.status;
 
     card.innerHTML =
-      '<div class="bc-result-head" onclick="toggleResult(this)">' +
-        '<i class="bi bi-chevron-right" style="font-size:11px;color:#94a3b8;transition:transform .2s;" id="chev-'+idx+'"></i>' +
-        '<span style="font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+      '<div class="bc-result-head js-result-head">' +
+        '<i class="bi bi-chevron-right bc-result-chevron" id="chev-'+idx+'"></i>' +
+        '<span class="bc-result-hostname">' +
           r.hostname +
         '</span>' +
-        '<span style="font-size:11px;color:#94a3b8;margin-right:8px;">' + r.ip_address + '</span>' +
-        (r.elapsed_ms ? '<span style="font-size:11px;color:#94a3b8;margin-right:8px;">' + r.elapsed_ms + 'ms</span>' : '') +
-        (r.status === 'ok' ? '<span style="font-size:11px;color:'+exitColor+';margin-right:8px;">exit:'+r.exit_code+'</span>' : '') +
+        '<span class="bc-result-ip">' + r.ip_address + '</span>' +
+        (r.elapsed_ms ? '<span class="bc-result-elapsed">' + r.elapsed_ms + 'ms</span>' : '') +
+        (r.status === 'ok' ? '<span class="bc-result-exit ' + exitClass + '">exit:'+r.exit_code+'</span>' : '') +
         '<span class="bc-badge ' + badgeClass + '">' + badgeText + '</span>' +
       '</div>' +
       '<div class="bc-result-body" id="body-'+idx+'">' +
         (r.stdout && r.stdout.trim()
-          ? '<div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;">stdout</div>' +
+          ? '<div class="bc-out-title">stdout</div>' +
             '<pre class="bc-result-pre">' + escHtml(r.stdout.trim()) + '</pre>'
           : '') +
         (r.stderr && r.stderr.trim()
-          ? '<div style="font-size:11px;font-weight:600;color:#dc2626;margin:8px 0 4px;">stderr</div>' +
-            '<pre class="bc-result-pre" style="color:#f97316;">' + escHtml(r.stderr.trim()) + '</pre>'
+          ? '<div class="bc-err-title">stderr</div>' +
+            '<pre class="bc-result-pre bc-result-pre-stderr">' + escHtml(r.stderr.trim()) + '</pre>'
           : '') +
         (r.error
-          ? '<div style="font-size:11px;font-weight:600;color:#dc2626;margin:8px 0 4px;">erro</div>' +
-            '<pre class="bc-result-pre" style="color:#f87171;">' + escHtml(r.error) + '</pre>'
+          ? '<div class="bc-err-title">erro</div>' +
+            '<pre class="bc-result-pre bc-result-pre-error">' + escHtml(r.error) + '</pre>'
           : '') +
-        (!hasOutput ? '<p style="color:#94a3b8;font-size:12px;margin:8px 0 0;">(sem saída)</p>' : '') +
+        (!hasOutput ? '<p class="bc-no-output">(sem saída)</p>' : '') +
       '</div>';
 
     container.appendChild(card);
@@ -596,5 +504,40 @@ function escHtml(str) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;');
 }
+
+document.querySelectorAll('[data-tab]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    switchTab(this.getAttribute('data-tab'));
+  });
+});
+
+document.getElementById('searchMachine')?.addEventListener('input', function () {
+  filterMachines(this.value);
+});
+
+document.getElementById('btn-toggle-all-on')?.addEventListener('click', function () { toggleAll(true); });
+document.getElementById('btn-toggle-all-off')?.addEventListener('click', function () { toggleAll(false); });
+document.getElementById('btn-clear-command')?.addEventListener('click', clearCommand);
+document.getElementById('btnRun')?.addEventListener('click', runBulk);
+document.getElementById('btn-export-csv')?.addEventListener('click', exportCSV);
+
+document.querySelectorAll('.bc-quick-btn[data-cmd]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    setCommand(this.getAttribute('data-cmd'));
+  });
+});
+
+document.querySelectorAll('[data-filter-status]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    filterResults(this.getAttribute('data-filter-status'), this);
+  });
+});
+
+document.getElementById('resultsContainer')?.addEventListener('click', function (event) {
+  var head = event.target.closest('.js-result-head');
+  if (head) {
+    toggleResult(head);
+  }
+});
 </script>
 {% endblock %}

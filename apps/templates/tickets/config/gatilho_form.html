@@ -2,120 +2,6 @@
 {% block title %}{% if object.pk %}Editar Gatilho{% else %}Novo Gatilho{% endif %}{% endblock %}
 
 {% block conteudo %}
-<style>
-/* ── Reset e base ── */
-.gtl-wrap { max-width: 960px; margin: 0 auto; padding: 0 0 60px; }
-.gtl-page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
-.gtl-page-header h1 { font-size: 22px; font-weight: 600; color: #1e293b; margin: 0; flex: 1; }
-
-/* ── Tabs ── */
-.gtl-tabs { display: flex; border-bottom: 2px solid #e2e8f0; margin-bottom: 28px; gap: 0; }
-.gtl-tab { padding: 12px 24px; font-size: 14px; font-weight: 500; color: #64748b; cursor: pointer;
-  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; user-select: none; }
-.gtl-tab:hover { color: #1e293b; }
-.gtl-tab.active { color: #1a73e8; border-bottom-color: #1a73e8; }
-
-/* ── Painel ── */
-.gtl-panel { display: none; } .gtl-panel.active { display: block; }
-
-/* ── Card ── */
-.gtl-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 24px; margin-bottom: 20px; }
-.gtl-card-title { font-size: 15px; font-weight: 600; color: #1e293b; margin-bottom: 6px; }
-.gtl-card-desc { font-size: 13px; color: #64748b; margin-bottom: 20px; line-height: 1.5; }
-.gtl-card-desc a { color: #1a73e8; text-decoration: none; }
-
-/* ── Campo principal ── */
-.gtl-field-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
-.gtl-field-row label { font-size: 13px; font-weight: 600; color: #374151; }
-.gtl-field-row input[type=text],
-.gtl-field-row select { width: 100%; padding: 9px 12px; border: 1px solid #d1d5db;
-  border-radius: 7px; font-size: 14px; color: #1e293b; background: #fff;
-  transition: border .15s, box-shadow .15s; }
-.gtl-field-row input[type=text]:focus,
-.gtl-field-row select:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,.1); }
-.gtl-field-hint { font-size: 12px; color: #94a3b8; margin-top: 2px; display: flex; align-items: center; gap: 4px; }
-.gtl-field-hint i { font-size: 13px; color: #94a3b8; }
-
-/* ── Radio ativo/inativo ── */
-.gtl-radio-group { display: flex; align-items: center; gap: 24px; margin-top: 4px; }
-.gtl-radio-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; color: #374151; }
-.gtl-radio-opt input[type=radio] { accent-color: #1a73e8; width: 16px; height: 16px; cursor: pointer; }
-
-/* ── Seção de condições ── */
-.gtl-section-label { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
-.gtl-section-desc { font-size: 13px; color: #64748b; margin-bottom: 14px; }
-
-/* ── Linha de condição ── */
-.gtl-cond-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-.gtl-cond-prefix { font-size: 12px; font-weight: 700; color: #64748b; min-width: 24px; text-align: center;
-  background: #f1f5f9; border-radius: 4px; padding: 3px 6px; flex-shrink: 0; }
-.gtl-cond-prefix.e { color: #1a73e8; background: #eff6ff; }
-.gtl-cond-select { padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 13px;
-  color: #1e293b; background: #fff; cursor: pointer; flex: 1; min-width: 160px;
-  transition: border .15s; }
-.gtl-cond-select:focus { outline: none; border-color: #1a73e8; }
-.gtl-cond-select.wide { flex: 1.5; }
-.gtl-cond-value-wrap { flex: 1; min-width: 140px; display: flex; align-items: center; gap: 6px; }
-.gtl-cond-value { padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 13px;
-  color: #1e293b; background: #fff; width: 100%; transition: border .15s; }
-.gtl-cond-value:focus { outline: none; border-color: #1a73e8; }
-.gtl-badge-disparo { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600;
-  color: #16a34a; white-space: nowrap; }
-.gtl-badge-disparo::before { content: '✓'; }
-.gtl-cond-horas { display: flex; align-items: center; gap: 6px; }
-.gtl-cond-horas input { width: 70px; padding: 7px 8px; border: 1px solid #d1d5db; border-radius: 7px;
-  font-size: 13px; text-align: right; }
-.gtl-cond-horas span { font-size: 13px; color: #374151; white-space: nowrap; }
-.gtl-btn-icon { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px;
-  border: none; background: none; cursor: pointer; color: #94a3b8; border-radius: 6px;
-  transition: color .15s, background .15s; flex-shrink: 0; }
-.gtl-btn-icon:hover.del { color: #ef4444; background: #fef2f2; }
-.gtl-btn-icon:hover.add { color: #1a73e8; background: #eff6ff; }
-.gtl-btn-add-cond { display: flex; align-items: center; gap: 6px; color: #1a73e8; font-size: 13px;
-  cursor: pointer; padding: 6px 4px; border: none; background: none; font-weight: 500;
-  transition: opacity .15s; margin-top: 4px; }
-.gtl-btn-add-cond:hover { opacity: .75; }
-.gtl-divider { height: 1px; background: #f1f5f9; margin: 20px 0; }
-
-/* ── Seção de ações ── */
-.gtl-action-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
-.gtl-action-main { flex: 1; min-width: 200px; }
-.gtl-action-main select { width: 100%; padding: 9px 10px; border: 1px solid #d1d5db;
-  border-radius: 7px; font-size: 13px; color: #1e293b; background: #fff; }
-.gtl-action-main select:focus { outline: none; border-color: #1a73e8; }
-.gtl-action-context { flex: 1.2; }
-.gtl-action-context select { width: 100%; padding: 9px 10px; border: 1px solid #d1d5db;
-  border-radius: 7px; font-size: 13px; color: #1e293b; background: #fff; }
-.gtl-action-context select:focus { outline: none; border-color: #1a73e8; }
-.gtl-action-sub { margin-top: 8px; }
-.gtl-action-sub label { font-size: 12px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; }
-.gtl-action-sub select, .gtl-action-sub input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db;
-  border-radius: 7px; font-size: 13px; color: #1e293b; background: #fff; }
-.gtl-action-sub textarea { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db;
-  border-radius: 7px; font-size: 13px; color: #1e293b; background: #fff;
-  min-height: 90px; resize: vertical; font-family: inherit; }
-.gtl-action-sub textarea:focus, .gtl-action-sub select:focus, .gtl-action-sub input:focus {
-  outline: none; border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,.1); }
-.gtl-check-row { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; }
-.gtl-check-row input[type=checkbox] { width: 15px; height: 15px; accent-color: #1a73e8; margin-top: 2px; flex-shrink: 0; }
-.gtl-check-row label { font-size: 12px; color: #374151; cursor: pointer; line-height: 1.4; }
-.gtl-check-row .gtl-check-hint { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-.words-count { font-size: 11px; color: #94a3b8; text-align: right; margin-top: 2px; }
-.gtl-editor-toolbar { display: flex; gap: 2px; padding: 6px 8px; background: #f8fafc;
-  border: 1px solid #d1d5db; border-radius: 7px 7px 0 0; border-bottom: none; flex-wrap: wrap; }
-.gtl-editor-btn { padding: 4px 7px; border: none; background: none; cursor: pointer;
-  color: #374151; border-radius: 4px; font-size: 13px; transition: background .1s; }
-.gtl-editor-btn:hover { background: #e2e8f0; }
-.gtl-editor-btn.sep { width: 1px; background: #d1d5db; margin: 0 4px; padding: 0; cursor: default; }
-.gtl-textarea-editor { border-radius: 0 0 7px 7px; }
-
-/* ── Form actions ── */
-.gtl-form-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 20px 0 0;
-  border-top: 1px solid #e2e8f0; margin-top: 8px; }
-
-/* ── JSON hidden (real Django field) ── */
-.gtl-json-hidden { display: none; }
-</style>
 
 <div class="gtl-wrap">
   <div class="gtl-page-header">
@@ -154,7 +40,7 @@
           <input type="text" id="id_nome_vis" name="_nome_vis"
             value="{{ form.nome.value|default:'' }}"
             placeholder="Ex: Fechar ticket após 48h sem resposta">
-          {% if form.nome.errors %}<div style="color:#ef4444;font-size:12px">{{ form.nome.errors }}</div>{% endif %}
+          {% if form.nome.errors %}<div class="gtl-inline-error">{{ form.nome.errors }}</div>{% endif %}
         </div>
 
         <div class="gtl-field-row">
@@ -172,11 +58,11 @@
           <label>Status</label>
           <div class="gtl-radio-group">
             <label class="gtl-radio-opt">
-              <input type="radio" name="ativo_vis" value="1" {% if form.ativo.value != False %}checked{% endif %} onchange="syncAtivo(this)">
+              <input type="radio" name="ativo_vis" value="1" {% if form.ativo.value != False %}checked{% endif %}>
               Habilitado
             </label>
             <label class="gtl-radio-opt">
-              <input type="radio" name="ativo_vis" value="0" {% if form.ativo.value == False %}checked{% endif %} onchange="syncAtivo(this)">
+              <input type="radio" name="ativo_vis" value="0" {% if form.ativo.value == False %}checked{% endif %}>
               Desabilitado
             </label>
           </div>
@@ -191,7 +77,7 @@
           <label for="id_ordem_vis">Ordem de execução</label>
           <input type="number" id="id_ordem_vis" name="ordem"
             value="{{ form.ordem.value|default:'0' }}"
-            style="width:120px" min="0" class="form-control">
+            min="0" class="form-control gtl-input-sm">
         </div>
       </div>
     </div>
@@ -208,7 +94,7 @@
         <div class="gtl-section-label">Atende TODAS as condições a seguir</div>
         <div class="gtl-section-desc">O gatilho será executado somente se todas as seguintes condições forem atendidas.</div>
         <div id="bloco-todas"></div>
-        <button type="button" class="gtl-btn-add-cond" onclick="addCondicao('todas')">
+        <button type="button" class="gtl-btn-add-cond" id="btn-add-cond-todas">
           <i class="bi bi-plus-circle"></i> Adicionar condição
         </button>
 
@@ -218,7 +104,7 @@
         <div class="gtl-section-label">Atende QUALQUER condição a seguir</div>
         <div class="gtl-section-desc">O gatilho será executado se uma ou mais das seguintes condições forem atendidas.</div>
         <div id="bloco-qualquer"></div>
-        <button type="button" class="gtl-btn-add-cond" onclick="addCondicao('qualquer')">
+        <button type="button" class="gtl-btn-add-cond" id="btn-add-cond-qualquer">
           <i class="bi bi-plus-circle"></i> Adicionar condição
         </button>
       </div>
@@ -232,7 +118,7 @@
           Configure as ações que serão executadas quando as condições forem atendidas.
         </div>
         <div id="bloco-acoes"></div>
-        <button type="button" class="gtl-btn-add-cond" onclick="addAcao()">
+        <button type="button" class="gtl-btn-add-cond" id="btn-add-acao">
           <i class="bi bi-plus-circle"></i> Adicionar ação
         </button>
       </div>
@@ -241,7 +127,7 @@
     {# ========================= BOTÕES ========================= #}
     <div class="gtl-form-actions">
       <a href="{% url 'tickets:gatilho_list' %}" class="btn btn-secondary">Cancelar</a>
-      <button type="submit" class="btn btn-primary" onclick="serializarTudo()">
+      <button type="submit" class="btn btn-primary">
         <i class="bi bi-check-lg"></i> Salvar Gatilho
       </button>
     </div>
@@ -249,7 +135,7 @@
 </div>
 
 <script>
-// ─── Dados de opções ───────────────────────────────────────────────────────────
+// ─── Dados de opções ─────────────────────────────────────────────────────────
 const CAMPOS_CONDICAO = [
   { v: 'ticket.assunto',              l: 'Ticket: Assunto' },
   { v: 'ticket.status',               l: 'Ticket: Status' },
@@ -273,23 +159,23 @@ const CAMPOS_CONDICAO = [
 ];
 
 const OPERADORES = {
-  default:  [
-    { v: 'igual',          l: 'Igual a' },
-    { v: 'diferente',      l: 'Diferente de' },
-    { v: 'alterado',       l: 'Alterado' },
-    { v: 'alterado_de',    l: 'Alterado de' },
-    { v: 'alterado_para',  l: 'Alterado para' },
-    { v: 'vazio',          l: 'Está vazio' },
-    { v: 'nao_vazio',      l: 'Não está vazio' },
+  default: [
+    { v: 'igual',         l: 'Igual a' },
+    { v: 'diferente',     l: 'Diferente de' },
+    { v: 'alterado',      l: 'Alterado' },
+    { v: 'alterado_de',   l: 'Alterado de' },
+    { v: 'alterado_para', l: 'Alterado para' },
+    { v: 'vazio',         l: 'Está vazio' },
+    { v: 'nao_vazio',     l: 'Não está vazio' },
   ],
   texto: [
-    { v: 'igual',          l: 'Igual a' },
-    { v: 'diferente',      l: 'Diferente de' },
-    { v: 'contem',         l: 'Contém' },
-    { v: 'nao_contem',     l: 'Não contém' },
-    { v: 'comeca',         l: 'Começa com' },
-    { v: 'vazio',          l: 'Está vazio' },
-    { v: 'nao_vazio',      l: 'Não está vazio' },
+    { v: 'igual',     l: 'Igual a' },
+    { v: 'diferente', l: 'Diferente de' },
+    { v: 'contem',    l: 'Contém' },
+    { v: 'nao_contem',l: 'Não contém' },
+    { v: 'comeca',    l: 'Começa com' },
+    { v: 'vazio',     l: 'Está vazio' },
+    { v: 'nao_vazio', l: 'Não está vazio' },
   ],
   tempo: [
     { v: 'nao_registrada', l: 'Não registrada a (Horas corridas)' },
@@ -298,10 +184,10 @@ const OPERADORES = {
     { v: 'entre',          l: 'Tempo de permanência entre' },
   ],
   acao: [
-    { v: 'publica',        l: 'É pública' },
-    { v: 'interna',        l: 'É interna' },
-    { v: 'cliente',        l: 'Do cliente' },
-    { v: 'agente',         l: 'Do agente' },
+    { v: 'publica',  l: 'É pública' },
+    { v: 'interna',  l: 'É interna' },
+    { v: 'cliente',  l: 'Do cliente' },
+    { v: 'agente',   l: 'Do agente' },
   ],
 };
 
@@ -314,7 +200,7 @@ const VALORES_STATUS_BASE = [
   { v: 'cancelado',      l: 'Cancelado' },
 ];
 
-const VALORES_STATUS = {{ status_list_json|default:'[]'|safe }};
+const VALORES_STATUS    = {{ status_list_json|default:'[]'|safe }};
 const VALORES_CATEGORIA = {{ categoria_list_json|default:'[]'|safe }};
 const VALORES_URGENCIA  = {{ urgencia_list_json|default:'[]'|safe }};
 const VALORES_SERVICO   = {{ servico_list_json|default:'[]'|safe }};
@@ -331,62 +217,17 @@ const ACOES_TIPOS = [
 ];
 
 const DESTINATARIOS = [
-  { v: 'gerador',      l: 'Gerador do ticket' },
-  { v: 'solicitante',  l: 'Solicitante' },
-  { v: 'responsavel',  l: 'Responsável' },
-  { v: 'todos_agentes',l: 'Todos os agentes' },
-  { v: 'especifico',   l: 'Usuário específico' },
+  { v: 'gerador',       l: 'Gerador do ticket' },
+  { v: 'solicitante',   l: 'Solicitante' },
+  { v: 'responsavel',   l: 'Responsável' },
+  { v: 'todos_agentes', l: 'Todos os agentes' },
+  { v: 'especifico',    l: 'Usuário específico' },
 ];
 
-// ─── Estado ───────────────────────────────────────────────────────────────────
+// ─── Estado ──────────────────────────────────────────────────────────────────
 let state = { todas: [], qualquer: [], acoes: [] };
 
-// ─── Inicialização ────────────────────────────────────────────────────────────
-function init() {
-  // Carregar JSON existente
-  try {
-    const raw = document.getElementById('gtl-condicoes-json').value.trim();
-    if (raw && raw !== '') {
-      const parsed = JSON.parse(raw);
-      state.todas   = parsed.todas   || [];
-      state.qualquer = parsed.qualquer || [];
-    }
-  } catch(e) {}
-  try {
-    const raw2 = document.getElementById('gtl-acoes-json').value.trim();
-    if (raw2 && raw2 !== '') {
-      const parsed2 = JSON.parse(raw2);
-      state.acoes = Array.isArray(parsed2) ? parsed2 : [];
-    }
-  } catch(e) {}
-
-  renderTodas(); renderQualquer(); renderAcoes();
-
-  // Tabs
-  document.querySelectorAll('.gtl-tab').forEach(t => {
-    t.addEventListener('click', () => {
-      document.querySelectorAll('.gtl-tab').forEach(x => x.classList.remove('active'));
-      document.querySelectorAll('.gtl-panel').forEach(x => x.classList.remove('active'));
-      t.classList.add('active');
-      document.getElementById('tab-' + t.dataset.tab).classList.add('active');
-    });
-  });
-
-  // Sync nome
-  document.getElementById('id_nome_vis').addEventListener('input', function() {
-    document.querySelector('[name="_nome_vis"]').value = this.value;
-  });
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function makeSelect(opts, val, cls, onchange) {
-  let s = `<select class="${cls}" onchange="${onchange}">`;
-  s += `<option value="">- Selecione -</option>`;
-  opts.forEach(o => s += `<option value="${o.v}"${o.v===val?' selected':''}>${o.l}</option>`);
-  s += `</select>`;
-  return s;
-}
-
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function getTipo(campo) {
   if (!campo) return 'default';
   if (campo.includes('assunto') || campo.includes('tags')) return 'texto';
@@ -396,14 +237,14 @@ function getTipo(campo) {
 }
 
 function getValoresOpts(campo) {
-  if (campo === 'ticket.status_base') return VALORES_STATUS_BASE;
-  if (campo === 'ticket.status')      return VALORES_STATUS;
-  if (campo === 'ticket.categoria')   return VALORES_CATEGORIA;
-  if (campo === 'ticket.urgencia')    return VALORES_URGENCIA;
-  if (campo === 'ticket.servico')     return VALORES_SERVICO;
-  if (campo === 'ticket.justificativa') return VALORES_JUSTIFIC;
-  if (campo === 'ticket.tipo') return [{v:'publico',l:'Público'},{v:'interno',l:'Interno'}];
-  if (campo === 'ticket.canal') return [{v:'web',l:'Web'},{v:'email',l:'E-mail'},{v:'whatsapp',l:'WhatsApp'},{v:'api',l:'API'}];
+  if (campo === 'ticket.status_base')      return VALORES_STATUS_BASE;
+  if (campo === 'ticket.status')           return VALORES_STATUS;
+  if (campo === 'ticket.categoria')        return VALORES_CATEGORIA;
+  if (campo === 'ticket.urgencia')         return VALORES_URGENCIA;
+  if (campo === 'ticket.servico')          return VALORES_SERVICO;
+  if (campo === 'ticket.justificativa')    return VALORES_JUSTIFIC;
+  if (campo === 'ticket.tipo')             return [{v:'publico',l:'Público'},{v:'interno',l:'Interno'}];
+  if (campo === 'ticket.canal')            return [{v:'web',l:'Web'},{v:'email',l:'E-mail'},{v:'whatsapp',l:'WhatsApp'},{v:'api',l:'API'}];
   if (campo === 'ticket.solicitante.tipo') return [{v:'cliente',l:'Cliente'},{v:'agente',l:'Agente'}];
   return [];
 }
@@ -412,134 +253,122 @@ function isTempo(campo, op) {
   return campo && (campo.includes('tempo') || (campo.includes('acao') && op === 'nao_registrada'));
 }
 
-function isValorLivre(campo, op) {
-  const semValor = ['vazio', 'nao_vazio', 'alterado'];
-  if (semValor.includes(op)) return false;
-  const valoresOpts = getValoresOpts(campo);
-  return valoresOpts.length === 0;
+function buildOptions(opts, selectedVal) {
+  return opts.map(o => `<option value="${o.v}"${o.v === selectedVal ? ' selected' : ''}>${o.l}</option>`).join('');
 }
 
-// ─── Renderizar condição ───────────────────────────────────────────────────────
+function contarWords(s) { return s.trim() ? s.trim().split(/\s+/).length : 0; }
+function fmtDoc(cmd)     { document.execCommand(cmd, false, null); }
+
+function syncAtivo(el) {
+  document.getElementById('id_ativo').value = el.value === '1' ? 'True' : 'False';
+}
+
+// ─── Render: condição (sem handlers inline) ───────────────────────────────────
 function renderCondicaoRow(cond, bloco, idx) {
   const div = document.createElement('div');
-  div.className = 'gtl-cond-row';
-  div.dataset.idx = idx;
+  div.className   = 'gtl-cond-row';
+  div.dataset.idx  = idx;
+  div.dataset.bloco = bloco;
 
   const prefix = idx === 0
     ? `<span class="gtl-cond-prefix">Se</span>`
     : `<span class="gtl-cond-prefix e">E</span>`;
 
-  // Select campo
-  let optsCampo = CAMPOS_CONDICAO.map(o =>
-    `<option value="${o.v}"${o.v===cond.campo?' selected':''}>${o.l}</option>`
+  const optsCampo = CAMPOS_CONDICAO.map(o =>
+    `<option value="${o.v}"${o.v === cond.campo ? ' selected' : ''}>${o.l}</option>`
   ).join('');
-  const selCampo = `<select class="gtl-cond-select wide" onchange="onChangeCampo('${bloco}',${idx},this.value)">
-    <option value="">- Selecione -</option>${optsCampo}</select>`;
 
-  // Select operador
-  const tipo = getTipo(cond.campo);
-  const ops = OPERADORES[tipo] || OPERADORES.default;
-  let optsOp = ops.map(o =>
-    `<option value="${o.v}"${o.v===cond.operador?' selected':''}>${o.l}</option>`
+  const tipo  = getTipo(cond.campo);
+  const ops   = OPERADORES[tipo] || OPERADORES.default;
+  const optsOp = ops.map(o =>
+    `<option value="${o.v}"${o.v === cond.operador ? ' selected' : ''}>${o.l}</option>`
   ).join('');
-  const selOp = `<select class="gtl-cond-select" onchange="onChangeOp('${bloco}',${idx},this.value)">
-    <option value="">- Selecione -</option>${optsOp}</select>`;
 
-  // Valor
+  const semValor = ['vazio', 'nao_vazio', 'alterado'];
   let valorHtml = '';
-  const semValor = ['vazio','nao_vazio','alterado'];
   if (!semValor.includes(cond.operador)) {
     if (isTempo(cond.campo, cond.operador)) {
       valorHtml = `
         <span class="gtl-badge-disparo">Condição de disparo</span>
         <div class="gtl-cond-horas">
-          <input type="number" class="gtl-cond-value" value="${cond.valor||48}" min="1"
-            oninput="onChangeValor('${bloco}',${idx},this.value)"
-            style="width:70px;padding:7px 8px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;text-align:right;">
+          <input type="number" class="gtl-cond-value" data-role="valor"
+            value="${cond.valor || 48}" min="1">
           <span>Horas</span>
         </div>`;
     } else {
       const vopts = getValoresOpts(cond.campo);
       if (vopts.length > 0) {
-        let voptHtml = vopts.map(o =>
-          `<option value="${o.v}"${o.v===cond.valor?' selected':''}>${o.l}</option>`
-        ).join('');
-        valorHtml = `<select class="gtl-cond-value"
-          onchange="onChangeValor('${bloco}',${idx},this.value)">
-          <option value="">- Selecione -</option>${voptHtml}</select>`;
+        valorHtml = `<select class="gtl-cond-value" data-role="valor">
+          <option value="">- Selecione -</option>${buildOptions(vopts, cond.valor)}</select>`;
       } else {
-        valorHtml = `<input type="text" class="gtl-cond-value"
-          value="${cond.valor||''}" placeholder="Valor..."
-          oninput="onChangeValor('${bloco}',${idx},this.value)">`;
+        valorHtml = `<input type="text" class="gtl-cond-value" data-role="valor"
+          value="${cond.valor || ''}" placeholder="Valor...">`;
       }
     }
   }
 
   div.innerHTML = `
     ${prefix}
-    ${selCampo}
-    ${selOp}
+    <select class="gtl-cond-select wide" data-role="campo">
+      <option value="">- Selecione -</option>${optsCampo}
+    </select>
+    <select class="gtl-cond-select" data-role="operador">
+      <option value="">- Selecione -</option>${optsOp}
+    </select>
     <div class="gtl-cond-value-wrap">${valorHtml}</div>
-    <button type="button" class="gtl-btn-icon del" onclick="removerCondicao('${bloco}',${idx})" title="Remover">
+    <button type="button" class="gtl-btn-icon del" data-action="remover" title="Remover">
       <i class="bi bi-trash"></i>
     </button>
-    <button type="button" class="gtl-btn-icon add" onclick="addCondicao('${bloco}')" title="Adicionar">
+    <button type="button" class="gtl-btn-icon add" data-action="adicionar" title="Adicionar">
       <i class="bi bi-plus-circle"></i>
-    </button>
-  `;
+    </button>`;
+  return div;
+}
+
+function emptyCondRow(bloco) {
+  const div = document.createElement('div');
+  div.className     = 'gtl-cond-row';
+  div.dataset.idx   = 0;
+  div.dataset.bloco = bloco;
+  div.innerHTML = `
+    <span class="gtl-cond-prefix">Se</span>
+    <select class="gtl-cond-select wide" data-role="campo">
+      <option value="">- Selecione -</option>
+      ${CAMPOS_CONDICAO.map(o => `<option value="${o.v}">${o.l}</option>`).join('')}
+    </select>
+    <select class="gtl-cond-select" data-role="operador">
+      <option value="">- Selecione -</option>
+    </select>
+    <div class="gtl-cond-value-wrap"></div>
+    <button type="button" class="gtl-btn-icon del" data-action="remover"><i class="bi bi-trash"></i></button>
+    <button type="button" class="gtl-btn-icon add" data-action="adicionar"><i class="bi bi-plus-circle"></i></button>`;
   return div;
 }
 
 function renderTodas() {
   const el = document.getElementById('bloco-todas');
   el.innerHTML = '';
-  if (state.todas.length === 0) {
-    const div = document.createElement('div');
-    div.className = 'gtl-cond-row';
-    div.innerHTML = `
-      <span class="gtl-cond-prefix">Se</span>
-      <select class="gtl-cond-select wide" onchange="onChangeCampo('todas',0,this.value)">
-        <option value="">- Selecione -</option>
-        ${CAMPOS_CONDICAO.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
-      </select>
-      <select class="gtl-cond-select"><option value="">- Selecione -</option></select>
-      <div class="gtl-cond-value-wrap"></div>
-      <button type="button" class="gtl-btn-icon del" onclick="removerCondicao('todas',0)"><i class="bi bi-trash"></i></button>
-      <button type="button" class="gtl-btn-icon add" onclick="addCondicao('todas')"><i class="bi bi-plus-circle"></i></button>`;
-    el.appendChild(div);
-    return;
-  }
+  if (state.todas.length === 0) { el.appendChild(emptyCondRow('todas')); return; }
   state.todas.forEach((c, i) => el.appendChild(renderCondicaoRow(c, 'todas', i)));
 }
 
 function renderQualquer() {
   const el = document.getElementById('bloco-qualquer');
   el.innerHTML = '';
-  if (state.qualquer.length === 0) {
-    const div = document.createElement('div');
-    div.className = 'gtl-cond-row';
-    div.innerHTML = `
-      <span class="gtl-cond-prefix">Se</span>
-      <select class="gtl-cond-select wide" onchange="onChangeCampo('qualquer',0,this.value)">
-        <option value="">- Selecione -</option>
-        ${CAMPOS_CONDICAO.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
-      </select>
-      <select class="gtl-cond-select"><option value="">- Selecione -</option></select>
-      <div class="gtl-cond-value-wrap"></div>
-      <button type="button" class="gtl-btn-icon del" onclick="removerCondicao('qualquer',0)"><i class="bi bi-trash"></i></button>
-      <button type="button" class="gtl-btn-icon add" onclick="addCondicao('qualquer')"><i class="bi bi-plus-circle"></i></button>`;
-    el.appendChild(div);
-    return;
-  }
+  if (state.qualquer.length === 0) { el.appendChild(emptyCondRow('qualquer')); return; }
   state.qualquer.forEach((c, i) => el.appendChild(renderCondicaoRow(c, 'qualquer', i)));
 }
 
 // ─── Handlers condições ───────────────────────────────────────────────────────
+function ensureEntry(bloco, idx) {
+  while (state[bloco].length <= idx) state[bloco].push({ campo: '', operador: '', valor: '' });
+}
 function onChangeCampo(bloco, idx, val) {
   ensureEntry(bloco, idx);
-  state[bloco][idx].campo = val;
+  state[bloco][idx].campo    = val;
   state[bloco][idx].operador = '';
-  state[bloco][idx].valor = '';
+  state[bloco][idx].valor    = '';
   renderBloco(bloco);
 }
 function onChangeOp(bloco, idx, val) {
@@ -551,11 +380,8 @@ function onChangeValor(bloco, idx, val) {
   ensureEntry(bloco, idx);
   state[bloco][idx].valor = val;
 }
-function ensureEntry(bloco, idx) {
-  while (state[bloco].length <= idx) state[bloco].push({campo:'',operador:'',valor:''});
-}
 function addCondicao(bloco) {
-  state[bloco].push({campo:'',operador:'',valor:''});
+  state[bloco].push({ campo: '', operador: '', valor: '' });
   renderBloco(bloco);
 }
 function removerCondicao(bloco, idx) {
@@ -563,163 +389,177 @@ function removerCondicao(bloco, idx) {
   renderBloco(bloco);
 }
 function renderBloco(bloco) {
-  if (bloco === 'todas') renderTodas();
-  else renderQualquer();
+  if (bloco === 'todas') renderTodas(); else renderQualquer();
 }
 
-// ─── Renderizar ações ─────────────────────────────────────────────────────────
+// ─── Delegação de eventos — condições ────────────────────────────────────────
+function initBlocoDelegation(blocoId, blocoName) {
+  const el = document.getElementById(blocoId);
+
+  el.addEventListener('change', function (e) {
+    const row = e.target.closest('[data-bloco]');
+    if (!row) return;
+    const idx  = +row.dataset.idx;
+    const role = e.target.dataset.role;
+    if      (role === 'campo')    onChangeCampo(blocoName, idx, e.target.value);
+    else if (role === 'operador') onChangeOp(blocoName, idx, e.target.value);
+    else if (role === 'valor')    onChangeValor(blocoName, idx, e.target.value);
+  });
+
+  el.addEventListener('input', function (e) {
+    const row = e.target.closest('[data-bloco]');
+    if (!row || e.target.dataset.role !== 'valor') return;
+    onChangeValor(blocoName, +row.dataset.idx, e.target.value);
+  });
+
+  el.addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const row    = btn.closest('[data-bloco]');
+    const idx    = row ? +row.dataset.idx : 0;
+    const action = btn.dataset.action;
+    if      (action === 'remover')   removerCondicao(blocoName, idx);
+    else if (action === 'adicionar') addCondicao(blocoName);
+  });
+}
+
+// ─── Render: ações (sem handlers inline) ──────────────────────────────────────
 function renderAcaoRow(acao, idx) {
   const div = document.createElement('div');
-  div.className = 'gtl-action-row';
+  div.className       = 'gtl-action-row';
+  div.dataset.acaoIdx = idx;
 
-  // Select tipo ação
-  let optsAcao = ACOES_TIPOS.map(o =>
-    `<option value="${o.v}"${o.v===acao.tipo?' selected':''}>${o.l}</option>`
-  ).join('');
+  const optsAcao = buildOptions(ACOES_TIPOS, acao.tipo);
 
-  // Contexto (ex: remetente do e-mail para enviar_email)
   let contextoHtml = '';
   if (acao.tipo === 'enviar_email') {
     contextoHtml = `<div class="gtl-action-context">
-      <select onchange="onChangeAcaoCtx(${idx},this.value)">
+      <select data-role="ctx">
         <option value="">- Selecione o remetente -</option>
-        <option value="suporte" ${acao.ctx==='suporte'?'selected':''}>Suporte</option>
+        <option value="suporte"${acao.ctx === 'suporte' ? ' selected' : ''}>Suporte</option>
       </select>
     </div>`;
   }
 
-  // Sub-campos baseados no tipo
   let subHtml = '';
   if (acao.tipo === 'enviar_email') {
     subHtml = `
       <div class="gtl-action-sub">
         <label>Destinatário</label>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-          <select style="flex:1;padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px"
-            onchange="onChangeAcaoSub(${idx},'destinatario',this.value)">
-            ${DESTINATARIOS.map(o=>`<option value="${o.v}"${o.v===acao.destinatario?'selected':''}>${o.l}</option>`).join('')}
+        <div class="gtl-inline-row">
+          <select class="gtl-inline-select" data-role="sub" data-key="destinatario">
+            ${buildOptions(DESTINATARIOS, acao.destinatario)}
           </select>
-          <button type="button" class="gtl-btn-icon del" onclick=""><i class="bi bi-trash"></i></button>
-          <button type="button" style="font-size:12px;color:#1a73e8;background:none;border:none;cursor:pointer;white-space:nowrap">
+          <button type="button" class="gtl-btn-icon del" data-action="remover-dest"><i class="bi bi-trash"></i></button>
+          <button type="button" class="gtl-add-dest-btn">
             <i class="bi bi-plus-circle"></i> Adicionar destinatário
           </button>
         </div>
         <div class="gtl-check-row">
-          <input type="checkbox" id="nao_enviar_${idx}" ${acao.nao_enviar_disparo?'checked':''}
-            onchange="onChangeAcaoSub(${idx},'nao_enviar_disparo',this.checked)">
+          <input type="checkbox" id="nao_enviar_${idx}"
+            data-role="sub" data-key="nao_enviar_disparo"
+            ${acao.nao_enviar_disparo ? 'checked' : ''}>
           <div>
             <label for="nao_enviar_${idx}">Não enviar e-mail se o destinatário for o próprio usuário que disparou o gatilho</label>
             <div class="gtl-check-hint">Se este parâmetro estiver marcado, o sistema não irá enviar e-mail para o destinatário que tenha disparado o gatilho.</div>
           </div>
         </div>
-        <div class="gtl-action-sub" style="margin-top:12px">
+        <div class="gtl-action-sub gtl-action-sub-gap-md">
           <label>Assunto</label>
-          <input type="text" value="${acao.assunto||''}" placeholder="Assunto do e-mail..."
-            oninput="onChangeAcaoSub(${idx},'assunto',this.value)">
+          <input type="text" value="${acao.assunto || ''}" placeholder="Assunto do e-mail..."
+            data-role="sub" data-key="assunto">
         </div>
-        <div class="gtl-action-sub" style="margin-top:10px">
+        <div class="gtl-action-sub gtl-action-sub-gap-sm">
           <label>Descrição</label>
           <div class="gtl-editor-toolbar">
-            <button type="button" class="gtl-editor-btn" onclick="fmtDoc('bold')"><b>B</b></button>
-            <button type="button" class="gtl-editor-btn" onclick="fmtDoc('italic')"><i>i</i></button>
-            <button type="button" class="gtl-editor-btn" onclick="fmtDoc('underline')"><u>U</u></button>
+            <button type="button" class="gtl-editor-btn" data-fmt="bold"><b>B</b></button>
+            <button type="button" class="gtl-editor-btn" data-fmt="italic"><i>i</i></button>
+            <button type="button" class="gtl-editor-btn" data-fmt="underline"><u>U</u></button>
             <span class="gtl-editor-btn sep"></span>
             <button type="button" class="gtl-editor-btn" title="Link"><i class="bi bi-link-45deg"></i></button>
             <button type="button" class="gtl-editor-btn" title="Imagem"><i class="bi bi-image"></i></button>
           </div>
-          <textarea class="gtl-textarea-editor" placeholder="Olá {ticket.creator.name},&#10;&#10;Mensagem automática sobre o chamado {ticket.id}..."
-            oninput="onChangeAcaoSub(${idx},'corpo',this.value);atualizarWords(this)">${acao.corpo||''}</textarea>
-          <div class="words-count" id="words_${idx}">Words: ${contarWords(acao.corpo||'')}</div>
+          <textarea class="gtl-textarea-editor"
+            placeholder="Olá {ticket.creator.name},&#10;&#10;Mensagem automática sobre o chamado {ticket.id}..."
+            data-role="sub" data-key="corpo">${acao.corpo || ''}</textarea>
+          <div class="words-count" id="words_${idx}">Words: ${contarWords(acao.corpo || '')}</div>
         </div>
       </div>`;
   } else if (acao.tipo === 'alterar_status') {
-    subHtml = `<div class="gtl-action-sub">
-      <label>Novo status</label>
-      <select onchange="onChangeAcaoSub(${idx},'valor',this.value)">
-        <option value="">- Selecione -</option>
-        ${VALORES_STATUS.map(o=>`<option value="${o.v}"${o.v===acao.valor?'selected':''}>${o.l}</option>`).join('')}
+    subHtml = `<div class="gtl-action-sub"><label>Novo status</label>
+      <select data-role="sub" data-key="valor">
+        <option value="">- Selecione -</option>${buildOptions(VALORES_STATUS, acao.valor)}
       </select></div>`;
   } else if (acao.tipo === 'alterar_responsavel') {
-    subHtml = `<div class="gtl-action-sub">
-      <label>Responsável</label>
-      <select onchange="onChangeAcaoSub(${idx},'valor',this.value)">
+    subHtml = `<div class="gtl-action-sub"><label>Responsável</label>
+      <select data-role="sub" data-key="valor">
         <option value="">- Selecione -</option>
       </select></div>`;
   } else if (acao.tipo === 'alterar_urgencia') {
-    subHtml = `<div class="gtl-action-sub">
-      <label>Nova urgência</label>
-      <select onchange="onChangeAcaoSub(${idx},'valor',this.value)">
-        <option value="">- Selecione -</option>
-        ${VALORES_URGENCIA.map(o=>`<option value="${o.v}"${o.v===acao.valor?'selected':''}>${o.l}</option>`).join('')}
+    subHtml = `<div class="gtl-action-sub"><label>Nova urgência</label>
+      <select data-role="sub" data-key="valor">
+        <option value="">- Selecione -</option>${buildOptions(VALORES_URGENCIA, acao.valor)}
       </select></div>`;
   } else if (acao.tipo === 'alterar_categoria') {
-    subHtml = `<div class="gtl-action-sub">
-      <label>Nova categoria</label>
-      <select onchange="onChangeAcaoSub(${idx},'valor',this.value)">
-        <option value="">- Selecione -</option>
-        ${VALORES_CATEGORIA.map(o=>`<option value="${o.v}"${o.v===acao.valor?'selected':''}>${o.l}</option>`).join('')}
+    subHtml = `<div class="gtl-action-sub"><label>Nova categoria</label>
+      <select data-role="sub" data-key="valor">
+        <option value="">- Selecione -</option>${buildOptions(VALORES_CATEGORIA, acao.valor)}
       </select></div>`;
   } else if (acao.tipo === 'adicionar_nota') {
-    subHtml = `<div class="gtl-action-sub">
-      <label>Texto da nota</label>
+    subHtml = `<div class="gtl-action-sub"><label>Texto da nota</label>
       <textarea placeholder="Texto da nota interna..."
-        oninput="onChangeAcaoSub(${idx},'valor',this.value)">${acao.valor||''}</textarea>
-    </div>`;
+        data-role="sub" data-key="valor">${acao.valor || ''}</textarea></div>`;
   } else if (acao.tipo === 'adicionar_tag') {
-    subHtml = `<div class="gtl-action-sub">
-      <label>Tag</label>
-      <input type="text" value="${acao.valor||''}" placeholder="nome-da-tag"
-        oninput="onChangeAcaoSub(${idx},'valor',this.value)">
-    </div>`;
+    subHtml = `<div class="gtl-action-sub"><label>Tag</label>
+      <input type="text" value="${acao.valor || ''}" placeholder="nome-da-tag"
+        data-role="sub" data-key="valor"></div>`;
   }
 
   div.innerHTML = `
-    <div style="flex:1">
-      <div style="display:flex;gap:8px;align-items:center">
+    <div class="gtl-action-wrap">
+      <div class="gtl-action-row-head">
         <div class="gtl-action-main">
-          <select onchange="onChangeAcaoTipo(${idx},this.value)">
-            <option value="">- Selecione uma ação -</option>
-            ${optsAcao}
+          <select data-role="tipo">
+            <option value="">- Selecione uma ação -</option>${optsAcao}
           </select>
         </div>
         ${contextoHtml}
-        <button type="button" class="gtl-btn-icon del" onclick="removerAcao(${idx})"><i class="bi bi-trash"></i></button>
-        <button type="button" class="gtl-btn-icon add" onclick="addAcao()"><i class="bi bi-plus-circle"></i></button>
+        <button type="button" class="gtl-btn-icon del" data-action="remover"><i class="bi bi-trash"></i></button>
+        <button type="button" class="gtl-btn-icon add" data-action="adicionar"><i class="bi bi-plus-circle"></i></button>
       </div>
       ${subHtml}
     </div>`;
   return div;
 }
 
+function emptyAcaoRow() {
+  const div = document.createElement('div');
+  div.className       = 'gtl-action-row';
+  div.dataset.acaoIdx = 0;
+  div.innerHTML = `
+    <div class="gtl-action-main">
+      <select data-role="tipo">
+        <option value="">- Selecione uma ação -</option>
+        ${ACOES_TIPOS.map(o => `<option value="${o.v}">${o.l}</option>`).join('')}
+      </select>
+    </div>
+    <button type="button" class="gtl-btn-icon del" data-action="remover"><i class="bi bi-trash"></i></button>
+    <button type="button" class="gtl-btn-icon add" data-action="adicionar"><i class="bi bi-plus-circle"></i></button>`;
+  return div;
+}
+
 function renderAcoes() {
   const el = document.getElementById('bloco-acoes');
   el.innerHTML = '';
-  if (state.acoes.length === 0) {
-    const div = document.createElement('div');
-    div.className = 'gtl-action-row';
-    div.innerHTML = `
-      <div class="gtl-action-main">
-        <select onchange="onChangeAcaoTipo(0,this.value)">
-          <option value="">- Selecione uma ação -</option>
-          ${ACOES_TIPOS.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
-        </select>
-      </div>
-      <button type="button" class="gtl-btn-icon del" onclick="removerAcao(0)"><i class="bi bi-trash"></i></button>
-      <button type="button" class="gtl-btn-icon add" onclick="addAcao()"><i class="bi bi-plus-circle"></i></button>`;
-    el.appendChild(div);
-    return;
-  }
+  if (state.acoes.length === 0) { el.appendChild(emptyAcaoRow()); return; }
   state.acoes.forEach((a, i) => el.appendChild(renderAcaoRow(a, i)));
 }
 
 function addAcao() {
-  state.acoes.push({tipo:'', valor:'', destinatario:'gerador', assunto:'', corpo:'', nao_enviar_disparo: true});
+  state.acoes.push({ tipo: '', valor: '', destinatario: 'gerador', assunto: '', corpo: '', nao_enviar_disparo: true });
   renderAcoes();
 }
-function removerAcao(idx) {
-  state.acoes.splice(idx, 1);
-  renderAcoes();
-}
+function removerAcao(idx) { state.acoes.splice(idx, 1); renderAcoes(); }
 function onChangeAcaoTipo(idx, val) {
   if (!state.acoes[idx]) state.acoes[idx] = {};
   state.acoes[idx].tipo = val;
@@ -734,34 +574,125 @@ function onChangeAcaoSub(idx, key, val) {
   state.acoes[idx][key] = val;
 }
 
-// ─── Utilidades ───────────────────────────────────────────────────────────────
-function contarWords(s) { return s.trim() ? s.trim().split(/\s+/).length : 0; }
-function atualizarWords(el) {
-  const idx = el.closest('.gtl-action-row') ? [...document.querySelectorAll('.gtl-action-row')].indexOf(el.closest('.gtl-action-row')) : 0;
-  const wc = document.getElementById('words_'+idx);
-  if (wc) wc.textContent = 'Words: ' + contarWords(el.value);
-}
-function fmtDoc(cmd) { document.execCommand(cmd, false, null); }
-function syncAtivo(el) {
-  document.getElementById('id_ativo').value = el.value === '1' ? 'True' : 'False';
+// ─── Delegação de eventos — ações ─────────────────────────────────────────────
+function initAcoesDelegation() {
+  const el = document.getElementById('bloco-acoes');
+
+  el.addEventListener('change', function (e) {
+    const row = e.target.closest('[data-acao-idx]');
+    if (!row) return;
+    const idx  = +row.dataset.acaoIdx;
+    const role = e.target.dataset.role;
+    if      (role === 'tipo') onChangeAcaoTipo(idx, e.target.value);
+    else if (role === 'ctx')  onChangeAcaoCtx(idx, e.target.value);
+    else if (role === 'sub')  onChangeAcaoSub(idx, e.target.dataset.key, e.target.value);
+  });
+
+  el.addEventListener('input', function (e) {
+    const row = e.target.closest('[data-acao-idx]');
+    if (!row || e.target.dataset.role !== 'sub') return;
+    const idx = +row.dataset.acaoIdx;
+    const key = e.target.dataset.key;
+    onChangeAcaoSub(idx, key, e.target.value);
+    if (key === 'corpo') {
+      const wc = document.getElementById('words_' + idx);
+      if (wc) wc.textContent = 'Words: ' + contarWords(e.target.value);
+    }
+  });
+
+  // checkbox (change não bubbles de forma confiável em alguns browsers — tratado aqui)
+  el.addEventListener('change', function (e) {
+    if (e.target.type !== 'checkbox') return;
+    const row = e.target.closest('[data-acao-idx]');
+    if (!row || e.target.dataset.role !== 'sub') return;
+    onChangeAcaoSub(+row.dataset.acaoIdx, e.target.dataset.key, e.target.checked);
+  });
+
+  el.addEventListener('click', function (e) {
+    // Botões de formatação de texto
+    const fmtBtn = e.target.closest('[data-fmt]');
+    if (fmtBtn) { fmtDoc(fmtBtn.dataset.fmt); return; }
+
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const row    = btn.closest('[data-acao-idx]');
+    const idx    = row ? +row.dataset.acaoIdx : 0;
+    const action = btn.dataset.action;
+    if      (action === 'remover')   removerAcao(idx);
+    else if (action === 'adicionar') addAcao();
+  });
 }
 
-// ─── Serializar antes de submeter ─────────────────────────────────────────────
+// ─── Serializar antes de submeter ────────────────────────────────────────────
 function serializarTudo() {
-  // Sync nome
-  const nomeVis = document.getElementById('id_nome_vis');
+  const nomeVis    = document.getElementById('id_nome_vis');
   const nomeHidden = document.querySelector('[name="nome"]');
   if (nomeHidden && nomeVis) nomeHidden.value = nomeVis.value;
 
-  // Condições JSON
-  const condJson = { todas: state.todas.filter(c => c.campo), qualquer: state.qualquer.filter(c => c.campo) };
+  const condJson = {
+    todas:   state.todas.filter(c => c.campo),
+    qualquer: state.qualquer.filter(c => c.campo),
+  };
   document.getElementById('gtl-condicoes-json').value = JSON.stringify(condJson);
+  document.getElementById('gtl-acoes-json').value     = JSON.stringify(state.acoes.filter(a => a.tipo));
+}
 
-  // Ações JSON
-  document.getElementById('gtl-acoes-json').value = JSON.stringify(state.acoes.filter(a => a.tipo));
+// ─── Inicialização ───────────────────────────────────────────────────────────
+function init() {
+  try {
+    const raw = document.getElementById('gtl-condicoes-json').value.trim();
+    if (raw) {
+      const parsed   = JSON.parse(raw);
+      state.todas    = parsed.todas    || [];
+      state.qualquer = parsed.qualquer || [];
+    }
+  } catch (e) {}
+  try {
+    const raw2  = document.getElementById('gtl-acoes-json').value.trim();
+    if (raw2) {
+      const parsed2 = JSON.parse(raw2);
+      state.acoes   = Array.isArray(parsed2) ? parsed2 : [];
+    }
+  } catch (e) {}
+
+  renderTodas();
+  renderQualquer();
+  renderAcoes();
+
+  // Event delegation nos três blocos
+  initBlocoDelegation('bloco-todas',    'todas');
+  initBlocoDelegation('bloco-qualquer', 'qualquer');
+  initAcoesDelegation();
+
+  // Tabs
+  document.querySelectorAll('.gtl-tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      document.querySelectorAll('.gtl-tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.gtl-panel').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById('tab-' + t.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Sync nome
+  document.getElementById('id_nome_vis').addEventListener('input', function () {
+    document.querySelector('[name="_nome_vis"]').value = this.value;
+  });
+
+  // Sync campo ativo (radio)
+  document.querySelectorAll('input[name="ativo_vis"]').forEach(function (radio) {
+    radio.addEventListener('change', function () { syncAtivo(this); });
+  });
+
+  // Botões de adicionar fora dos blocos
+  document.getElementById('btn-add-cond-todas')?.addEventListener('click', function () { addCondicao('todas'); });
+  document.getElementById('btn-add-cond-qualquer')?.addEventListener('click', function () { addCondicao('qualquer'); });
+  document.getElementById('btn-add-acao')?.addEventListener('click', addAcao);
+
+  // Serializar no submit
+  document.getElementById('gtl-form').addEventListener('submit', serializarTudo);
 }
 
 document.addEventListener('DOMContentLoaded', init);
-document.getElementById('gtl-form').addEventListener('submit', serializarTudo);
 </script>
 {% endblock %}

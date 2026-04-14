@@ -15,7 +15,7 @@
                 <a href="{% url 'auditoria:auditoria_finalizar' auditoria.pk %}" class="btn btn-edit">
                     <i class="bi bi-flag-fill"></i> Finalizar
                 </a>
-                <button class="btn btn-delete" onclick="cancelarAuditoria({{ auditoria.pk }})">
+                <button class="btn btn-delete" id="btn-cancelar-auditoria" data-auditoria-id="{{ auditoria.pk }}">
                     <i class="bi bi-x-circle"></i> Cancelar
                 </button>
             {% elif auditoria.status == 'finalizada' %}
@@ -36,11 +36,11 @@
                     <span class="detail-label">Status:</span>
                     <span class="detail-value">
                         {% if auditoria.status == '0' %}
-                            <span style="color: orange;">● {{ auditoria.get_status_display }}</span>
+                            <span class="aud-status-open">● {{ auditoria.get_status_display }}</span>
                         {% elif auditoria.status == '1' %}
-                            <span style="color: green;">● {{ auditoria.get_status_display }}</span>
+                            <span class="aud-status-done">● {{ auditoria.get_status_display }}</span>
                         {% else %}
-                            <span style="color: red;">● {{ auditoria.get_status_display }}</span>
+                            <span class="aud-status-cancel">● {{ auditoria.get_status_display }}</span>
                         {% endif %}
                     </span>
                 </div>
@@ -75,39 +75,39 @@
     <!-- Progresso -->
     <div class="detail-card">
         <h2>Progresso da Auditoria</h2>
-        <div style="display: flex; justify-content: space-around; margin-top: 20px;">
-            <div style="text-align: center;">
-                <h3 style="font-size: 36px; color: #4CAF50; margin: 0;">{{ auditoria.ativos_verificados }}</h3>
-                <p style="color: #666;">Verificados</p>
+        <div class="aud-detail-stats">
+            <div class="aud-detail-stat">
+                <h3 class="aud-detail-stat-value aud-detail-stat-value-ok">{{ auditoria.ativos_verificados }}</h3>
+                <p class="aud-detail-stat-label">Verificados</p>
             </div>
-            <div style="text-align: center;">
-                <h3 style="font-size: 36px; color: #ff9800; margin: 0;">{{ auditoria.total_ativos|add:"-"|add:auditoria.ativos_verificados|default:"0" }}</h3>
-                <p style="color: #666;">Pendentes</p>
+            <div class="aud-detail-stat">
+                <h3 class="aud-detail-stat-value aud-detail-stat-value-pending">{{ auditoria.total_ativos|add:"-"|add:auditoria.ativos_verificados|default:"0" }}</h3>
+                <p class="aud-detail-stat-label">Pendentes</p>
             </div>
-            <div style="text-align: center;">
-                <h3 style="font-size: 36px; color: #1a73e8; margin: 0;">{{ progresso }}%</h3>
-                <p style="color: #666;">Concluído</p>
+            <div class="aud-detail-stat">
+                <h3 class="aud-detail-stat-value aud-detail-stat-value-progress">{{ progresso }}%</h3>
+                <p class="aud-detail-stat-label">Concluído</p>
             </div>
         </div>
-        <div style="margin-top: 30px;">
-            <div style="width: 100%; height: 40px; background: #e0e0e0; border-radius: 20px; overflow: hidden;">
-                <div style="width: {{ progresso }}%; height: 100%; background: linear-gradient(90deg, #4CAF50, #8BC34A); transition: width 0.3s;"></div>
+        <div class="aud-detail-progress-wrap">
+            <div class="aud-detail-progress-track">
+                <div class="aud-detail-progress-fill" data-progress-fill="{{ progresso }}"></div>
             </div>
         </div>
     </div>
 
     <!-- Filtros de Itens -->
     <div class="detail-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2 style="margin: 0;">Ativos da Auditoria</h2>
-            <form method="get" style="display: flex; gap: 10px;">
-                <select name="filtro" class="form-control" style="width: 200px;" onchange="this.form.submit()">
+        <div class="aud-detail-items-head">
+            <h2 class="aud-detail-items-title">Ativos da Auditoria</h2>
+            <form method="get" class="aud-detail-items-filter">
+                <select name="filtro" class="form-control aud-detail-filter-status" id="aud-filter-status">
                     <option value="todos" {% if filtro_atual == 'todos' %}selected{% endif %}>Todos</option>
                     <option value="verificados" {% if filtro_atual == 'verificados' %}selected{% endif %}>Verificados</option>
                     <option value="pendentes" {% if filtro_atual == 'pendentes' %}selected{% endif %}>Pendentes</option>
                 </select>
-                <input type="text" name="busca" class="form-control" placeholder="Buscar por etiqueta ou nome" 
-                       value="{{ busca_atual }}" style="width: 300px;">
+                <input type="text" name="busca" class="form-control aud-detail-filter-search" placeholder="Buscar por etiqueta ou nome" 
+                       value="{{ busca_atual }}">
                 <button type="submit" class="btn btn-primary">Buscar</button>
             </form>
         </div>
@@ -129,9 +129,9 @@
                 <tr>
                     <td>
                         {% if item.verificado %}
-                            <span style="color: green; font-size: 20px;"><i class="bi bi-check-circle-fill"></i></span>
+                            <span class="aud-detail-item-ok"><i class="bi bi-check-circle-fill"></i></span>
                         {% else %}
-                            <span style="color: orange; font-size: 20px;"><i class="bi bi-clock"></i></span>
+                            <span class="aud-detail-item-pending"><i class="bi bi-clock"></i></span>
                         {% endif %}
                     </td>
                     <td><strong>{{ item.ativo.etiqueta }}</strong></td>
@@ -139,12 +139,7 @@
                     <td>{{ item.ativo.categoria.nome|default:"-" }}</td>
                     <td>
                         {% if item.estado_fisico %}
-                            <span style="padding: 3px 8px; border-radius: 3px; font-size: 12px; 
-                                {% if item.estado_fisico == 'otimo' %}background: #4CAF50; color: white;
-                                {% elif item.estado_fisico == 'bom' %}background: #8BC34A; color: white;
-                                {% elif item.estado_fisico == 'regular' %}background: #ff9800; color: white;
-                                {% elif item.estado_fisico == 'ruim' %}background: #f44336; color: white;
-                                {% endif %}">
+                            <span class="aud-estado-chip {% if item.estado_fisico == 'otimo' %}aud-estado-otimo{% elif item.estado_fisico == 'bom' %}aud-estado-bom{% elif item.estado_fisico == 'regular' %}aud-estado-regular{% elif item.estado_fisico == 'ruim' %}aud-estado-ruim{% endif %}">
                                 {{ item.get_estado_fisico_display }}
                             </span>
                         {% else %}
@@ -216,5 +211,26 @@ function cancelarAuditoria(auditoriaId) {
         });
     }
 }
+
+document.querySelectorAll('[data-progress-fill]').forEach(function (el) {
+    var value = parseFloat(el.getAttribute('data-progress-fill') || '0');
+    if (!isFinite(value)) {
+        value = 0;
+    }
+    var normalized = Math.max(0, Math.min(100, value));
+    el.style.width = normalized + '%';
+});
+
+document.getElementById('btn-cancelar-auditoria')?.addEventListener('click', function () {
+    var auditoriaId = this.getAttribute('data-auditoria-id');
+    cancelarAuditoria(auditoriaId);
+});
+
+document.getElementById('aud-filter-status')?.addEventListener('change', function () {
+    var form = this.closest('form');
+    if (form) {
+        form.submit();
+    }
+});
 </script>
 {% endblock %}

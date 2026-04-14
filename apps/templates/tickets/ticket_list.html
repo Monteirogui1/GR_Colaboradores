@@ -47,7 +47,7 @@
         <label>Data fim</label>
         {{ filtro_form.data_fim }}
     </div>
-    <div class="form-group" style="min-width:auto; flex:0;">
+    <div class="form-group tk-list-checkbox-group">
         <label>&nbsp;</label>
         <label class="check-group">
             {{ filtro_form.nao_concluidos }}
@@ -82,27 +82,27 @@
                 {% for ticket in tickets %}
                 <tr>
                     <td>
-                        <a href="{% url 'tickets:ticket_detail' ticket.pk %}" style="font-weight:600;color:#1a73e8;">
+                        <a href="{% url 'tickets:ticket_detail' ticket.pk %}" class="tk-list-ticket-id">
                             #{{ ticket.numero }}
                         </a>
                     </td>
-                    <td style="max-width:260px;">
-                        <a href="{% url 'tickets:ticket_detail' ticket.pk %}" style="color:#374151;text-decoration:none;">
+                    <td class="tk-list-subject-cell">
+                        <a href="{% url 'tickets:ticket_detail' ticket.pk %}" class="tk-list-subject-link">
                             {{ ticket.assunto|truncatewords:8 }}
                         </a>
                     </td>
-                    <td style="white-space:nowrap;">
+                    <td class="tk-list-nowrap">
                         {{ ticket.solicitante.get_full_name|default:ticket.solicitante.username }}
                     </td>
                     <td>
-                        <span class="badge" style="background:{{ ticket.status.cor }}22; color:{{ ticket.status.cor }}; border:1px solid {{ ticket.status.cor }}55;">
+                        <span class="badge tk-dynamic-chip" data-color="{{ ticket.status.cor }}">
                             {{ ticket.status.nome }}
                         </span>
                     </td>
                     <td>{{ ticket.categoria.nome|default:"-" }}</td>
                     <td>
                         {% if ticket.urgencia %}
-                        <span class="badge" style="background:{{ ticket.urgencia.cor }}22; color:{{ ticket.urgencia.cor }}; border:1px solid {{ ticket.urgencia.cor }}55;">
+                        <span class="badge tk-dynamic-chip" data-color="{{ ticket.urgencia.cor }}">
                             {{ ticket.urgencia.nome }}
                         </span>
                         {% else %}-{% endif %}
@@ -111,19 +111,19 @@
                     <td>
                         {% if ticket.previsao_solucao %}
                             {% if ticket.previsao_solucao < now %}
-                                <span style="color:#dc2626;font-size:13px;font-weight:600;">
+                                <span class="tk-list-sla-overdue">
                                     <i class="bi bi-exclamation-circle"></i> Vencido
                                 </span>
                             {% else %}
-                                <span style="color:#16a34a;font-size:13px;">
+                                <span class="tk-list-sla-ok">
                                     {{ ticket.previsao_solucao|date:"d/m H:i" }}
                                 </span>
                             {% endif %}
                         {% else %}
-                            <span style="color:#9ca3af;font-size:13px;">-</span>
+                            <span class="tk-list-sla-empty">-</span>
                         {% endif %}
                     </td>
-                    <td style="white-space:nowrap;color:#6b7280;font-size:13px;">
+                    <td class="tk-list-date-cell">
                         {{ ticket.criado_em|date:"d/m/Y H:i" }}
                     </td>
                     <td>

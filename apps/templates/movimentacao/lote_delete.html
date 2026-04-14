@@ -3,21 +3,20 @@
 {% block title %}Excluir Lote - ERP{% endblock %}
 
 {% block conteudo %}
-<div class="container mt-5">
-    <div class="card">
-        <div class="card-body">
-            <h5 class="card-title">Exclusão de Lote</h5>
-            <p class="card-text">
-                Você tem certeza que quer excluir o lote 
-                <b>{{ object.numero_lote }} ({{ object.variacao.produto.nome }} - {{ object.variacao.tamanho }})</b>?
-            </p>
-            <form method="post">
+<div class="content">
+    <div class="page-header">
+        <h1>Exclusão de Lote</h1>
+        <a href="{% url 'movimentacao:lote_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+
+    <div class="detail-card">
+        <h2>Confirmação</h2>
+        <div class="detail-content">
+            <p>Você tem certeza que quer excluir o lote <strong>{{ object.numero_lote }} ({{ object.variacao.produto.nome }} - {{ object.variacao.tamanho }})</strong>?</p>
+            <form method="post" class="form-actions">
                 {% csrf_token %}
-                <hr />
-                <div class="text-right">
-                    <a href="{% url 'movimentacao:lote_list' %}" class="btn btn-outline-danger">Cancelar</a>
-                    <button type="submit" class="btn btn-danger">Excluir</button>
-                </div>
+                <a href="{% url 'movimentacao:lote_list' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-danger">Excluir</button>
             </form>
         </div>
     </div>

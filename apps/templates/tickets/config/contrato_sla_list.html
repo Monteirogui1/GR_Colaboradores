@@ -8,7 +8,7 @@
     </div>
     <div class="detail-card">
         <h2>Lista de Contratos</h2>
-        <div class="detail-content" style="padding: 0;">
+        <div class="detail-content generic-list-content">
             {% if contratos %}
                 <div class="table-responsive">
                     <table class="table">
@@ -17,8 +17,8 @@
                             {% for contrato in contratos %}
                             <tr>
                                 <td><a href="{% url 'tickets:contrato_sla_detail' contrato.pk %}"><strong>{{ contrato.nome }}</strong></a></td>
-                                <td>{% if contrato.is_padrao %}<span class="badge" style="background-color: #007bff; color: white;">Sim</span>{% else %}-{% endif %}</td>
-                                <td><span class="badge" style="background-color: {% if contrato.ativo %}#28a745{% else %}#6c757d{% endif %}; color: white;">{% if contrato.ativo %}Ativo{% else %}Inativo{% endif %}</span></td>
+                                <td>{% if contrato.is_padrao %}<span class="badge bg-primary text-white">Sim</span>{% else %}-{% endif %}</td>
+                                <td><span class="badge {% if contrato.ativo %}generic-status-active{% else %}generic-status-inactive{% endif %}">{% if contrato.ativo %}Ativo{% else %}Inativo{% endif %}</span></td>
                                 <td>
                                     <a href="{% url 'tickets:contrato_sla_detail' contrato.pk %}" class="btn btn-sm btn-view"><i class="bi bi-eye"></i></a>
                                     <a href="{% url 'tickets:contrato_sla_update' contrato.pk %}" class="btn btn-sm btn-edit"><i class="bi bi-pencil"></i></a>
@@ -29,7 +29,7 @@
                     </table>
                 </div>
             {% else %}
-                <div style="text-align: center; padding: 60px;"><p>Nenhum contrato</p></div>
+                <div class="generic-empty-simple"><p>Nenhum contrato</p></div>
             {% endif %}
         </div>
     </div>

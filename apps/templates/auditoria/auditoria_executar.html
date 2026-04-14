@@ -13,18 +13,18 @@
 
     <!-- Informações da Auditoria -->
     <div class="detail-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div class="aud-ex-head">
             <div>
                 <h2>{{ auditoria.localizacao.nome }}</h2>
-                <p style="color: #666; margin: 5px 0;">
+                <p class="aud-ex-muted">
                     Responsável: {{ auditoria.responsavel.get_full_name|default:auditoria.responsavel.username }}
                 </p>
             </div>
-            <div style="text-align: right;">
-                <h3 style="color: #1a73e8; margin: 0;">{{ progresso }}%</h3>
-                <p style="margin: 5px 0;">{{ auditoria.ativos_verificados }}/{{ auditoria.total_ativos }} verificados</p>
-                <div style="width: 200px; height: 30px; background: #e0e0e0; border-radius: 15px; overflow: hidden;">
-                    <div style="width: {{ progresso }}%; height: 100%; background: #4CAF50; transition: width 0.3s;"></div>
+            <div class="aud-ex-right">
+                <h3 class="aud-ex-progress-value">{{ progresso }}%</h3>
+                <p class="aud-ex-progress-meta">{{ auditoria.ativos_verificados }}/{{ auditoria.total_ativos }} verificados</p>
+                <div class="aud-ex-progress-track">
+                    <div class="aud-ex-progress-fill" data-progress-fill="{{ progresso }}"></div>
                 </div>
             </div>
         </div>
@@ -33,28 +33,27 @@
     <!-- Scanner de Código de Barras -->
     <div class="detail-card">
         <h2><i class="bi bi-upc-scan"></i> Scanner de Código de Barras</h2>
-        <form method="get" id="scannerForm" style="margin-top: 20px;">
-            <div style="display: flex; gap: 10px; align-items: end;">
-                <div class="form-group" style="flex: 1; margin: 0;">
+        <form method="get" id="scannerForm" class="aud-ex-scanner-form">
+            <div class="aud-ex-scanner-row">
+                <div class="form-group aud-ex-scanner-group">
                     <label for="codigo">Bipe ou digite o código do ativo:</label>
                     <input 
                         type="text" 
                         name="codigo" 
                         id="codigo" 
-                        class="form-control" 
+                        class="form-control aud-ex-scanner-input" 
                         placeholder="Código de barras / Etiqueta"
                         autofocus
-                        style="font-size: 18px; padding: 15px;"
                     >
                 </div>
-                <button type="submit" class="btn btn-primary" style="height: 50px;">
+                <button type="submit" class="btn btn-primary aud-ex-scanner-btn">
                     <i class="bi bi-search"></i> Buscar
                 </button>
             </div>
         </form>
 
         {% if erro_busca %}
-        <div style="margin-top: 15px; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; color: #856404;">
+        <div class="aud-ex-warning">
             <i class="bi bi-exclamation-triangle"></i> {{ erro_busca }}
         </div>
         {% endif %}
@@ -62,10 +61,10 @@
 
     <!-- Item Encontrado -->
     {% if item_encontrado %}
-    <div class="detail-card" style="border: 2px solid #4CAF50;">
-        <div style="display: flex; justify-content: space-between; align-items: start;">
-            <div style="flex: 1;">
-                <h2 style="color: #4CAF50; margin-bottom: 15px;">
+    <div class="detail-card aud-ex-found-card">
+        <div class="aud-ex-found-row">
+            <div class="aud-ex-found-main">
+                <h2 class="aud-ex-found-title">
                     <i class="bi bi-check-circle"></i> Ativo Encontrado
                 </h2>
                 
@@ -73,7 +72,7 @@
                     <div class="detail-info">
                         <div class="detail-row">
                             <span class="detail-label">Etiqueta:</span>
-                            <span class="detail-value"><strong style="font-size: 20px;">{{ item_encontrado.ativo.etiqueta }}</strong></span>
+                            <span class="detail-value"><strong class="aud-ex-found-etiqueta">{{ item_encontrado.ativo.etiqueta }}</strong></span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Nome:</span>
@@ -91,9 +90,9 @@
                             <span class="detail-label">Status Atual:</span>
                             <span class="detail-value">
                                 {% if item_encontrado.verificado %}
-                                    <span style="color: green;"><i class="bi bi-check-circle-fill"></i> Já Verificado</span>
+                                    <span class="aud-ex-status-ok"><i class="bi bi-check-circle-fill"></i> Já Verificado</span>
                                 {% else %}
-                                    <span style="color: orange;"><i class="bi bi-clock"></i> Pendente</span>
+                                    <span class="aud-ex-status-pending"><i class="bi bi-clock"></i> Pendente</span>
                                 {% endif %}
                             </span>
                         </div>
@@ -102,9 +101,9 @@
 
                 {% if not item_encontrado.verificado %}
                 <!-- Formulário de Verificação -->
-                <form method="post" id="verificacaoForm" style="margin-top: 20px;">
+                <form method="post" id="verificacaoForm" class="aud-ex-form">
                     {% csrf_token %}
-                    <h3 style="font-size: 16px; margin-bottom: 15px;">Informações da Verificação</h3>
+                    <h3 class="aud-ex-form-title">Informações da Verificação</h3>
                     
                     <div class="form-grid">
                         <div class="form-group">
@@ -121,16 +120,16 @@
                         </div>
                     </div>
 
-                    <div style="margin-top: 20px;">
-                        <button type="button" class="btn btn-primary" style="font-size: 18px; padding: 15px 30px;" onclick="verificarItem({{ item_encontrado.id }})">
+                    <div class="aud-ex-form-actions">
+                        <button type="button" class="btn btn-primary aud-ex-verify-btn" id="btn-verificar-item" data-item-id="{{ item_encontrado.id }}">
                             <i class="bi bi-check-circle"></i> VERIFICAR ATIVO
                         </button>
                     </div>
                 </form>
                 {% else %}
-                <div style="margin-top: 20px;">
-                    <p style="color: #666;">Verificado em {{ item_encontrado.data_verificacao|date:"d/m/Y H:i" }} por {{ item_encontrado.verificado_por.get_full_name|default:item_encontrado.verificado_por.username }}</p>
-                    <button type="button" class="btn btn-secondary" onclick="desverificarItem({{ item_encontrado.id }})">
+                <div class="aud-ex-verified-wrap">
+                    <p class="aud-ex-verified-text">Verificado em {{ item_encontrado.data_verificacao|date:"d/m/Y H:i" }} por {{ item_encontrado.verificado_por.get_full_name|default:item_encontrado.verificado_por.username }}</p>
+                    <button type="button" class="btn btn-secondary" id="btn-desverificar-item" data-item-id="{{ item_encontrado.id }}">
                         <i class="bi bi-x-circle"></i> Remover Verificação
                     </button>
                 </div>
@@ -145,7 +144,7 @@
         <h2>Ativos Pendentes ({{ itens_pendentes.count }})</h2>
         
         {% if itens_pendentes %}
-        <table class="table" style="margin-top: 20px;">
+        <table class="table aud-ex-pend-table">
             <thead>
                 <tr>
                     <th>Etiqueta</th>
@@ -166,16 +165,16 @@
             </tbody>
         </table>
         {% if itens_pendentes.count > 20 %}
-        <p style="text-align: center; color: #666; margin-top: 10px;">
+        <p class="aud-ex-pend-note">
             Mostrando 20 de {{ itens_pendentes.count }} ativos pendentes
         </p>
         {% endif %}
         {% else %}
-        <p style="text-align: center; color: #4CAF50; padding: 30px; font-size: 18px;">
+        <p class="aud-ex-pend-done">
             <i class="bi bi-check-circle-fill"></i> Todos os ativos foram verificados!
         </p>
-        <div style="text-align: center; margin-top: 20px;">
-            <a href="{% url 'auditoria:auditoria_finalizar' auditoria.pk %}" class="btn btn-primary" style="font-size: 18px; padding: 15px 30px;">
+        <div class="aud-ex-finish-wrap">
+            <a href="{% url 'auditoria:auditoria_finalizar' auditoria.pk %}" class="btn btn-primary aud-ex-finish-btn">
                 <i class="bi bi-flag-fill"></i> FINALIZAR AUDITORIA
             </a>
         </div>
@@ -186,6 +185,25 @@
 <script>
 // Auto-focus no campo de código
 document.getElementById('codigo').focus();
+
+document.querySelectorAll('[data-progress-fill]').forEach(function (el) {
+    var value = parseFloat(el.getAttribute('data-progress-fill') || '0');
+    if (!isFinite(value)) {
+        value = 0;
+    }
+    var normalized = Math.max(0, Math.min(100, value));
+    el.style.width = normalized + '%';
+});
+
+document.getElementById('btn-verificar-item')?.addEventListener('click', function () {
+    var itemId = this.getAttribute('data-item-id');
+    verificarItem(itemId);
+});
+
+document.getElementById('btn-desverificar-item')?.addEventListener('click', function () {
+    var itemId = this.getAttribute('data-item-id');
+    desverificarItem(itemId);
+});
 
 // Limpa o campo após busca
 {% if item_encontrado %}

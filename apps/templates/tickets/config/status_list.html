@@ -8,7 +8,7 @@
     </div>
     <div class="detail-card">
         <h2>Lista</h2>
-        <div class="detail-content" style="padding: 0;">
+        <div class="detail-content generic-list-content">
             {% if statuss or status_list %}
                 <div class="table-responsive">
                     <table class="table">
@@ -17,10 +17,10 @@
                             {% for obj in statuss|default:status_list %}
                             <tr>
                                 <td><strong>{{ obj.nome }}</strong></td>
-                                <td><span class="badge" style="background-color: {% if obj.ativo %}#28a745{% else %}#6c757d{% endif %}; color: white;">{% if obj.ativo %}Ativo{% else %}Inativo{% endif %}</span></td>
+                                <td><span class="badge {% if obj.ativo %}generic-status-active{% else %}generic-status-inactive{% endif %}">{% if obj.ativo %}Ativo{% else %}Inativo{% endif %}</span></td>
                                 <td>
                                     <a href="{% url 'tickets:status_update' obj.pk %}" class="btn btn-sm btn-edit"><i class="bi bi-pencil"></i></a>
-                                    <form method="post" action="{% url 'tickets:status_delete' obj.pk %}" style="display: inline;" onsubmit="return confirm('Tem certeza?');">{% csrf_token %}<button type="submit" class="btn btn-sm btn-delete"><i class="bi bi-trash"></i></button></form>
+                                    <form method="post" action="{% url 'tickets:status_delete' obj.pk %}" class="generic-inline-form" data-confirm-submit="Tem certeza?">{% csrf_token %}<button type="submit" class="btn btn-sm btn-delete"><i class="bi bi-trash"></i></button></form>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -28,7 +28,7 @@
                     </table>
                 </div>
             {% else %}
-                <div style="text-align: center; padding: 60px;"><p>Nenhum registro</p></div>
+                <div class="generic-empty-simple"><p>Nenhum registro</p></div>
             {% endif %}
         </div>
     </div>

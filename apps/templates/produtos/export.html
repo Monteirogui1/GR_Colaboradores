@@ -1,20 +1,39 @@
-{% extends 'base.html' %}
-{% block content %}
-<div class="container mt-5">
-    <h2>Exportar Produtos</h2>
-    <p>Selecione o formato para exportar os dados dos produtos.</p>
-    {% if messages %}
-        <div class="alert alert-info">
-            {% for message in messages %}
-                {{ message }}
-            {% endfor %}
-        </div>
-    {% endif %}
-    <form method="post">
+{% extends 'layouts/base.html' %}
+
+{% block title %}Exportar Produtos{% endblock %}
+
+{% block conteudo %}
+<div class="content">
+    <div class="page-header">
+        <h1>Exportar Produtos</h1>
+        <a href="{% url 'produtos:produtos_list' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+
+    <form method="post" autocomplete="off">
         {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" class="btn btn-primary">Exportar</button>
-        <a href="{% url 'produtos:produto_list' %}" class="btn btn-secondary">Voltar</a>
+
+        <p>Selecione o formato para exportar os dados dos produtos.</p>
+
+        {% if messages %}
+            <div class="detail-card">
+                <div class="detail-content">
+                    {% for message in messages %}
+                        <div>{{ message }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        <div class="form-grid">
+            <div class="form-group full-width">
+                {{ form.as_p }}
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Exportar</button>
+            <a href="{% url 'produtos:produtos_list' %}" class="btn btn-secondary">Cancelar</a>
+        </div>
     </form>
 </div>
 {% endblock %}

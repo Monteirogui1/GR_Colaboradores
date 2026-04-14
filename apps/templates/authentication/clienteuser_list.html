@@ -4,13 +4,13 @@
 
 {% block conteudo %}
 <div class="content">
-    <div class="page-header d-flex justify-between align-center">
+    <div class="page-header">
         <h1>Usuários do Cliente</h1>
         <a href="{% url 'authentication:clienteuser_create' %}" class="btn btn-primary">Novo Usuário</a>
     </div>
 
     <!-- Formulário de filtros -->
-    <form method="get" class="filter-form d-flex gap-3 mb-3">
+    <form method="get" class="filter-form">
         <div class="form-group">
             <label for="nome">Nome de Usuário</label>
             <input type="text" name="nome" id="nome" value="{{ request.GET.nome }}" class="form-control" placeholder="Digite o nome de usuário">
@@ -27,7 +27,7 @@
                 <option value="false" {% if request.GET.is_staff == "false" %}selected{% endif %}>Não</option>
             </select>
         </div>
-        <div class="filter-buttons align-end">
+        <div class="filter-buttons">
             <button type="submit" class="btn btn-primary">Filtrar</button>
             <a href="{% url 'authentication:clienteuser_list' %}" class="btn btn-secondary">Limpar</a>
         </div>

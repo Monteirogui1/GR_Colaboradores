@@ -16,19 +16,19 @@
       <span class="at-stat-lbl">Total</span>
     </div>
     <div class="at-stat">
-      <span class="at-stat-val" style="color:#16a34a">{{ active_tokens }}</span>
+      <span class="at-stat-val at-stat-val-success">{{ active_tokens }}</span>
       <span class="at-stat-lbl">Ativos</span>
     </div>
     <div class="at-stat">
-      <span class="at-stat-val" style="color:#2563eb">{{ used_tokens }}</span>
+      <span class="at-stat-val at-stat-val-info">{{ used_tokens }}</span>
       <span class="at-stat-lbl">Em uso</span>
     </div>
     <div class="at-stat">
-      <span class="at-stat-val" style="color:#d97706">{{ expired_tokens }}</span>
+      <span class="at-stat-val at-stat-val-warning">{{ expired_tokens }}</span>
       <span class="at-stat-lbl">Expirados</span>
     </div>
     <div class="at-stat">
-      <span class="at-stat-val" style="color:#7c3aed">{{ total_machines }}</span>
+      <span class="at-stat-val at-stat-val-accent">{{ total_machines }}</span>
       <span class="at-stat-lbl">Máquinas registradas</span>
     </div>
   </div>
@@ -38,7 +38,7 @@
     <table class="at-table">
       <thead>
         <tr>
-          <th style="width:20px"></th>
+          <th class="at-w-20"></th>
           <th>Token</th>
           <th>Status</th>
           <th>Máquinas</th>
@@ -59,7 +59,7 @@
           <td class="at-td-toggle">
             {% with cnt=token.usages.count %}
             {% if cnt > 0 %}
-            <button class="at-expand-btn" onclick="toggleUsages({{ token.pk }})"
+            <button class="at-expand-btn js-toggle-usages" data-token-id="{{ token.pk }}"
                     title="Ver máquinas" id="expand-{{ token.pk }}">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5"
@@ -93,7 +93,7 @@
               {% if cnt == 0 %}
                 <span class="at-muted">Nenhuma</span>
               {% else %}
-                <button class="at-machines-btn" onclick="toggleUsages({{ token.pk }})">
+                <button class="at-machines-btn js-toggle-usages" data-token-id="{{ token.pk }}">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
                        stroke="currentColor" stroke-width="2">
                     <rect x="2" y="3" width="20" height="14" rx="2"/>
@@ -120,19 +120,17 @@
             <div class="at-actions">
               {% if token.is_active %}
               <form method="post" action="{% url 'inventario:token_deactivate' token.pk %}"
-                    style="display:inline">
+                    class="at-inline-form">
                 {% csrf_token %}
-                <button type="submit" class="at-btn at-btn-warn"
-                        onclick="return confirm('Desativar este token?')">
+                <button type="submit" class="at-btn at-btn-warn" data-confirm-submit="Desativar este token?">
                   Desativar
                 </button>
               </form>
               {% endif %}
               <form method="post" action="{% url 'inventario:token_delete' token.pk %}"
-                    style="display:inline">
+                    class="at-inline-form">
                 {% csrf_token %}
-                <button type="submit" class="at-btn at-btn-del"
-                        onclick="return confirm('Excluir permanentemente?')">
+                <button type="submit" class="at-btn at-btn-del" data-confirm-submit="Excluir permanentemente?">
                   Excluir
                 </button>
               </form>
@@ -143,16 +141,16 @@
         {# linhas das máquinas vinculadas — ocultas por padrão #}
         {% with usages=token.usages.all %}
         {% if usages %}
-        <tr class="at-usages-row" id="usages-{{ token.pk }}" style="display:none">
+        <tr class="at-usages-row at-usages-row-hidden" id="usages-{{ token.pk }}">
           <td></td>
-          <td colspan="7" style="padding:0 0 10px 28px">
+          <td colspan="7" class="at-usages-cell">
             <div class="at-usages-wrap">
               <div class="at-usages-title">Máquinas que usam este token</div>
               <div class="at-usages-grid">
                 {% for usage in usages %}
                 <div class="at-usage-item">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                       stroke="#6b7280" stroke-width="1.5" style="flex-shrink:0;margin-top:1px">
+                       stroke="#6b7280" stroke-width="1.5" class="at-usage-icon">
                     <rect x="2" y="3" width="20" height="14" rx="2"/>
                     <line x1="8" y1="21" x2="16" y2="21"/>
                     <line x1="12" y1="17" x2="12" y2="21"/>
@@ -190,7 +188,7 @@
 
   <!-- Paginação -->
   {% if is_paginated %}
-  <nav style="margin-top:16px;display:flex;justify-content:center;gap:4px">
+  <nav class="at-pagination-wrap">
     {% if page_obj.has_previous %}
       <a class="at-pg" href="?page=1">«</a>
       <a class="at-pg" href="?page={{ page_obj.previous_page_number }}">‹</a>
@@ -205,67 +203,6 @@
 
 </div>
 
-<style>
-/* ── Stats ── */
-.at-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
-.at-stat{background:#fff;border:1px solid #e8eaed;border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:4px}
-.at-stat-val{font-size:28px;font-weight:700;color:#1e293b}
-.at-stat-lbl{font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em}
-
-/* ── Card + Tabela ── */
-.at-card{background:#fff;border:1px solid #e8eaed;border-radius:10px;overflow:hidden;margin-bottom:16px}
-.at-table{width:100%;border-collapse:collapse;font-size:13px}
-.at-table thead th{padding:10px 14px;background:#f8f9fb;font-weight:600;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e8eaed;white-space:nowrap}
-.at-table tbody td{padding:11px 14px;border-bottom:1px solid #f3f4f6;vertical-align:middle;color:#374151}
-.at-table tbody tr:last-child td,.at-table tbody tr.at-usages-row:last-child td{border-bottom:none}
-.at-table tbody tr.at-row:hover{background:#fafbff}
-.at-row-inactive td{opacity:.55}
-
-/* ── Colunas ── */
-.at-td-toggle{width:28px;padding-left:10px!important}
-.at-code{font-size:14px;font-weight:700;color:#1e293b;background:#f1f5f9;padding:3px 8px;border-radius:5px;letter-spacing:.04em}
-.at-muted{font-size:12px;color:#94a3b8}
-.at-muted-sm{font-size:12px;color:#64748b}
-.at-expired{font-size:12px;color:#d97706;font-weight:500}
-
-/* ── Badges ── */
-.at-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
-.at-badge-success{background:#dcfce7;color:#16a34a}
-.at-badge-info{background:#dbeafe;color:#1d4ed8}
-.at-badge-warning{background:#fef9c3;color:#ca8a04}
-.at-badge-secondary{background:#f3f4f6;color:#6b7280}
-
-/* ── Botão máquinas ── */
-.at-machines-btn{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:600;color:#4f46e5;background:#eef2ff;border:1px solid #c7d2fe;cursor:pointer;transition:background .12s}
-.at-machines-btn:hover{background:#e0e7ff}
-.at-expand-btn{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;border:0.5px solid #e0e0e0;background:#fff;color:#94a3b8;cursor:pointer;transition:transform .2s,color .12s}
-.at-expand-btn:hover{color:#374151}
-.at-expand-btn.open{transform:rotate(180deg)}
-
-/* ── Usages ── */
-.at-usages-wrap{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;margin-bottom:4px}
-.at-usages-title{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
-.at-usages-grid{display:flex;flex-direction:column;gap:8px}
-.at-usage-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:#fff;border:0.5px solid #e2e8f0;border-radius:6px}
-.at-usage-name{font-size:12px;font-weight:600;color:#1e293b}
-.at-usage-meta{font-size:11px;color:#94a3b8;margin-top:1px}
-
-/* ── Ações ── */
-.at-actions{display:flex;gap:6px;align-items:center}
-.at-btn{padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;border:none;cursor:pointer;transition:opacity .12s}
-.at-btn:hover{opacity:.82}
-.at-btn-warn{background:#fef9c3;color:#92400e}
-.at-btn-del{background:#fee2e2;color:#991b1b}
-
-/* ── Vazio ── */
-.at-empty{padding:48px;text-align:center;color:#94a3b8}
-.at-empty p{margin-bottom:14px}
-
-/* ── Paginação ── */
-.at-pg{padding:5px 10px;border:1px solid #e0e0e0;border-radius:5px;background:#fff;color:#374151;font-size:12px;text-decoration:none;display:inline-flex;align-items:center}
-.at-pg-active{background:#1a73e8;color:#fff;border-color:#1a73e8;font-weight:600}
-</style>
-
 <script>
 function toggleUsages(pk) {
   const row = document.getElementById('usages-' + pk);
@@ -275,5 +212,20 @@ function toggleUsages(pk) {
   row.style.display = open ? 'none' : 'table-row';
   if (btn) btn.classList.toggle('open', !open);
 }
+
+document.querySelectorAll('.js-toggle-usages').forEach(function (button) {
+  button.addEventListener('click', function () {
+    toggleUsages(this.getAttribute('data-token-id'));
+  });
+});
+
+document.querySelectorAll('[data-confirm-submit]').forEach(function (button) {
+  button.addEventListener('click', function (event) {
+    var message = this.getAttribute('data-confirm-submit') || 'Confirmar ação?';
+    if (!confirm(message)) {
+      event.preventDefault();
+    }
+  });
+});
 </script>
 {% endblock %}

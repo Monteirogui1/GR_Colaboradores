@@ -1,11 +1,11 @@
 {% extends 'layouts/base.html' %}
 
-{% block title %}{% if marca %}Editar Marca{% else %}Nova Marca{% endif %} - ERP{% endblock %}
+{% block title %}{% if form.instance.pk %}Editar Marca{% else %}Nova Marca{% endif %} - ERP{% endblock %}
 
 {% block conteudo %}
 <div class="content">
     <div class="page-header">
-        <h1>{% if marca %}Editar Marca{% else %}Nova Marca{% endif %}</h1>
+        <h1>{% if form.instance.pk %}Editar Marca{% else %}Nova Marca{% endif %}</h1>
         <a href="{% url 'marcas:marca_list' %}" class="btn btn-secondary">Voltar</a>
     </div>
     <form method="post">

@@ -8,7 +8,7 @@
     </div>
     <div class="detail-card">
         <h2>Lista de Categorias</h2>
-        <div class="detail-content" style="padding: 0;">
+        <div class="detail-content generic-list-content">
             {% if categorias %}
                 <div class="table-responsive">
                     <table class="table">
@@ -22,13 +22,13 @@
                                 <td>{{ obj.descricao|truncatewords:10|default:"-" }}</td>
                                 <td>{{ obj.get_disponivel_para_display }}</td>
                                 <td>
-                                    <span class="badge" style="background-color: {% if obj.ativo %}#28a745{% else %}#6c757d{% endif %}; color: white; padding: 5px 10px;">
+                                    <span class="badge {% if obj.ativo %}generic-status-active{% else %}generic-status-inactive{% endif %}">
                                         {% if obj.ativo %}Ativo{% else %}Inativo{% endif %}
                                     </span>
                                 </td>
                                 <td>
                                     <a href="{% url 'tickets:categoria_update' obj.pk %}" class="btn btn-sm btn-edit" title="Editar"><i class="bi bi-pencil"></i></a>
-                                    <form method="post" action="{% url 'tickets:categoria_delete' obj.pk %}" style="display: inline;" onsubmit="return confirm('Tem certeza?');">
+                                    <form method="post" action="{% url 'tickets:categoria_delete' obj.pk %}" class="generic-inline-form" data-confirm-submit="Tem certeza?">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-sm btn-delete" title="Excluir"><i class="bi bi-trash"></i></button>
                                     </form>
@@ -39,7 +39,7 @@
                     </table>
                 </div>
             {% else %}
-                <div style="text-align: center; padding: 60px;">
+                <div class="generic-empty-simple">
                     <p>Nenhuma categoria cadastrada</p>
                     <a href="{% url 'tickets:categoria_create' %}" class="btn btn-primary">Criar Primeira Categoria</a>
                 </div>

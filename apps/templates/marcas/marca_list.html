@@ -49,7 +49,7 @@
                 <td>{{ marcas.status|yesno:"Ativo,Inativo" }}</td>
                 <td>
                     <a href="{% url 'marcas:marca_form' marcas.id %}" class="btn btn-sm btn-edit">Editar</a>
-                    <button class="btn btn-sm btn-delete" data-id="{{ marca.id }}">Excluir</button>
+                    <button class="btn btn-sm btn-delete" data-id="{{ marcas.id }}">Excluir</button>
                 </td>
             </tr>
             {% empty %}

@@ -1,117 +1,74 @@
+{% load static %}
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ERP{% endblock %}</title>
-    {% load static %}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="{% static 'assets/css/style.css' %}">
     <link rel="shortcut icon" href="{% static 'assets/img/favicon.png' %}" type="image/x-icon"/>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-    <style>
-        /* Estilos para submenus */
-        .sidebar nav ul li {
-            position: relative;
-        }
-
-        .sidebar nav ul li.has-submenu > a {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .sidebar nav ul li.has-submenu > a .submenu-toggle {
-            transition: transform 0.3s ease;
-        }
-
-        .sidebar nav ul li.has-submenu.open > a .submenu-toggle {
-            transform: rotate(180deg);
-        }
-
-        .submenu {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-        }
-
-        .sidebar nav ul li.has-submenu.open .submenu {
-            max-height: max-content;
-        }
-
-        .submenu li a {
-            padding-left: 50px;
-            font-size: 14px;
-        }
-
-        .submenu li a:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-    </style>
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
-<div class="container">
-    <aside class="sidebar" role="navigation">
+<a class="skip-link" href="#main-content">Ir para o conteudo</a>
+<div class="app-shell">
+    <aside class="sidebar" role="navigation" aria-label="Navegacao principal">
         <div class="logo">
             <h2>TI <span>ERP</span></h2>
         </div>
         <nav>
             <ul>
-                <!-- Dashboard -->
-                 <li><a href="{% url 'home:dashboard' %}">
-                    <span class="icon"><i class="bi bi-speedometer2"></i></span> Dashboard
-                </a></li>
-                <!-- Cadastros Básicos -->
+                <li><a href="{% url 'home:dashboard' %}"><span class="icon"><i class="bi bi-speedometer2"></i></span> Dashboard</a></li>
+
                 <li class="has-submenu">
-                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
-                        <span><i class="bi bi-folder"></i> Cadastros Básicos</span>
-                        <i class="bi bi-chevron-down submenu-toggle"></i>
+                    <a href="#" class="js-submenu-toggle">
+                        <span><i class="bi bi-folder"></i> Cadastros Basicos</span>
+                        <i class="bi bi-chevron-down submenu-toggle" aria-hidden="true"></i>
                     </a>
                     <ul class="submenu">
                         <li><a href="{% url 'categorias:categoria_list' %}"><span class="icon"><i class="bi bi-bookmarks"></i></span> Categorias</a></li>
                         <li><a href="{% url 'marcas:marca_list' %}"><span class="icon"><i class="bi bi-tags"></i></span> Marcas</a></li>
                         <li><a href="{% url 'fornecedores:fornecedores_list' %}"><span class="icon"><i class="bi bi-truck"></i></span> Fornecedores</a></li>
                         <li><a href="{% url 'produtos:unidade_medida_list' %}"><span class="icon"><i class="bi bi-rulers"></i></span> Unidades</a></li>
-                        <li><a href="{% url 'produtos:campo_dinamico_list' %}"><span class="icon"><i class="bi bi-sliders"></i></span> Campos Dinâmicos</a></li>
+                        <li><a href="{% url 'produtos:campo_dinamico_list' %}"><span class="icon"><i class="bi bi-sliders"></i></span> Campos Dinamicos</a></li>
                         <li><a href="{% url 'movimentacao:tipo_movimentacao_list' %}"><span class="icon"><i class="bi bi-repeat"></i></span> Tipos de Mov.</a></li>
                     </ul>
                 </li>
 
-                <!-- Gestão de Ativos -->
                 <li class="has-submenu">
-                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
-                        <span><i class="bi bi-box-seam"></i> Gestão de Ativos</span>
+                    <a href="#" class="js-submenu-toggle">
+                        <span><i class="bi bi-box-seam"></i> Gestao de Ativos</span>
                         <i class="bi bi-chevron-down submenu-toggle"></i>
                     </a>
                     <ul class="submenu">
                         <li><a href="{% url 'ativos:ativo_list' %}"><span class="icon"><i class="bi bi-box-seam"></i></span> Ativos</a></li>
                         <li><a href="{% url 'ativos:status_list' %}"><span class="icon"><i class="bi bi-tag"></i></span> Status de Ativos</a></li>
-                        <li><a href="{% url 'ativos:localizacao_list' %}"><span class="icon"><i class="bi bi-geo-alt"></i></span> Localizações</a></li>
+                        <li><a href="{% url 'ativos:localizacao_list' %}"><span class="icon"><i class="bi bi-geo-alt"></i></span> Localizacoes</a></li>
                     </ul>
                 </li>
 
-                <!-- Auditoria -->
-                <li><a href="{% url 'auditoria:auditoria_list' %}"><i class="bi bi-clipboard-check"></i> Auditoria</a></li>
+                <li><a href="{% url 'auditoria:auditoria_list' %}"><span class="icon"><i class="bi bi-clipboard-check"></i></span> Auditoria</a></li>
 
-                <!-- Inventário de TI -->
                 <li class="has-submenu">
-                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
-                        <span><i class="bi bi-pc-display"></i> Inventário de TI</span>
+                    <a href="#" class="js-submenu-toggle">
+                        <span><i class="bi bi-pc-display"></i> Inventario de TI</span>
                         <i class="bi bi-chevron-down submenu-toggle"></i>
                     </a>
                     <ul class="submenu">
-                        <li><a href="{% url 'inventario:machine_list' %}"><span class="icon"><i class="bi bi-pc-display"></i></span> Máquinas</a></li>
+                        <li><a href="{% url 'inventario:machine_list' %}"><span class="icon"><i class="bi bi-pc-display"></i></span> Maquinas</a></li>
                         <li><a href="{% url 'inventario:group_list' %}"><span class="icon"><i class="bi bi-collection"></i></span> Grupos</a></li>
                         <li><a href="{% url 'inventario:token_list' %}"><span class="icon"><i class="bi bi-collection"></i></span> Tokens</a></li>
-                        <li {% if request.resolver_match.url_name == 'bulk_run_command' %}class="active"{% endif %}><a href="{% url 'inventario:bulk_run_command' %}"><span class="icon"><i class="bi bi-terminal-fill"></i></span>Comando em Massa</a></li>
-                        <li><a href="{% url 'inventario:version_list' %}"><span class="icon"><i class="bi bi-cloud-arrow-up"></i></span> Versões do Agente</a></li>
-                        <li><a href="{% url 'remote_desktop' %}" target="_blank"><span class="icon"><i class="bi bi-display"></i></span>Remote Desktop</a></li>
+                        <li {% if request.resolver_match.url_name == 'bulk_run_command' %}class="active"{% endif %}><a href="{% url 'inventario:bulk_run_command' %}"><span class="icon"><i class="bi bi-terminal-fill"></i></span> Comando em Massa</a></li>
+                        <li><a href="{% url 'inventario:version_list' %}"><span class="icon"><i class="bi bi-cloud-arrow-up"></i></span> Versoes do Agente</a></li>
+                        <li><a href="{% url 'remote_desktop' %}" target="_blank"><span class="icon"><i class="bi bi-display"></i></span> Remote Desktop</a></li>
                     </ul>
                 </li>
 
-                <!-- Tickets -->
                 <li class="has-submenu">
-                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
+                    <a href="#" class="js-submenu-toggle">
                         <span><i class="bi bi-ticket-detailed"></i> Tickets</span>
                         <i class="bi bi-chevron-down submenu-toggle"></i>
                     </a>
@@ -121,31 +78,29 @@
                     </ul>
                 </li>
 
-                <!-- Estoque -->
                 <li class="has-submenu">
-                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
+                    <a href="#" class="js-submenu-toggle">
                         <span><i class="bi bi-box-seam"></i> Estoque</span>
                         <i class="bi bi-chevron-down submenu-toggle"></i>
                     </a>
                     <ul class="submenu">
                         <li><a href="{% url 'produtos:produtos_list' %}"><span class="icon"><i class="bi bi-box-seam"></i></span> Produtos</a></li>
-                        <li><a href="{% url 'movimentacao:movimentacao_list' %}"><span class="icon"><i class="bi bi-arrow-left-right"></i></span> Movimentações</a></li>
-                        <li><a href="{% url 'movimentacao:historico_estoque_list' %}"><span class="icon"><i class="bi bi-clock-history"></i></span> Histórico</a></li>
+                        <li><a href="{% url 'movimentacao:movimentacao_list' %}"><span class="icon"><i class="bi bi-arrow-left-right"></i></span> Movimentacoes</a></li>
+                        <li><a href="{% url 'movimentacao:historico_estoque_list' %}"><span class="icon"><i class="bi bi-clock-history"></i></span> Historico</a></li>
                     </ul>
                 </li>
 
-                <!-- Configurações Tickets -->
                 <li class="has-submenu">
-                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
+                    <a href="#" class="js-submenu-toggle">
                         <span><i class="bi bi-gear"></i> Config. Tickets</span>
                         <i class="bi bi-chevron-down submenu-toggle"></i>
                     </a>
                     <ul class="submenu">
                         <li><a href="{% url 'tickets:categoria_list' %}"><span class="icon"><i class="bi bi-bookmarks"></i></span> Categorias</a></li>
-                        <li><a href="{% url 'tickets:urgencia_list' %}"><span class="icon"><i class="bi bi-lightning"></i></span> Urgências</a></li>
+                        <li><a href="{% url 'tickets:urgencia_list' %}"><span class="icon"><i class="bi bi-lightning"></i></span> Urgencias</a></li>
                         <li><a href="{% url 'tickets:status_list' %}"><span class="icon"><i class="bi bi-circle-fill"></i></span> Status</a></li>
                         <li><a href="{% url 'tickets:justificativa_list' %}"><span class="icon"><i class="bi bi-chat-left-text"></i></span> Justificativas</a></li>
-                        <li><a href="{% url 'tickets:servico_list' %}"><span class="icon"><i class="bi bi-tools"></i></span> Serviços</a></li>
+                        <li><a href="{% url 'tickets:servico_list' %}"><span class="icon"><i class="bi bi-tools"></i></span> Servicos</a></li>
                         <li><a href="{% url 'tickets:contrato_sla_list' %}"><span class="icon"><i class="bi bi-clock-history"></i></span> SLA</a></li>
                         <li><a href="{% url 'tickets:campo_adicional_list' %}"><span class="icon"><i class="bi bi-input-cursor-text"></i></span> Campos Adicionais</a></li>
                         <li><a href="{% url 'tickets:gatilho_list' %}"><span class="icon"><i class="bi bi-lightning-charge"></i></span> Gatilhos</a></li>
@@ -153,10 +108,9 @@
                     </ul>
                 </li>
 
-                <!-- Segurança -->
                 <li class="has-submenu">
-                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
-                        <span><i class="bi bi-shield-check"></i> Segurança</span>
+                    <a href="#" class="js-submenu-toggle">
+                        <span><i class="bi bi-shield-check"></i> Seguranca</span>
                         <i class="bi bi-chevron-down submenu-toggle"></i>
                     </a>
                     <ul class="submenu">
@@ -164,58 +118,58 @@
                     </ul>
                 </li>
 
-                <!-- Comunicação -->
                 <li class="has-submenu">
-                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
-                        <span><i class="bi bi-chat-dots"></i> Comunicação</span>
+                    <a href="#" class="js-submenu-toggle">
+                        <span><i class="bi bi-chat-dots"></i> Comunicacao</span>
                         <i class="bi bi-chevron-down submenu-toggle"></i>
                     </a>
                     <ul class="submenu">
-                        <li><a href="{% url 'inventario:notifications_list' %}"><span class="icon"><i class="bi bi-bell"></i></span> Notificações</a></li>
+                        <li><a href="{% url 'inventario:notifications_list' %}"><span class="icon"><i class="bi bi-bell"></i></span> Notificacoes</a></li>
                     </ul>
                 </li>
 
-                <!-- Administração -->
                 <li class="has-submenu">
-                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)">
-                        <span><i class="bi bi-gear"></i> Administração</span>
+                    <a href="#" class="js-submenu-toggle">
+                        <span><i class="bi bi-gear"></i> Administracao</span>
                         <i class="bi bi-chevron-down submenu-toggle"></i>
                     </a>
                     <ul class="submenu">
-                        <li><a href="{% url 'authentication:clienteuser_list' %}"><span class="icon"><i class="bi bi-people"></i></span> Usuários</a></li>
+                        <li><a href="{% url 'authentication:clienteuser_list' %}"><span class="icon"><i class="bi bi-people"></i></span> Usuarios</a></li>
                     </ul>
                 </li>
             </ul>
         </nav>
     </aside>
 
-    <main class="main-content" role="main">
+    <main class="main-content" role="main" id="main-content">
         <header>
             <div class="user-info">
                 <span>Bem-vindo, {{ user.username }}</span>
+                <button type="button" class="theme-toggle" data-theme-toggle title="Alternar tema" aria-label="Alternar tema">
+                    <i class="bi bi-moon-stars"></i>
+                </button>
                 <div class="notification-wrapper">
-                        <span class="notification-icon">
-                            <i class="bi bi-bell"></i>
-                            {% if notificacoes %}
-                                <span class="notification-count">{{ notificacoes|length }}</span>
-                            {% endif %}
-                        </span>
+                    <span class="notification-icon" tabindex="0" role="button" aria-label="Abrir notificacoes">
+                        <i class="bi bi-bell"></i>
+                        {% if notificacoes %}
+                            <span class="notification-count">{{ notificacoes|length }}</span>
+                        {% endif %}
+                    </span>
                     <div class="notification-dropdown" id="notificationDropdown">
                         {% if notificacoes %}
-                        <h3>Notificações</h3>
+                        <h3>Notificacoes</h3>
                         <ul>
                             {% for notificacao in notificacoes %}
-                            <li {% if not notificacao.lida %}class="unread" {% endif %}>
+                            <li {% if not notificacao.lida %}class="unread"{% endif %}>
                                 {{ notificacao.mensagem }} - {{ notificacao.created_at|date:"d/m/Y H:i" }}
                                 {% if not notificacao.lida %}
-                                <a href="{% url 'notificacao:marcar_notificacao_lida' notificacao.id %}"
-                                   class="btn btn-sm btn-primary mark-as-read">Marcar como lida</a>
+                                <a href="{% url 'notificacao:marcar_notificacao_lida' notificacao.id %}" class="btn btn-sm btn-primary mark-as-read">Marcar como lida</a>
                                 {% endif %}
                             </li>
                             {% endfor %}
                         </ul>
                         {% else %}
-                        <p>Sem notificações</p>
+                        <p>Sem notificacoes</p>
                         {% endif %}
                     </div>
                 </div>
@@ -229,47 +183,10 @@
     </main>
 </div>
 
-<script>
-    // Função para alternar submenus
-    function toggleSubmenu(element) {
-        const parentLi = element.parentElement;
-        const wasOpen = parentLi.classList.contains('open');
-
-        // Fecha todos os outros submenus
-        document.querySelectorAll('.sidebar nav ul li.has-submenu').forEach(item => {
-            item.classList.remove('open');
-        });
-
-        // Abre o submenu clicado se ele estava fechado
-        if (!wasOpen) {
-            parentLi.classList.add('open');
-        }
-    }
-
-    // Marca o menu ativo baseado na URL atual
-    document.addEventListener('DOMContentLoaded', function() {
-        const currentPath = window.location.pathname;
-        const menuLinks = document.querySelectorAll('.sidebar nav a[href]');
-
-        menuLinks.forEach(link => {
-            if (link.getAttribute('href') === currentPath) {
-                link.classList.add('active');
-
-                // Se o link estiver dentro de um submenu, abre o submenu
-                const submenu = link.closest('.submenu');
-                if (submenu) {
-                    const parentLi = submenu.closest('li.has-submenu');
-                    if (parentLi) {
-                        parentLi.classList.add('open');
-                    }
-                }
-            }
-        });
-    });
-</script>
-
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{% static 'assets/js/script.js' %}"></script>
 <script src="{% static 'assets/js/charts.js' %}"></script>
 <script src="{% static 'assets/js/usability.js' %}"></script>
+{% block extra_js %}{% endblock %}
 </body>
 </html>

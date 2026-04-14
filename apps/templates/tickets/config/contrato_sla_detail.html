@@ -34,7 +34,7 @@
                     <span class="detail-label">Contrato Padrão:</span>
                     <span class="detail-value">
                         {% if contrato.is_padrao %}
-                            <span class="badge" style="background-color: #007bff; color: white;">Sim</span>
+                            <span class="badge bg-primary text-white">Sim</span>
                         {% else %}
                             Não
                         {% endif %}
@@ -43,7 +43,7 @@
                 <div class="detail-row">
                     <span class="detail-label">Status:</span>
                     <span class="detail-value">
-                        <span class="badge" style="background-color: {% if contrato.ativo %}#28a745{% else %}#6c757d{% endif %}; color: white;">
+                        <span class="badge {% if contrato.ativo %}generic-status-active{% else %}generic-status-inactive{% endif %}">
                             {% if contrato.ativo %}Ativo{% else %}Inativo{% endif %}
                         </span>
                     </span>
@@ -55,7 +55,7 @@
     <!-- Regras -->
     <div class="detail-card">
         <h2>Regras do Contrato ({{ regras|length }})</h2>
-        <div class="detail-content" style="padding: 0;">
+        <div class="detail-content generic-list-content">
             {% if regras %}
                 <div class="table-responsive">
                     <table class="table">
@@ -79,7 +79,7 @@
                                 <td>{{ regra.prazo_primeira_resposta|default:"-" }}</td>
                                 <td>{{ regra.get_tipo_horario_display }}</td>
                                 <td>
-                                    <span class="badge" style="background-color: {% if regra.ativo %}#28a745{% else %}#6c757d{% endif %}; color: white;">
+                                    <span class="badge {% if regra.ativo %}generic-status-active{% else %}generic-status-inactive{% endif %}">
                                         {% if regra.ativo %}Ativa{% else %}Inativa{% endif %}
                                     </span>
                                 </td>
@@ -87,7 +87,7 @@
                                     <a href="{% url 'tickets:regra_sla_update' regra.pk %}" class="btn btn-sm btn-edit" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    <form method="post" action="{% url 'tickets:regra_sla_delete' regra.pk %}" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja excluir esta regra?');">
+                                    <form method="post" action="{% url 'tickets:regra_sla_delete' regra.pk %}" class="generic-inline-form" data-confirm-submit="Tem certeza que deseja excluir esta regra?">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-sm btn-delete" title="Excluir">
                                             <i class="bi bi-trash"></i>
@@ -100,9 +100,9 @@
                     </table>
                 </div>
             {% else %}
-                <div style="text-align: center; padding: 60px 20px; color: #999;">
-                    <i class="bi bi-clock-history" style="font-size: 64px; display: block; margin-bottom: 20px;"></i>
-                    <p style="font-size: 18px; margin-bottom: 20px;">Nenhuma regra cadastrada</p>
+                <div class="generic-list-empty">
+                    <i class="bi bi-clock-history generic-list-empty-icon"></i>
+                    <p class="generic-list-empty-text">Nenhuma regra cadastrada</p>
                     <a href="{% url 'tickets:regra_sla_create' contrato.pk %}" class="btn btn-primary">
                         <i class="bi bi-plus-circle"></i> Criar Primeira Regra
                     </a>

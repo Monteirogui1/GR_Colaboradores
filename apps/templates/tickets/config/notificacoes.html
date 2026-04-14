@@ -4,63 +4,58 @@
 <div class="page-header">
     <h1><i class="bi bi-bell"></i> Notificações
         {% if total_nao_lidas %}
-        <span style="background:#ef4444;color:#fff;font-size:13px;padding:2px 10px;border-radius:10px;margin-left:8px;">
+        <span class="tk-notif-count-pill">
             {{ total_nao_lidas }} não lida{{ total_nao_lidas|pluralize }}
         </span>
         {% endif %}
     </h1>
-    <div style="display:flex;gap:8px;">
+    <div class="tk-notif-header-actions">
         <a href="?filtro=nao_lidas" class="btn btn-secondary {% if filtro == 'nao_lidas' %}btn-primary{% endif %}">
             Não lidas
         </a>
         <a href="?filtro=todas" class="btn btn-secondary">Todas</a>
-        <form method="post" action="{% url 'tickets:notificacoes_ler_todas' %}" style="display:inline;">
+        <form method="post" action="{% url 'tickets:notificacoes_ler_todas' %}" class="tk-notif-inline-form">
             {% csrf_token %}
             <button type="submit" class="btn btn-secondary">Marcar todas como lidas</button>
         </form>
     </div>
 </div>
  
-<div class="detail-card" style="padding:0;">
+<div class="detail-card tk-notif-card">
     {% for notif in notificacoes %}
     <a href="{% url 'tickets:notificacao_lida' notif.pk %}"
-       style="display:flex;gap:14px;padding:14px 20px;border-bottom:1px solid #f1f5f9;
-              text-decoration:none;color:inherit;
-              background:{% if not notif.lida %}#f8fafc{% else %}#fff{% endif %};
-              transition:background .1s;">
-        <div style="width:36px;height:36px;border-radius:50%;
-                    background:{{ notif.cor }}22;display:flex;align-items:center;
-                    justify-content:center;flex-shrink:0;">
-            <i class="bi {{ notif.icone }}" style="color:{{ notif.cor }};font-size:16px;"></i>
+       class="tk-notif-item {% if not notif.lida %}is-unread{% endif %}">
+        <div class="tk-notif-icon-wrap tk-dynamic-badge" data-color="{{ notif.cor }}">
+            <i class="bi {{ notif.icone }} tk-notif-icon" data-color="{{ notif.cor }}"></i>
         </div>
-        <div style="flex:1;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
-                <span style="font-size:14px;font-weight:{% if not notif.lida %}600{% else %}400{% endif %};color:#1e293b;">
+        <div class="tk-notif-body">
+            <div class="tk-notif-title-row">
+                <span class="tk-notif-title {% if not notif.lida %}is-unread{% endif %}">
                     {{ notif.titulo }}
                 </span>
                 {% if not notif.lida %}
-                <span style="width:8px;height:8px;border-radius:50%;background:#1a73e8;display:inline-block;flex-shrink:0;"></span>
+                <span class="tk-notif-dot"></span>
                 {% endif %}
             </div>
             {% if notif.mensagem %}
-            <div style="font-size:13px;color:#64748b;">{{ notif.mensagem }}</div>
+            <div class="tk-notif-message">{{ notif.mensagem }}</div>
             {% endif %}
-            <div style="font-size:12px;color:#94a3b8;margin-top:4px;">
+            <div class="tk-notif-meta">
                 {{ notif.criado_em|date:"d/m/Y H:i" }}
                 {% if notif.ticket %}· Ticket #{{ notif.ticket.numero }}{% endif %}
             </div>
         </div>
     </a>
     {% empty %}
-    <div style="padding:60px;text-align:center;color:#94a3b8;">
-        <i class="bi bi-bell-slash" style="font-size:48px;display:block;margin-bottom:16px;opacity:.4;"></i>
+    <div class="tk-notif-empty">
+        <i class="bi bi-bell-slash tk-notif-empty-icon"></i>
         <p>Nenhuma notificação encontrada</p>
     </div>
     {% endfor %}
 </div>
  
 {% if page_obj.has_other_pages %}
-<ul class="pagination" style="margin-top:16px;">
+<ul class="pagination tk-notif-pagination">
     {% if page_obj.has_previous %}
         <li><a class="page-link" href="?page={{ page_obj.previous_page_number }}&filtro={{ filtro }}">‹</a></li>
     {% endif %}

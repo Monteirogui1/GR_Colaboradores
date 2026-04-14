@@ -1,56 +1,258 @@
 {% extends 'layouts/base.html' %}
-
-{% block title %}{% if object.pk %}Editar Campo Adicional{% else %}Nova Campo Adicional{% endif %}{% endblock %}
+{% block title %}{% if object.pk %}Editar Campo Adicional{% else %}Novo Campo Adicional{% endif %}{% endblock %}
 
 {% block conteudo %}
 <div class="content">
     <div class="page-header">
-        <h1>{% if object.pk %}Editar Campo Adicional{% else %}Nova Campo Adicional{% endif %}</h1>
-        <a href="{% url 'tickets:campo_adicional_list' %}" class="btn btn-secondary">Voltar</a>
+        <h1>
+            <i class="bi bi-sliders"></i>
+            {% if object.pk %}Editar Campo Adicional{% else %}Novo Campo Adicional{% endif %}
+        </h1>
+        <a href="{% url 'tickets:campo_adicional_list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
     </div>
 
-    <form method="post">
+    <form method="post" id="campo-form" class="ca-form">
         {% csrf_token %}
 
-        <div class="detail-card">
-            <h2>Informações</h2>
-            <div class="form-grid">
-                {% for field in form %}
-                    {% if field.name != 'descricao' and field.name != 'condicoes' and field.name != 'acoes' and field.name != 'opcoes' and field.name != 'condicoes_obrigatoriedade' %}
+        <div class="ca-form-layout">
+
+            <!-- Coluna principal -->
+            <div class="ca-form-main">
+
+                <!-- Bloco: Identificação -->
+                <div class="detail-card ca-section">
+                    <h2><i class="bi bi-tag"></i> Identificação</h2>
+                    <div class="detail-content">
+
                         <div class="form-group">
-                            {{ field.label_tag }}
-                            {{ field }}
-                            {% if field.errors %}
-                                <div class="text-danger">{{ field.errors }}</div>
-                            {% endif %}
-                            {% if field.help_text %}
-                                <small>{{ field.help_text }}</small>
-                            {% endif %}
+                            <label for="{{ form.nome.id_for_label }}" class="form-label">
+                                Nome <span class="ca-required">*</span>
+                            </label>
+                            {{ form.nome }}
+                            <small class="form-text text-muted">Nome exibido para o agente e cliente no formulário do ticket.</small>
+                            {% if form.nome.errors %}<div class="text-danger small">{{ form.nome.errors }}</div>{% endif %}
                         </div>
-                    {% endif %}
-                {% endfor %}
-            </div>
-            {% for field in form %}
-                {% if field.name == 'descricao' or field.name == 'condicoes' or field.name == 'acoes' or field.name == 'opcoes' or field.name == 'condicoes_obrigatoriedade' %}
-                    <div class="form-grid">
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            {{ field.label_tag }}
-                            {{ field }}
-                            {% if field.errors %}
-                                <div class="text-danger">{{ field.errors }}</div>
-                            {% endif %}
-                            {% if field.help_text %}
-                                <small>{{ field.help_text }}</small>
-                            {% endif %}
+
+                        <div class="form-group ca-mt">
+                            <label for="{{ form.tipo.id_for_label }}" class="form-label">
+                                Tipo do Campo <span class="ca-required">*</span>
+                            </label>
+                            {{ form.tipo }}
+                            {% if form.tipo.errors %}<div class="text-danger small">{{ form.tipo.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="form-group ca-mt">
+                            <label for="{{ form.descricao.id_for_label }}" class="form-label">Descrição / Ajuda</label>
+                            {{ form.descricao }}
+                            <small class="form-text text-muted">Texto de ajuda exibido abaixo do campo no ticket.</small>
+                            {% if form.descricao.errors %}<div class="text-danger small">{{ form.descricao.errors }}</div>{% endif %}
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Bloco: Opções de lista (visível somente tipo=lista) -->
+                <div class="detail-card ca-section ca-block-lista" id="block-opcoes">
+                    <h2><i class="bi bi-list-check"></i> Opções da Lista</h2>
+                    <div class="detail-content">
+
+                        <div class="form-group">
+                            <label class="form-label">Itens disponíveis <span class="ca-required">*</span></label>
+                            <small class="form-text text-muted ca-opcoes-help">
+                                Adicione cada opção que aparecerá no campo de seleção.
+                            </small>
+
+                            <!-- Construtor visual de opções -->
+                            <div id="opcoes-builder" class="ca-opcoes-builder"></div>
+                            <button type="button" id="btn-add-opcao" class="btn btn-sm btn-secondary ca-btn-add-opcao">
+                                <i class="bi bi-plus-circle"></i> Adicionar opção
+                            </button>
+
+                            <!-- Campo hidden gerenciado pelo Django (HiddenInput) -->
+                            {{ form.opcoes }}
+                            {% if form.opcoes.errors %}<div class="text-danger small">{{ form.opcoes.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="form-check ca-mt">
+                            {{ form.multipla_selecao }}
+                            <label class="form-check-label" for="{{ form.multipla_selecao.id_for_label }}">
+                                Permitir seleção múltipla
+                            </label>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Bloco: Validação numérica (visível somente tipo=numerico) -->
+                <div class="detail-card ca-section ca-block-numerico" id="block-numerico">
+                    <h2><i class="bi bi-123"></i> Configuração Numérica</h2>
+                    <div class="detail-content">
+                        <div class="form-group">
+                            <label for="{{ form.casas_decimais.id_for_label }}" class="form-label">Casas Decimais</label>
+                            {{ form.casas_decimais }}
+                            <small class="form-text text-muted">Deixe em branco para número inteiro.</small>
+                            {% if form.casas_decimais.errors %}<div class="text-danger small">{{ form.casas_decimais.errors }}</div>{% endif %}
                         </div>
                     </div>
-                {% endif %}
-            {% endfor %}
+                </div>
+
+                <!-- Bloco: Validação de texto (visível somente tipo=regex / texto_linha) -->
+                <div class="detail-card ca-section ca-block-regex" id="block-regex">
+                    <h2><i class="bi bi-braces"></i> Validação por Expressão Regular</h2>
+                    <div class="detail-content">
+                        <div class="form-group">
+                            <label for="{{ form.expressao_regular.id_for_label }}" class="form-label">Expressão Regular</label>
+                            {{ form.expressao_regular }}
+                            <small class="form-text text-muted">
+                                Exemplo: <code>^\d{5}-\d{3}$</code> para CEP.
+                                Deixe em branco para não validar.
+                            </small>
+                            {% if form.expressao_regular.errors %}<div class="text-danger small">{{ form.expressao_regular.errors }}</div>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Coluna lateral -->
+            <div class="ca-form-aside">
+
+                <!-- Bloco: Situação -->
+                <div class="detail-card ca-section">
+                    <h2><i class="bi bi-toggle-on"></i> Situação</h2>
+                    <div class="detail-content">
+                        <div class="form-check ca-aside-check">
+                            {{ form.ativo }}
+                            <label class="form-check-label" for="{{ form.ativo.id_for_label }}">
+                                Campo ativo
+                            </label>
+                            <small class="form-text text-muted d-block">
+                                Campos inativos não aparecem no formulário de ticket.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bloco: Referência de tipos -->
+                <div class="detail-card ca-section ca-aside-help">
+                    <h2><i class="bi bi-info-circle"></i> Tipos disponíveis</h2>
+                    <div class="detail-content">
+                        <ul class="ca-type-ref">
+                            <li><i class="bi bi-input-cursor-text"></i> <strong>Texto linha</strong> — campo curto</li>
+                            <li><i class="bi bi-textarea"></i> <strong>Texto multilinha</strong> — área de texto</li>
+                            <li><i class="bi bi-list-ul"></i> <strong>Lista</strong> — selecione opções</li>
+                            <li><i class="bi bi-123"></i> <strong>Numérico</strong> — inteiro ou decimal</li>
+                            <li><i class="bi bi-calendar"></i> <strong>Data</strong></li>
+                            <li><i class="bi bi-clock"></i> <strong>Hora</strong></li>
+                            <li><i class="bi bi-calendar-event"></i> <strong>Data e Hora</strong></li>
+                            <li><i class="bi bi-telephone"></i> <strong>Telefone</strong></li>
+                            <li><i class="bi bi-paperclip"></i> <strong>Arquivo</strong> — upload</li>
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
         </div>
 
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Salvar</button>
+        <div class="form-actions ca-form-actions">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-lg"></i> Salvar Campo
+            </button>
+            <a href="{% url 'tickets:campo_adicional_list' %}" class="btn btn-secondary">Cancelar</a>
         </div>
     </form>
 </div>
+
+<script>
+(function () {
+    /* ── Tipos que expõem cada bloco ───────────────────────────── */
+    var LISTA_TIPOS   = ['lista', 'lista_pessoas', 'lista_clientes', 'lista_agentes'];
+    var NUMERICO_TIPO = ['numerico'];
+    var REGEX_TIPOS   = ['regex', 'texto_linha'];
+
+    var selTipo   = document.getElementById('{{ form.tipo.id_for_label }}');
+    var blkLista  = document.getElementById('block-opcoes');
+    var blkNum    = document.getElementById('block-numerico');
+    var blkRegex  = document.getElementById('block-regex');
+
+    function atualizaBlocos() {
+        var t = selTipo ? selTipo.value : '';
+        blkLista.style.display  = LISTA_TIPOS.indexOf(t)   >= 0 ? '' : 'none';
+        blkNum.style.display    = NUMERICO_TIPO.indexOf(t) >= 0 ? '' : 'none';
+        blkRegex.style.display  = REGEX_TIPOS.indexOf(t)  >= 0 ? '' : 'none';
+    }
+
+    if (selTipo) {
+        selTipo.addEventListener('change', atualizaBlocos);
+        atualizaBlocos();
+    }
+
+    /* ── Construtor visual de opções ───────────────────────────── */
+    var builder = document.getElementById('opcoes-builder');
+    var hidden  = document.getElementById('{{ form.opcoes.id_for_label }}');
+    var btnAdd  = document.getElementById('btn-add-opcao');
+
+    function lerOpcoes() {
+        var raw = hidden.value || '[]';
+        try { return JSON.parse(raw); } catch(e) { return []; }
+    }
+
+    function persistir() {
+        var items = builder.querySelectorAll('.ca-opcao-input');
+        var vals  = [];
+        items.forEach(function (inp) {
+            var v = inp.value.trim();
+            if (v) vals.push(v);
+        });
+        hidden.value = JSON.stringify(vals);
+    }
+
+    function criarLinha(valor) {
+        var row = document.createElement('div');
+        row.className = 'ca-opcao-row';
+
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'form-control form-control-sm ca-opcao-input';
+        inp.placeholder = 'Ex.: Urgente';
+        inp.value = valor || '';
+        inp.addEventListener('input', persistir);
+
+        var btnDel = document.createElement('button');
+        btnDel.type = 'button';
+        btnDel.className = 'btn btn-sm btn-delete ca-opcao-del';
+        btnDel.innerHTML = '<i class="bi bi-x-lg"></i>';
+        btnDel.title = 'Remover';
+        btnDel.addEventListener('click', function () {
+            row.remove();
+            persistir();
+        });
+
+        row.appendChild(inp);
+        row.appendChild(btnDel);
+        builder.appendChild(row);
+    }
+
+    /* inicializar com opções existentes */
+    var iniciais = lerOpcoes();
+    if (iniciais.length) {
+        iniciais.forEach(criarLinha);
+    }
+
+    if (btnAdd) {
+        btnAdd.addEventListener('click', function () {
+            criarLinha('');
+            builder.lastChild.querySelector('input').focus();
+        });
+    }
+
+    /* garantir JSON atualizado antes de submeter */
+    var form = document.getElementById('campo-form');
+    if (form) {
+        form.addEventListener('submit', persistir);
+    }
+})();
+</script>
 {% endblock %}

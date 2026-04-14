@@ -73,17 +73,17 @@
                 <td>{{ auditoria.responsavel.get_full_name|default:auditoria.responsavel.username|default:"-" }}</td>
                 <td>
                     {% if auditoria.status == '0' %}
-                        <span style="color: orange;">● {{ auditoria.get_status_display }}</span>
+                        <span class="aud-status-open">● {{ auditoria.get_status_display }}</span>
                     {% elif auditoria.status == '1' %}
-                        <span style="color: green;">● {{ auditoria.get_status_display }}</span>
+                        <span class="aud-status-done">● {{ auditoria.get_status_display }}</span>
                     {% else %}
-                        <span style="color: red;">● {{ auditoria.get_status_display }}</span>
+                        <span class="aud-status-cancel">● {{ auditoria.get_status_display }}</span>
                     {% endif %}
                 </td>
                 <td>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <div style="width: 100px; height: 20px; background: #e0e0e0; border-radius: 10px; overflow: hidden;">
-                            <div style="width: {{ auditoria.calcular_progresso }}%; height: 100%; background: #4CAF50;"></div>
+                    <div class="aud-progress-wrap">
+                        <div class="aud-progress-track">
+                            <div class="aud-progress-fill" data-progress-fill="{{ auditoria.calcular_progresso }}"></div>
                         </div>
                         <span>{{ auditoria.ativos_verificados }}/{{ auditoria.total_ativos }}</span>
                     </div>
@@ -167,6 +167,15 @@ document.querySelectorAll('.btn-delete').forEach(button => {
             });
         }
     });
+});
+
+document.querySelectorAll('[data-progress-fill]').forEach(function (el) {
+    var value = parseFloat(el.getAttribute('data-progress-fill') || '0');
+    if (!isFinite(value)) {
+        value = 0;
+    }
+    var normalized = Math.max(0, Math.min(100, value));
+    el.style.width = normalized + '%';
 });
 </script>
 {% endblock %}
