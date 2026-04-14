@@ -21,108 +21,108 @@
 
       <!-- Seleção de alvos -->
       <div class="detail-card bc-card-gap">
-        <h2 class="bc-head-h2-gap"><i class="bi bi-pc-display"></i> Alvos</h2>
+        <h2><i class="bi bi-pc-display"></i> Alvos</h2>
+        <div class="detail-content">
 
-        <!-- Abas de seleção -->
-        <div class="bc-tabs-wrap">
-          <button type="button" class="bc-tab bc-tab-active" data-tab="machines" id="tab-machines">
-            Máquinas
-          </button>
-          <button type="button" class="bc-tab" data-tab="groups" id="tab-groups">
-            Grupos
-          </button>
-          <button type="button" class="bc-tab" data-tab="all" id="tab-all">
-            Todas
-          </button>
-        </div>
+          <!-- Abas de seleção -->
+          <div class="bc-tabs-wrap">
+            <button type="button" class="bc-tab bc-tab-active" data-tab="machines" id="tab-machines">
+              Máquinas
+            </button>
+            <button type="button" class="bc-tab" data-tab="groups" id="tab-groups">
+              Grupos
+            </button>
+            <button type="button" class="bc-tab" data-tab="all" id="tab-all">
+              Todas
+            </button>
+          </div>
 
-        <!-- Aba: Máquinas individuais -->
-        <div id="pane-machines">
-          <input type="text" id="searchMachine" placeholder="Filtrar por hostname…"
-                 class="form-control bc-input-sm">
-          <div class="bc-inline-actions">
-            <button type="button" class="btn btn-secondary bc-btn-sm" id="btn-toggle-all-on">Marcar todas</button>
-            <button type="button" class="btn btn-secondary bc-btn-sm" id="btn-toggle-all-off">Desmarcar</button>
-          </div>
-          <div id="machineList" class="bc-machine-list">
-            {% for m in machines %}
-            <label class="bc-machine-item" data-name="{{ m.hostname|lower }}" data-id="{{ m.id }}">
-              <input type="checkbox" class="bc-machine-cb" value="{{ m.id }}">
-              <span class="bc-status-dot {% if m.is_currently_online %}bc-online{% else %}bc-offline{% endif %}"></span>
-                <div class="bc-machine-meta">
-                  <div class="bc-machine-name">
-                    {{ m.hostname }}
-                  </div>
-                  <div class="bc-machine-sub">{{ m.ip_address }} · {{ m.group.name|default:"Sem grupo" }}</div>
-                </div>
-              </label>
-            {% empty %}
-            <p class="bc-empty-msg">Nenhuma máquina com IP cadastrado.</p>
-            {% endfor %}
-          </div>
-          <div class="bc-selected-count">
-            <span id="selectedCount">0</span> selecionada(s) de {{ machines|length }}
-          </div>
-        </div>
-
-        <!-- Aba: Grupos -->
-        <div id="pane-groups" class="bc-pane-hidden">
-          <div class="bc-groups-list">
-            {% for g in groups %}
-            <label class="bc-group-item">
-              <input type="checkbox" class="bc-group-cb" value="{{ g.id }}">
-                <div>
-                  <div class="bc-group-name">{{ g.name }}</div>
-                  <div class="bc-group-sub">{{ g.machine_set.count }} máquina(s)</div>
-                </div>
-              </label>
-            {% empty %}
-            <p class="bc-group-sub">Nenhum grupo cadastrado.</p>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Aba: Todas -->
-        <div id="pane-all" class="bc-pane-hidden">
-          <div class="bc-warning-box">
-            <div class="bc-warning-head">
-              <i class="bi bi-exclamation-triangle-fill bc-warning-icon"></i>
-              <span class="bc-warning-title">Atenção</span>
+          <!-- Aba: Máquinas individuais -->
+          <div id="pane-machines">
+            <input type="text" id="searchMachine" placeholder="Filtrar por hostname…"
+                   class="form-control bc-input-sm">
+            <div class="bc-inline-actions">
+              <button type="button" class="btn btn-secondary bc-btn-sm" id="btn-toggle-all-on">Marcar todas</button>
+              <button type="button" class="btn btn-secondary bc-btn-sm" id="btn-toggle-all-off">Desmarcar</button>
             </div>
-            <p class="bc-warning-text">
-              O comando será executado em <strong>todas as {{ machines|length }} máquinas</strong> com IP cadastrado simultaneamente.
-            </p>
+            <div id="machineList" class="bc-machine-list">
+              {% for m in machines %}
+              <label class="bc-machine-item" data-name="{{ m.hostname|lower }}" data-id="{{ m.id }}">
+                <input type="checkbox" class="bc-machine-cb" value="{{ m.id }}">
+                <span class="bc-status-dot {% if m.is_currently_online %}bc-online{% else %}bc-offline{% endif %}"></span>
+                  <div class="bc-machine-meta">
+                    <div class="bc-machine-name">{{ m.hostname }}</div>
+                    <div class="bc-machine-sub">{{ m.ip_address }} · {{ m.group.name|default:"Sem grupo" }}</div>
+                  </div>
+                </label>
+              {% empty %}
+              <p class="bc-empty-msg">Nenhuma máquina com IP cadastrado.</p>
+              {% endfor %}
+            </div>
+            <div class="bc-selected-count">
+              <span id="selectedCount">0</span> selecionada(s) de {{ machines|length }}
+            </div>
           </div>
+
+          <!-- Aba: Grupos -->
+          <div id="pane-groups" class="bc-pane-hidden">
+            <div class="bc-groups-list">
+              {% for g in groups %}
+              <label class="bc-group-item">
+                <input type="checkbox" class="bc-group-cb" value="{{ g.id }}">
+                  <div>
+                    <div class="bc-group-name">{{ g.name }}</div>
+                    <div class="bc-group-sub">{{ g.machine_set.count }} máquina(s)</div>
+                  </div>
+                </label>
+              {% empty %}
+              <p class="bc-group-sub">Nenhum grupo cadastrado.</p>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Aba: Todas -->
+          <div id="pane-all" class="bc-pane-hidden">
+            <div class="bc-warning-box">
+              <div class="bc-warning-head">
+                <i class="bi bi-exclamation-triangle-fill bc-warning-icon"></i>
+                <span class="bc-warning-title">Atenção</span>
+              </div>
+              <p class="bc-warning-text">
+                O comando será executado em <strong>todas as {{ machines|length }} máquinas</strong> com IP cadastrado simultaneamente.
+              </p>
+            </div>
+          </div>
+
         </div>
       </div>
 
       <!-- Configurações do comando -->
       <div class="detail-card">
-        <h2 class="bc-head-h2-gap"><i class="bi bi-gear"></i> Configuração</h2>
+        <h2><i class="bi bi-gear"></i> Configuração</h2>
+        <div class="detail-content">
 
-        <div class="form-group bc-form-group-sm">
-          <label class="bc-label-sm">Tipo</label>
-          <select id="cmdType" class="form-control bc-input-sm">
-            <option value="powershell">PowerShell</option>
-            <option value="cmd">CMD</option>
-          </select>
-        </div>
+          <div class="form-group bc-form-group-sm">
+            <label class="bc-label-sm">Tipo</label>
+            <select id="cmdType" class="form-control bc-input-sm">
+              <option value="powershell">PowerShell</option>
+              <option value="cmd">CMD</option>
+            </select>
+          </div>
 
-        <div class="bc-grid-two">
-          <div class="form-group">
-            <label class="bc-label-sm">
-              Timeout (s)
-            </label>
-            <input type="number" id="timeout" value="60" min="5" max="120"
-                   class="form-control bc-input-sm">
+          <div class="bc-grid-two">
+            <div class="form-group">
+              <label class="bc-label-sm">Timeout (s)</label>
+              <input type="number" id="timeout" value="60" min="5" max="120"
+                     class="form-control bc-input-sm">
+            </div>
+            <div class="form-group">
+              <label class="bc-label-sm">Paralelo</label>
+              <input type="number" id="maxWorkers" value="10" min="1" max="30"
+                     class="form-control bc-input-sm">
+            </div>
           </div>
-          <div class="form-group">
-            <label class="bc-label-sm">
-              Paralelo
-            </label>
-            <input type="number" id="maxWorkers" value="10" min="1" max="30"
-                   class="form-control bc-input-sm">
-          </div>
+
         </div>
       </div>
     </div>
@@ -146,73 +146,82 @@
             </button>
           </div>
         </div>
-
-        <!-- Comandos rápidos -->
-        <div class="bc-quick-wrap">
-          {% for label, cmd in quick_commands %}
-          <button type="button" class="bc-quick-btn"
-                  data-cmd="{{ cmd }}">{{ label }}</button>
-          {% endfor %}
-        </div>
-
-        <textarea id="commandInput"
-                  placeholder="Get-ComputerInfo | Select-Object CsName, OsName, OsVersion"
-                  spellcheck="false"
-                  class="bc-command-input"></textarea>
-      </div>
-
-      <!-- Barra de progresso -->
-      <div id="progressBar" class="bc-progress">
-        <div class="bc-progress-head">
-          <span class="bc-progress-label" id="progressLabel">Executando…</span>
-          <span class="bc-progress-time" id="progressTime"></span>
-        </div>
-        <div class="bc-progress-track">
-          <div id="progressFill" class="bc-progress-fill"></div>
-        </div>
-      </div>
-
-      <!-- Sumário -->
-      <div id="summaryBar" class="bc-summary">
-        <div class="bc-summary-grid">
-          <div class="bc-summary-card bc-border-default">
-            <div class="bc-summary-num bc-num-default" id="sTotal">0</div>
-            <div class="bc-summary-lbl">Total</div>
+        <div class="bc-editor-body">
+          <!-- Comandos rápidos -->
+          <div class="bc-quick-wrap">
+            {% for label, cmd in quick_commands %}
+            <button type="button" class="bc-quick-btn"
+                    data-cmd="{{ cmd }}">{{ label }}</button>
+            {% endfor %}
           </div>
-          <div class="bc-summary-card bc-border-success">
-            <div class="bc-summary-num bc-num-success" id="sSuccess">0</div>
-            <div class="bc-summary-lbl">Sucesso</div>
-          </div>
-          <div class="bc-summary-card bc-border-danger">
-            <div class="bc-summary-num bc-num-danger" id="sFailed">0</div>
-            <div class="bc-summary-lbl">Erro</div>
-          </div>
-          <div class="bc-summary-card bc-border-warning">
-            <div class="bc-summary-num bc-num-warning" id="sOffline">0</div>
-            <div class="bc-summary-lbl">Offline</div>
-          </div>
-          <div class="bc-summary-card bc-border-default">
-            <div class="bc-summary-num bc-num-muted" id="sSkipped">0</div>
-            <div class="bc-summary-lbl">Ignorado</div>
+
+          <textarea id="commandInput"
+                    placeholder="Get-ComputerInfo | Select-Object CsName, OsName, OsVersion"
+                    spellcheck="false"
+                    class="bc-command-input"></textarea>
+
+          <!-- Barra de progresso -->
+          <div id="progressBar" class="bc-progress">
+            <div class="bc-progress-head">
+              <span class="bc-progress-label" id="progressLabel">Executando…</span>
+              <span class="bc-progress-time" id="progressTime"></span>
+            </div>
+            <div class="bc-progress-track">
+              <div id="progressFill" class="bc-progress-fill"></div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Filtro de resultados -->
-      <div id="resultFilters" class="bc-result-filters">
-        <button class="bc-filter-btn bc-filter-active" data-filter-status="all">Todos</button>
-        <button class="bc-filter-btn bc-filter-success" data-filter-status="ok">✓ Sucesso</button>
-        <button class="bc-filter-btn bc-filter-danger" data-filter-status="error">✗ Erro</button>
-        <button class="bc-filter-btn bc-filter-warning" data-filter-status="offline">⚡ Offline</button>
-        <div class="bc-export-wrap">
-          <button class="btn btn-secondary bc-btn-sm" id="btn-export-csv">
-            <i class="bi bi-download"></i> Exportar CSV
-          </button>
+      <!-- Resultados (sumário + filtros + itens) -->
+      <div id="resultsCard" class="detail-card" style="display: none;">
+        <h2><i class="bi bi-list-check"></i> Resultados</h2>
+        <div class="bc-results-body">
+
+          <!-- Sumário -->
+          <div id="summaryBar" class="bc-summary">
+            <div class="bc-summary-grid">
+              <div class="bc-summary-card bc-border-default">
+                <div class="bc-summary-num bc-num-default" id="sTotal">0</div>
+                <div class="bc-summary-lbl">Total</div>
+              </div>
+              <div class="bc-summary-card bc-border-success">
+                <div class="bc-summary-num bc-num-success" id="sSuccess">0</div>
+                <div class="bc-summary-lbl">Sucesso</div>
+              </div>
+              <div class="bc-summary-card bc-border-danger">
+                <div class="bc-summary-num bc-num-danger" id="sFailed">0</div>
+                <div class="bc-summary-lbl">Erro</div>
+              </div>
+              <div class="bc-summary-card bc-border-warning">
+                <div class="bc-summary-num bc-num-warning" id="sOffline">0</div>
+                <div class="bc-summary-lbl">Offline</div>
+              </div>
+              <div class="bc-summary-card bc-border-default">
+                <div class="bc-summary-num bc-num-muted" id="sSkipped">0</div>
+                <div class="bc-summary-lbl">Ignorado</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filtro de resultados -->
+          <div id="resultFilters" class="bc-result-filters">
+            <button class="bc-filter-btn bc-filter-active" data-filter-status="all">Todos</button>
+            <button class="bc-filter-btn bc-filter-success" data-filter-status="ok">✓ Sucesso</button>
+            <button class="bc-filter-btn bc-filter-danger" data-filter-status="error">✗ Erro</button>
+            <button class="bc-filter-btn bc-filter-warning" data-filter-status="offline">⚡ Offline</button>
+            <div class="bc-export-wrap">
+              <button class="btn btn-secondary bc-btn-sm" id="btn-export-csv">
+                <i class="bi bi-download"></i> Exportar CSV
+              </button>
+            </div>
+          </div>
+
+          <!-- Itens de resultado -->
+          <div id="resultsContainer"></div>
+
         </div>
       </div>
-
-      <!-- Resultados -->
-      <div id="resultsContainer"></div>
 
     </div>
   </div>
@@ -354,8 +363,7 @@ function runBulk() {
   btn.disabled = true;
   btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Executando…';
   document.getElementById('resultsContainer').innerHTML = '';
-  document.getElementById('summaryBar').style.display   = 'none';
-  document.getElementById('resultFilters').style.display = 'none';
+  document.getElementById('resultsCard').style.display  = 'none';
 
   /* Barra de progresso animada (indeterminada enquanto aguarda) */
   var pb    = document.getElementById('progressBar');
@@ -392,8 +400,7 @@ function runBulk() {
     document.getElementById('sFailed').textContent  = data.failed;
     document.getElementById('sOffline').textContent = data.offline;
     document.getElementById('sSkipped').textContent = data.skipped;
-    document.getElementById('summaryBar').style.display = '';
-    document.getElementById('resultFilters').style.display = 'flex';
+    document.getElementById('resultsCard').style.display  = '';
 
     _allResults = data.results || [];
     renderResults(_allResults);

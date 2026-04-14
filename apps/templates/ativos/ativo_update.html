@@ -7,13 +7,14 @@
     <div class="page-header">
         <h1>Editar Ativo: {{ ativo.etiqueta }}</h1>
         <div class="filter-buttons">
-            <a href="{% url 'ativos:ativo_detail' ativo.id %}" class="btn btn-primary">Ver Detalhes</a>
+            <button type="submit" form="ativo-main-form" class="btn btn-primary">Salvar Alterações</button>
+            <a href="{% url 'ativos:ativo_detail' ativo.id %}" class="btn btn-secondary">Ver Detalhes</a>
             <a href="{% url 'ativos:ativo_list' %}" class="btn btn-secondary">Voltar</a>
         </div>
     </div>
 
     <!-- Formulário do Ativo -->
-    <form method="post" enctype="multipart/form-data">
+    <form method="post" enctype="multipart/form-data" id="ativo-main-form">
         {% csrf_token %}
 
         <!-- Informações Básicas -->
@@ -171,19 +172,15 @@
             </div>
         </div>
 
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-        </div>
     </form>
 
     <!-- Utilizadores -->
     <div class="detail-card atv-section-spaced">
-        <h2>Utilizado Por</h2>
-        <div class="atv-toolbar">
-            <button type="button" class="btn btn-primary btn-sm js-toggle-form" data-form-id="form-utilizador">
+        <h2>Utilizado Por
+            <button type="button" class="btn btn-primary btn-sm js-toggle-form ms-auto" data-form-id="form-utilizador">
                 <i class="bi bi-plus"></i> Adicionar Utilizador
             </button>
-        </div>
+        </h2>
 
         <!-- Formulário de Adicionar Utilizador -->
         <div id="form-utilizador" class="atv-collapsible">
@@ -247,12 +244,11 @@
 
     <!-- Anexos -->
     <div class="detail-card atv-section-spaced">
-        <h2>Anexos</h2>
-        <div class="atv-toolbar">
-            <button type="button" class="btn btn-primary btn-sm js-toggle-form" data-form-id="form-anexo">
+        <h2>Anexos
+            <button type="button" class="btn btn-primary btn-sm js-toggle-form ms-auto" data-form-id="form-anexo">
                 <i class="bi bi-paperclip"></i> Adicionar Anexo
             </button>
-        </div>
+        </h2>
 
         <!-- Formulário de Adicionar Anexo -->
         <div id="form-anexo" class="atv-collapsible">

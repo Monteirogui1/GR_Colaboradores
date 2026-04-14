@@ -6,11 +6,16 @@
 <div class="content">
     <div class="page-header">
         <h1>{% if object %}Editar Ativo{% else %}Novo Ativo{% endif %}</h1>
-        <a href="{% url 'ativos:ativo_list' %}" class="btn btn-secondary">Voltar</a>
+        <div class="filter-buttons">
+            <button type="submit" form="ativo-main-form" class="btn btn-primary">
+                {% if object %}Salvar Alterações{% else %}Salvar{% endif %}
+            </button>
+            <a href="{% url 'ativos:ativo_list' %}" class="btn btn-secondary">Voltar</a>
+        </div>
     </div>
 
     <!-- Formulário principal do ativo -->
-    <form method="post" enctype="multipart/form-data">
+    <form method="post" enctype="multipart/form-data" id="ativo-main-form">
         {% csrf_token %}
 
         <div class="detail-card">
@@ -83,19 +88,15 @@
             </div>
         </div>
 
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-        </div>
     </form>
 
     <!-- ==================== UTILIZADORES ==================== -->
     <div class="detail-card atv-section-spaced">
-        <h2>Utilizado Por</h2>
-        <div class="atv-toolbar">
-            <button type="button" class="btn btn-primary btn-sm js-toggle-form" data-form-id="form-utilizador">
+        <h2>Utilizado Por
+            <button type="button" class="btn btn-primary btn-sm js-toggle-form ms-auto" data-form-id="form-utilizador">
                 <i class="bi bi-plus"></i> Adicionar Utilizador
             </button>
-        </div>
+        </h2>
 
         <div id="form-utilizador" class="atv-collapsible">
             <h3 class="atv-collapsible-title">Novo Utilizador</h3>
@@ -156,12 +157,11 @@
 
     <!-- ==================== ANEXOS ==================== -->
     <div class="detail-card atv-section-spaced">
-        <h2>Anexos</h2>
-        <div class="atv-toolbar">
-            <button type="button" class="btn btn-primary btn-sm js-toggle-form" data-form-id="form-anexo">
+        <h2>Anexos
+            <button type="button" class="btn btn-primary btn-sm js-toggle-form ms-auto" data-form-id="form-anexo">
                 <i class="bi bi-paperclip"></i> Adicionar Anexo
             </button>
-        </div>
+        </h2>
 
         <div id="form-anexo" class="atv-collapsible">
             <h3 class="atv-collapsible-title">Novo Anexo</h3>
