@@ -1605,6 +1605,11 @@
     var statsTimer = null;
     var paused = false, viewOnly = false, isSelf = false;
     var screenLocked = false;
+    var codecHint = 'auto';
+    var _lowFpsStreak = 0;
+    var _codecFallbackApplied = false;
+    var _manualReconnect = false;
+    var _inputBound = false;
     var destMode = 'explorer', explorerPath = '';
     var _monitors = [];
     var _lastIceServers = [];       // FIX P11: preserva ICE servers para reconexão
@@ -1941,6 +1946,7 @@
 
       dc.onopen = function () {
         toast('Sessão estabelecida', 'ok');
+        _manualReconnect = false;
         setConnUI(true);
         // Envia qualidade inicial ao agente
         send({ t: 'set_quality', quality: quality.toLowerCase() });
@@ -1973,10 +1979,14 @@
 
       pc.oniceconnectionstatechange = function () {
         var s = pc.iceConnectionState; $('sice').textContent = s.toUpperCase();
+        if (_manualReconnect) return;
         if (s === 'failed' || s === 'disconnected') { setStatus('ICE ' + s.toUpperCase(), 'err'); $('reconn').classList.add('show'); schedReconn(machine, token); }
         if (s === 'connected' || s === 'completed') $('reconn').classList.remove('show');
       };
-      pc.onconnectionstatechange = function () { if (pc.connectionState === 'failed') { setStatus('FALHA', 'err'); schedReconn(machine, token); } };
+      pc.onconnectionstatechange = function () {
+        if (_manualReconnect) return;
+        if (pc.connectionState === 'failed') { setStatus('FALHA', 'err'); schedReconn(machine, token); }
+      };
 
       sbMsg('Criando SDP offer…');
       return pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: false })
@@ -1996,7 +2006,7 @@
         })
         .then(function () {
           sbMsg('Enviando offer ao agente…');
-          return fetch('/api/rdp/offer/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RDP-Token': token, 'X-Machine-ID': machine, 'X-CSRFToken': getCookie('csrftoken') }, body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }), credentials: 'same-origin' });
+          return fetch('/api/rdp/offer/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RDP-Token': token, 'X-Machine-ID': machine, 'X-CSRFToken': getCookie('csrftoken') }, body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type, codec_hint: codecHint }), credentials: 'same-origin' });
         })
         .then(function (resp) { if (!resp.ok) return resp.json().then(function (d) { throw new Error(d.error || 'HTTP ' + resp.status); }); return resp.json(); })
         .then(function (answer) { sbMsg('Estabelecendo WebRTC…'); return pc.setRemoteDescription(new RTCSessionDescription(answer)); });
@@ -2069,6 +2079,7 @@
       toast('Sessão encerrada', 'info');
       paused = false; viewOnly = false; isSelf = false; screenLocked = false;
       _remoteClipboard = ''; _inVideoFocus = false;
+      _lowFpsStreak = 0; _manualReconnect = false;
       _lastIceServers = [];
       $('sbmac').textContent = $('sbcodec').textContent = '—';
     }
@@ -2088,6 +2099,8 @@
     // FIX P9: guard paused||viewOnly em mousedown button===1 (middle)
     // ═══════════════════════════════════════
     function setupInput() {
+      if (_inputBound) return;
+      _inputBound = true;
       var v = $('rv');
       var DRAG_THRESHOLD = 4; // px de movimento para considerar drag
 
@@ -2420,6 +2433,21 @@
               var bwK = Math.round((r.bytesReceived - lb) / dt * 8 / 1024);
               lf = r.framesDecoded; lb = r.bytesReceived; lt = now;
               sv('sfps', fps + ' fps', fps >= 25 ? 'g' : fps >= 15 ? 'w' : 'b');
+              if (codecHint !== 'fallback') {
+                if (fps <= 10) _lowFpsStreak++;
+                else _lowFpsStreak = Math.max(0, _lowFpsStreak - 1);
+
+                if (_lowFpsStreak >= 6 && !_codecFallbackApplied && connMachine && sessToken) {
+                  _codecFallbackApplied = true;
+                  codecHint = 'fallback';
+                  _manualReconnect = true;
+                  toast('FPS baixo detectado: alternando codec para fallback (VP8/VP9).', 'warn', 4200);
+                  sbMsg('Reconectando com fallback de codec para estabilidade...');
+                  openConn(connMachine, sessToken, (_lastIceServers || []).slice()).catch(function () {
+                    _manualReconnect = false;
+                  });
+                }
+              }
               sv('sbw', bwK >= 1024 ? (bwK / 1024).toFixed(1) + ' Mbps' : bwK + ' kbps', bwK >= 1000 ? 'g' : bwK >= 200 ? 'w' : 'b');
               sv('sloss', (r.packetsLost || 0) + '', (r.packetsLost || 0) === 0 ? 'g' : (r.packetsLost || 0) < 20 ? 'w' : 'b');
               if (r.frameWidth) { $('sres').textContent = r.frameWidth + '×' + r.frameHeight; screenW = r.frameWidth; screenH = r.frameHeight; }

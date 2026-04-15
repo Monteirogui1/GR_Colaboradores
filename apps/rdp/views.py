@@ -177,7 +177,7 @@ class RDPOfferView(View):
         X-Machine-ID: <hostname da máquina>
         X-CSRFToken:  <token CSRF do Django>
     Content-Type: application/json
-    Body: { "sdp": "<sdp string>", "type": "offer" }
+    Body: { "sdp": "<sdp string>", "type": "offer", "codec_hint": "auto|fallback" }
 
     Resposta 200: { "sdp": "<sdp string>", "type": "answer" }
     """
@@ -199,8 +199,12 @@ class RDPOfferView(View):
 
         self._assert_agent_online(machine)
 
+        codec_hint = str(body.get('codec_hint', 'auto')).strip().lower()
+        if codec_hint not in ('auto', 'fallback'):
+            codec_hint = 'auto'
+
         try:
-            answer = self._forward_offer_to_agent(request, machine, sdp)
+            answer = self._forward_offer_to_agent(request, machine, sdp, codec_hint)
         except req_lib.exceptions.ConnectionError:
             logger.error(f"RDP: agente '{machine.hostname}' inacessível")
             return JsonResponse({'error': 'Agente offline ou inacessível'}, status=502)
@@ -237,7 +241,7 @@ class RDPOfferView(View):
         if last_seen and (timezone.now() - last_seen) > timedelta(minutes=6):
             raise ConnectionError(f"Agente '{machine.hostname}' sem heartbeat há mais de 6 minutos")
 
-    def _forward_offer_to_agent(self, request, machine: Machine, sdp: str) -> dict:
+    def _forward_offer_to_agent(self, request, machine: Machine, sdp: str, codec_hint: str = 'auto') -> dict:
         from apps.inventory.models import AgentToken
 
         url = f"http://{machine.ip_address}:{WEBRTC_PORT}/webrtc/offer"
@@ -258,7 +262,7 @@ class RDPOfferView(View):
         logger.info(f"RDP: encaminhando offer para {url}")
 
         headers = {"Authorization": f"Bearer {agent_token.token_hash}"}
-        payload = {"sdp": sdp, "type": "offer"}
+        payload = {"sdp": sdp, "type": "offer", "codec_hint": codec_hint}
         response = req_lib.post(url, json=payload, headers=headers, timeout=15)
         response.raise_for_status()
 
