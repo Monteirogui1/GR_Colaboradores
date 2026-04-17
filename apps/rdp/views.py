@@ -246,9 +246,7 @@ class RDPOfferView(View):
 
         url = f"http://{machine.ip_address}:{WEBRTC_PORT}/webrtc/offer"
 
-        # Converter token de 8 chars para SHA-256 e buscar no banco
         rdp_token_hash = _hash_token(request.rdp_token)
-
         logger.info(f"RDP: buscando token hash={rdp_token_hash[:16]}… para máquina {machine.hostname}")
 
         agent_token = AgentToken.objects.filter(
@@ -373,6 +371,38 @@ class RDPSessionsView(View):
             if s.get('user_id') == request.user.pk
         ]
         return JsonResponse({'sessions': user_sessions, 'max': MAX_SESSIONS})
+
+@method_decorator(login_required, name='dispatch')
+class RDPMachineTokenView(View):
+    """
+    Retorna o token cadastrado para a máquina (somente staff).
+    GET /api/rdp/machine-token/?machine=<hostname>
+    """
+    def get(self, request):
+        from apps.inventory.models import AgentTokenUsage
+
+        if not request.user.is_staff:
+            return JsonResponse({'error': 'Acesso negado'}, status=403)
+
+        machine_hostname = request.GET.get('machine', '').strip()
+        if not machine_hostname:
+            return JsonResponse({'error': 'Parâmetro machine obrigatório'}, status=400)
+
+        try:
+            Machine.objects.get(hostname=machine_hostname)
+        except Machine.DoesNotExist:
+            return JsonResponse({'error': 'Máquina não encontrada'}, status=404)
+
+        usage = AgentTokenUsage.objects.filter(
+            machine_name=machine_hostname,
+            agent_token__is_active=True,
+        ).select_related('agent_token').order_by('-last_used_at').first()
+
+        if not usage:
+            return JsonResponse({'error': 'Nenhum token ativo cadastrado para esta máquina'}, status=404)
+
+        return JsonResponse({'token': usage.agent_token.token, 'machine': machine_hostname})
+
 
 @method_decorator(login_required, name='dispatch')
 class RDPConfigView(View):

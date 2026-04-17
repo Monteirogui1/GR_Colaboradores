@@ -2472,6 +2472,29 @@
     function stopStats() { if (statsTimer) { clearInterval(statsTimer); statsTimer = null; } }
 
     selDest('explorer');
+
+    // Pré-preenche e auto-conecta via query string ?machine=&autotoken=&autoconnect=1
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var m = params.get('machine');
+      var autotoken = params.get('autotoken');
+      var autoconnect = params.get('autoconnect');
+
+      if (m) {
+        $('inpmachine').value = m;
+        chkSelf(m);
+      }
+      if (autotoken) {
+        $('inptoken').value = autotoken;
+        // Remove token da URL para não ficar em histórico/favoritos
+        history.replaceState(null, '', window.location.pathname + (m ? '?machine=' + encodeURIComponent(m) : ''));
+      }
+      if (autoconnect === '1' && m && autotoken) {
+        setTimeout(doConnect, 400);
+      } else if (m && !autotoken) {
+        $('inptoken').focus();
+      }
+    })();
   </script>
 </body>
 

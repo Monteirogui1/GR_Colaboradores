@@ -82,6 +82,9 @@
                 <td>{{ machine.last_seen|date:"d/m/Y H:i" }}</td>
                 <td>
                     <a href="{% url 'inventario:machine_detail' machine.pk %}" class="btn btn-sm btn-primary">Ver</a>
+                    {% if user.is_staff %}
+                    <button class="btn btn-sm btn-success" onclick="rdpConnect('{{ machine.hostname }}')" title="Conectar via Remote Desktop">Conectar</button>
+                    {% endif %}
                     <a href="{% url 'inventario:machine_update' machine.pk %}" class="btn btn-sm btn-edit">Editar</a>
                     <button class="btn btn-sm btn-delete" data-id="{{ machine.id }}">Excluir</button>
                 </td>
@@ -114,4 +117,25 @@
     {% endif %}
 
 </div>
+
+{% if user.is_staff %}
+<script>
+var _RDP_URL = "{% url 'remote_desktop' %}";
+var _MACHINE_TOKEN_URL = "{% url 'rdp:rdp_machine_token' %}";
+
+function rdpConnect(hostname) {
+    fetch(_MACHINE_TOKEN_URL + '?machine=' + encodeURIComponent(hostname))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { alert('Erro ao conectar: ' + data.error); return; }
+        var url = _RDP_URL
+            + '?machine=' + encodeURIComponent(hostname)
+            + '&autotoken=' + encodeURIComponent(data.token)
+            + '&autoconnect=1';
+        window.open(url, '_blank');
+    })
+    .catch(function(e) { alert('Falha ao obter token: ' + e.message); });
+}
+</script>
+{% endif %}
 {% endblock %}
