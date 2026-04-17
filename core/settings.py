@@ -307,10 +307,12 @@ RDP_MAX_SESSIONS_PER_USER = 3      # máximo de sessões simultâneas
 AGENT_IPC_PORT            = 7070   # porta IPC do agente
 AGENT_WEBRTC_PORT         = 7071
 RDP_TURN_CONFIG = {
-    'host':       os.environ.get('TURN_HOST',       '192.168.100.247'),
-    'port':       int(os.environ.get('TURN_PORT',   '3478')),
-    'username':   os.environ.get('TURN_USER',       'rdp'),
-    'credential': os.environ.get('TURN_CREDENTIAL', 'rdp123'),
+    'host':        os.environ.get('TURN_HOST',        '192.168.100.247'),
+    'port':        int(os.environ.get('TURN_PORT',        '3478')),
+    'port_tls':    int(os.environ.get('TURN_PORT_TLS',    '5349')),
+    'port_tcp443': int(os.environ.get('TURN_PORT_TCP443', '443')),
+    'username':    os.environ.get('TURN_USER',        'rdp'),
+    'credential':  os.environ.get('TURN_CREDENTIAL',  'rdp123'),
 }
 
 RDP_ALLOWED_ORIGINS = [

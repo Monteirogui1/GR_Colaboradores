@@ -1999,7 +1999,7 @@
           // FIX P5: tratamento robusto de ICE gathering
           // Cobre o caso onde iceGatheringState já é 'complete' ao registrar o listener
           return new Promise(function (res, rej) {
-            var t = setTimeout(function () { rej(new Error('ICE gathering timeout (25s)')); }, 25000);
+            var t = setTimeout(function () { rej(new Error('ICE gathering timeout (8s)')); }, 8000);
             function checkComplete() {
               if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); }
             }

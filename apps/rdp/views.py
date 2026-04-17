@@ -439,15 +439,39 @@ class RDPConfigView(View):
         import base64
         turn_pass_b64 = base64.b64encode(turn_pass).decode()
 
+        tls_port  = cfg.get('port_tls',  5349)
+        tcp43_port = cfg.get('port_tcp443', 443)
+
         ice_servers = [
+            # STUN — P2P direto (tenta antes do relay)
             {'urls': f'stun:{host}:{port}'},
+            # TURN UDP — relay principal (mais baixa latência)
             {
                 'urls':       f'turn:{host}:{port}',
                 'username':   turn_user,
                 'credential': turn_pass_b64,
             },
+            # TURN TCP — fallback quando UDP bloqueado
             {
                 'urls':       f'turn:{host}:{port}?transport=tcp',
+                'username':   turn_user,
+                'credential': turn_pass_b64,
+            },
+            # TURNS TLS UDP — relay criptografado (porta 5349)
+            {
+                'urls':       f'turns:{host}:{tls_port}',
+                'username':   turn_user,
+                'credential': turn_pass_b64,
+            },
+            # TURNS TLS TCP — atravessa firewalls corporativos restritivos
+            {
+                'urls':       f'turns:{host}:{tls_port}?transport=tcp',
+                'username':   turn_user,
+                'credential': turn_pass_b64,
+            },
+            # TURNS TCP 443 — fallback extremo (firewall só libera 443)
+            {
+                'urls':       f'turns:{host}:{tcp43_port}?transport=tcp',
                 'username':   turn_user,
                 'credential': turn_pass_b64,
             },
