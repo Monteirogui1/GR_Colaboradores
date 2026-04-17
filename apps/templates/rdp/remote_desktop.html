@@ -1492,7 +1492,7 @@
             <div class="sv" id="sres">—</div>
           </div>
           <div class="si">
-            <div class="sl">ICE</div>
+            <div class="sl">PATH</div>
             <div class="sv" id="sice" style="font-size:9px">—</div>
           </div>
         </div>
@@ -1597,12 +1597,12 @@
     // ═══════════════════════════════════════
     // ESTADO
     // ═══════════════════════════════════════
-    var pc = null, dc = null, fileDC = null;
+    var pc = null, dc = null, dcMove = null, fileDC = null;
     var sessToken = '', connMachine = '';
     var screenW = 1920, screenH = 1080;
     var quality = 'AUTO', icePolicy = 'all';
     var reconnAtt = 0, MAX_R = 5;
-    var statsTimer = null;
+    var statsTimer = null, telTimer = null;
     var paused = false, viewOnly = false, isSelf = false;
     var screenLocked = false;
     var codecHint = 'auto';
@@ -1615,6 +1615,9 @@
     var _lastIceServers = [];       // FIX P11: preserva ICE servers para reconexão
     var _mouseDown = false;         // FIX P4:  detecta drag para suprimir mc falso
     var _mouseMoved = false;        // FIX P4:  idem
+    var _pendingMove = null, _rafMoveId = null;
+    var _lastTelemetry = { rtt: 0, fps: 0, bw: 0, loss: 0, path: 'unknown' };
+    var _relayStreak = 0, _relayWarned = false;
     var _remoteClipboard = '';      // CLIP-B1: último clipboard recebido da máquina remota
     var _clipApiAvailable = (typeof navigator.clipboard !== 'undefined' && typeof navigator.clipboard.readText === 'function');
     var _inVideoFocus = false;      // CLIP-B2: true enquanto o usuário está interagindo com o vídeo
@@ -1941,16 +1944,17 @@
       pc = new RTCPeerConnection({ iceServers: iceServers, iceTransportPolicy: icePolicy, bundlePolicy: 'max-bundle', rtcpMuxPolicy: 'require' });
       // FIX F1: ordered:true — md/mu/mc/kd/ku precisam chegar sem perda.
       // Com ordered:false+maxRetransmits:0 um pacote perdido deixava o botao preso.
-      dc = pc.createDataChannel('input', { ordered: true });
+      dc     = pc.createDataChannel('input', { ordered: true });
+      dcMove = pc.createDataChannel('move',  { ordered: false, maxRetransmits: 0 });
       setupFileDC(pc.createDataChannel('files', { ordered: true }));
 
       dc.onopen = function () {
         toast('Sessão estabelecida', 'ok');
         _manualReconnect = false;
         setConnUI(true);
-        // Envia qualidade inicial ao agente
         send({ t: 'set_quality', quality: quality.toLowerCase() });
         sbMsg('Sessão ativa — ' + new Date().toLocaleTimeString());
+        startMoveFlush();
         protectSelf();
         setTimeout(function () { requestMonitorList(); }, 600);
         // FIX P6: applyBrowserEncoding adiado para após ontrack + video play
@@ -1966,7 +1970,7 @@
           $('cs').classList.add('out'); setTimeout(function () { $('cs').style.display = 'none'; }, 320);
           $('vw').classList.add('show'); $('mtag').style.display = 'flex';
           $('mtagname').textContent = connMachine; $('sbmac').textContent = connMachine;
-          setStatus('CONNECTED', 'ok'); reconnAtt = 0; setupInput(); startStats();
+          setStatus('CONNECTED', 'ok'); reconnAtt = 0; setupInput(); startStats(); startTelemetry();
           // FIX P6: applyBrowserEncoding chamado após ontrack — sender existe agora
           // FIX P8: codec lido via getStats, não via track.kind (sempre retorna 'video')
           setTimeout(function () {
@@ -2053,7 +2057,9 @@
 
     // FIX P10: disconnect() notifica o agente para fechar a sessão
     function disconnect() {
-      reconnAtt = MAX_R; stopStats();
+      reconnAtt = MAX_R; stopStats(); stopTelemetry();
+      _relayStreak = 0; _relayWarned = false;
+      stopMoveFlush();
       // Notifica backend para limpar a sessão no agente
       if (sessToken && connMachine) {
         try {
@@ -2066,7 +2072,8 @@
           });
         } catch (e) { }
       }
-      if (dc) { try { dc.close(); } catch (e) { } dc = null; }
+      if (dc)     { try { dc.close();     } catch (e) { } dc = null; }
+      if (dcMove) { try { dcMove.close(); } catch (e) { } dcMove = null; }
       if (fileDC) { try { fileDC.close(); } catch (e) { } fileDC = null; }
       if (pc) { pc.close(); pc = null; }
       $('vw').classList.remove('show', 'viewonly'); $('cs').style.display = ''; $('cs').classList.remove('out');
@@ -2106,8 +2113,7 @@
 
       v.addEventListener('mousemove', function (e) {
         if (paused || viewOnly) return;
-        var p = relPos(e);
-        send({ t: 'mm', x: p.x, y: p.y });
+        _pendingMove = relPos(e);   // RAF flushará no próximo frame (~16ms)
         if (_mouseDown) _mouseMoved = true;
       });
 
@@ -2449,7 +2455,11 @@
                 }
               }
               sv('sbw', bwK >= 1024 ? (bwK / 1024).toFixed(1) + ' Mbps' : bwK + ' kbps', bwK >= 1000 ? 'g' : bwK >= 200 ? 'w' : 'b');
-              sv('sloss', (r.packetsLost || 0) + '', (r.packetsLost || 0) === 0 ? 'g' : (r.packetsLost || 0) < 20 ? 'w' : 'b');
+              var lossVal = r.packetsLost || 0;
+              sv('sloss', lossVal + '', lossVal === 0 ? 'g' : lossVal < 20 ? 'w' : 'b');
+              _lastTelemetry.fps  = fps;
+              _lastTelemetry.bw   = bwK;
+              _lastTelemetry.loss = lossVal;
               if (r.frameWidth) { $('sres').textContent = r.frameWidth + '×' + r.frameHeight; screenW = r.frameWidth; screenH = r.frameHeight; }
               // FIX P8: atualiza codec a cada ciclo de stats
               if (r.codecId) {
@@ -2463,6 +2473,27 @@
             if (r.type === 'candidate-pair' && r.state === 'succeeded') {
               var rtt = Math.round((r.currentRoundTripTime || 0) * 1000);
               sv('srtt', rtt + ' ms', rtt < 50 ? 'g' : rtt < 150 ? 'w' : 'b');
+              _lastTelemetry.rtt = rtt;
+              // Fase 1.4: mostrar tipo do candidato (LAN/STUN/TURN)
+              var localCand = ss.get(r.localCandidateId);
+              if (localCand && localCand.candidateType) {
+                var ct = localCand.candidateType;
+                var typeMap = { host: 'LAN', srflx: 'STUN', relay: 'TURN', prflx: 'P2P' };
+                var pathLabel = typeMap[ct] || ct.toUpperCase();
+                var pathCls = ct === 'host' ? 'g' : ct === 'relay' ? 'b' : 'w';
+                sv('sice', pathLabel, pathCls);
+                _lastTelemetry.path = pathLabel;
+                // Fase 5: aviso TURN com RTT baixo (P2P bloqueado por firewall?)
+                if (ct === 'relay') {
+                  _relayStreak++;
+                  if (_relayStreak >= 5 && !_relayWarned && rtt < 50) {
+                    _relayWarned = true;
+                    toast('Usando TURN relay com RTT < 50ms — P2P pode estar bloqueado por firewall.', 'warn', 7000);
+                  }
+                } else {
+                  _relayStreak = 0; _relayWarned = false;
+                }
+              }
             }
           });
         }).catch(function () { });
@@ -2470,6 +2501,28 @@
     }
     function sv(id, text, cls) { var el = $(id); el.textContent = text; el.className = 'sv ' + cls; }
     function stopStats() { if (statsTimer) { clearInterval(statsTimer); statsTimer = null; } }
+    function startTelemetry() {
+      stopTelemetry();
+      telTimer = setInterval(function () {
+        if (!dc || dc.readyState !== 'open') return;
+        send({ t: 'telemetry', rtt: _lastTelemetry.rtt, fps: _lastTelemetry.fps,
+               bw: _lastTelemetry.bw, loss: _lastTelemetry.loss, path: _lastTelemetry.path });
+      }, 2000);
+    }
+    function stopTelemetry() { if (telTimer) { clearInterval(telTimer); telTimer = null; } }
+    function sendMove(obj) {
+      var ch = (dcMove && dcMove.readyState === 'open') ? dcMove : dc;
+      if (ch && ch.readyState === 'open') { try { ch.send(JSON.stringify(obj)); } catch (e) { } }
+    }
+    function _flushMove() {
+      if (_pendingMove) { sendMove({ t: 'mm', x: _pendingMove.x, y: _pendingMove.y }); _pendingMove = null; }
+      _rafMoveId = requestAnimationFrame(_flushMove);
+    }
+    function startMoveFlush() { if (!_rafMoveId) _rafMoveId = requestAnimationFrame(_flushMove); }
+    function stopMoveFlush() {
+      if (_rafMoveId) { cancelAnimationFrame(_rafMoveId); _rafMoveId = null; }
+      _pendingMove = null;
+    }
 
     selDest('explorer');
 
