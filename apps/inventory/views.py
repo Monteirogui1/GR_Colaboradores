@@ -1340,6 +1340,94 @@ class AgentCheckUpdateAPIView(AgentTokenRequiredMixin, APIView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
+class AgentBootstrapManifestAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    Endpoint para instalador bootstrap.
+
+    GET /api/inventario/agent/bootstrap-manifest/
+    Auth: Authorization: Bearer <token_hash>
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        agent_token, error_response = self._authenticate(request)
+        if error_response:
+            return error_response
+
+        service_latest = AgentVersion.latest_active("service")
+        tray_latest = AgentVersion.latest_active("tray")
+        if not service_latest:
+            return Response(
+                {
+                    "ok": False,
+                    "error": "Nenhuma versão ativa de service publicada.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        nssm_url = os.environ.get("AGENT_BOOTSTRAP_NSSM_URL", "").strip()
+        nssm_sha = os.environ.get("AGENT_BOOTSTRAP_NSSM_SHA256", "").strip().lower()
+
+        runtime_legacy_url = os.environ.get("AGENT_BOOTSTRAP_RUNTIME_LEGACY_URL", "").strip()
+        runtime_legacy_sha = os.environ.get("AGENT_BOOTSTRAP_RUNTIME_LEGACY_SHA256", "").strip().lower()
+        runtime_balanced_url = os.environ.get("AGENT_BOOTSTRAP_RUNTIME_BALANCED_URL", "").strip()
+        runtime_balanced_sha = os.environ.get("AGENT_BOOTSTRAP_RUNTIME_BALANCED_SHA256", "").strip().lower()
+        runtime_performance_url = os.environ.get("AGENT_BOOTSTRAP_RUNTIME_PERFORMANCE_URL", "").strip()
+        runtime_performance_sha = os.environ.get("AGENT_BOOTSTRAP_RUNTIME_PERFORMANCE_SHA256", "").strip().lower()
+
+        service_artifact = {
+            "url": request.build_absolute_uri(f"/api/inventario/agent/download/{service_latest.pk}/"),
+            "sha256": service_latest.sha256,
+            "version": service_latest.version,
+        }
+
+        tray_artifact = None
+        if tray_latest:
+            tray_artifact = {
+                "url": request.build_absolute_uri(f"/api/inventario/agent/download/{tray_latest.pk}/"),
+                "sha256": tray_latest.sha256,
+                "version": tray_latest.version,
+            }
+
+        def profile_payload(profile_name: str, runtime_url: str, runtime_sha: str):
+            artifacts = {
+                "service": service_artifact,
+                "nssm": {"url": nssm_url, "sha256": nssm_sha},
+            }
+            if tray_artifact:
+                artifacts["tray"] = tray_artifact
+            if runtime_url:
+                artifacts["runtime_zip"] = {"url": runtime_url, "sha256": runtime_sha}
+            return {
+                "profile": profile_name,
+                "install_tray": True,
+                "start_tray_now": True,
+                "artifacts": artifacts,
+            }
+
+        data = {
+            "ok": True,
+            "manifest_version": 1,
+            "generated_at": timezone.now().isoformat(),
+            "token_expires_at": agent_token.expires_at.isoformat() if agent_token.expires_at else None,
+            "profiles": {
+                "legacy": profile_payload("legacy", runtime_legacy_url, runtime_legacy_sha),
+                "balanced": profile_payload("balanced", runtime_balanced_url or runtime_legacy_url, runtime_balanced_sha or runtime_legacy_sha),
+                "performance": profile_payload("performance", runtime_performance_url or runtime_balanced_url or runtime_legacy_url, runtime_performance_sha or runtime_balanced_sha or runtime_legacy_sha),
+            },
+            "notes": {
+                "nssm_required": True,
+                "runtime_zip_optional": True,
+                "download_requires_bearer_token": True,
+            },
+        }
+
+        return Response(data)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
 class AgentDownloadAPIView(AgentTokenRequiredMixin, APIView):
     """
     Download autenticado do binário de uma versão do agente.

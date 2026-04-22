@@ -1379,7 +1379,7 @@
           <div class="f">
             <label>Access Token</label>
             <div class="fw">
-              <input id="inptoken" type="password" placeholder="token (8+ chars)"
+              <input id="inptoken" type="password" placeholder="token de sessão (>=16)"
                 onkeydown="if(event.key==='Enter')doConnect()">
               <button class="eye" onclick="toggleEye()">
                 <svg id="eyeo" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13"
@@ -1404,8 +1404,9 @@
             <div class="f">
               <label>Política ICE</label>
               <div class="iceopts">
-                <div class="iceopt on" data-v="all" onclick="selIce(this)">AUTO (recomendado)</div>
-                <div class="iceopt" data-v="relay" onclick="selIce(this)">FORÇAR TURN</div>
+                <div class="iceopt on" data-v="auto" onclick="selIce(this)">AUTO (recomendado)</div>
+                <div class="iceopt" data-v="p2p_only" onclick="selIce(this)">FORÇAR P2P</div>
+                <div class="iceopt" data-v="relay_only" onclick="selIce(this)">FORÇAR TURN</div>
               </div>
             </div>
             <div class="frow">
@@ -1598,9 +1599,9 @@
     // ESTADO
     // ═══════════════════════════════════════
     var pc = null, dc = null, dcMove = null, fileDC = null;
-    var sessToken = '', connMachine = '';
+    var sessToken = '', connMachine = '', rdpSessionId = '';
     var screenW = 1920, screenH = 1080;
-    var quality = 'AUTO', icePolicy = 'all';
+    var quality = 'AUTO', icePolicy = 'all', connectionMode = 'auto';
     var reconnAtt = 0, MAX_R = 5;
     var statsTimer = null, telTimer = null;
     var paused = false, viewOnly = false, isSelf = false;
@@ -1645,6 +1646,10 @@
     function getCookie(n) {
       var c = document.cookie.split(';').map(function (x) { return x.trim(); }).find(function (x) { return x.startsWith(n + '='); });
       return c ? c.split('=')[1] : '';
+    }
+    function mapModeToIcePolicy(mode) {
+      if (mode === 'relay_only') return 'relay';
+      return 'all';
     }
 
     // ═══════════════════════════════════════
@@ -1805,7 +1810,12 @@
     }
     function toggleAdv() { $('advtog').classList.toggle('open'); $('advb').classList.toggle('open'); }
     function selQ(el) { document.querySelectorAll('.qopt').forEach(function (e) { e.classList.remove('on'); }); el.classList.add('on'); quality = el.dataset.q; }
-    function selIce(el) { document.querySelectorAll('.iceopt').forEach(function (e) { e.classList.remove('on'); }); el.classList.add('on'); icePolicy = el.dataset.v; }
+    function selIce(el) {
+      document.querySelectorAll('.iceopt').forEach(function (e) { e.classList.remove('on'); });
+      el.classList.add('on');
+      connectionMode = el.dataset.v || 'auto';
+      icePolicy = mapModeToIcePolicy(connectionMode);
+    }
 
     function cycleQual() {
       var o = ['AUTO', 'HIGH', 'MEDIUM', 'LOW'];
@@ -1921,13 +1931,18 @@
       var machine = $('inpmachine').value.trim(), token = $('inptoken').value.trim();
       if (!machine) { setErr('Informe a máquina destino'); return; }
       if (!token) { setErr('Token obrigatório'); return; }
-      if (token.length < 8) { setErr('Token deve ter >= 8 caracteres'); return; }
+      if (token.length < 16) { setErr('Token deve ter >= 16 caracteres'); return; }
       setErr(''); sessToken = token; connMachine = machine;
       $('connbtn').disabled = true; $('spin').classList.add('show'); $('connlbl').textContent = 'CONECTANDO…';
       setStatus('CONNECTING…', 'w'); sbMsg('Obtendo configuração ICE…');
-      fetch('/api/rdp/config/', { credentials: 'same-origin', headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+      var cfgUrl = '/api/rdp/config/?machine=' + encodeURIComponent(machine) + '&mode=' + encodeURIComponent(connectionMode);
+      fetch(cfgUrl, { credentials: 'same-origin', headers: { 'X-CSRFToken': getCookie('csrftoken') } })
         .then(function (r) { if (!r.ok) throw new Error('Falha ao obter ICE'); return r.json(); })
-        .then(function (d) { return openConn(machine, token, d.ice_servers); })
+        .then(function (d) {
+          connectionMode = d.mode || connectionMode;
+          icePolicy = mapModeToIcePolicy(connectionMode);
+          return openConn(machine, token, d.ice_servers);
+        })
         .catch(function (e) {
           setErr('Erro: ' + e.message); setStatus('ERRO', 'err'); sbMsg('Falha: ' + e.message);
           $('connbtn').disabled = false; $('spin').classList.remove('show'); $('connlbl').textContent = 'CONECTAR';
@@ -2012,7 +2027,11 @@
           sbMsg('Enviando offer ao agente…');
           return fetch('/api/rdp/offer/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RDP-Token': token, 'X-Machine-ID': machine, 'X-CSRFToken': getCookie('csrftoken') }, body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type, codec_hint: codecHint }), credentials: 'same-origin' });
         })
-        .then(function (resp) { if (!resp.ok) return resp.json().then(function (d) { throw new Error(d.error || 'HTTP ' + resp.status); }); return resp.json(); })
+        .then(function (resp) {
+          if (!resp.ok) return resp.json().then(function (d) { throw new Error(d.error || 'HTTP ' + resp.status); });
+          rdpSessionId = resp.headers.get('X-RDP-Session') || '';
+          return resp.json();
+        })
         .then(function (answer) { sbMsg('Estabelecendo WebRTC…'); return pc.setRemoteDescription(new RTCSessionDescription(answer)); });
     }
 
@@ -2042,9 +2061,11 @@
       reconnAtt++; var delay = Math.min(1000 * Math.pow(2, reconnAtt), 30000);
       $('recontxt').textContent = 'Reconectando em ' + Math.round(delay / 1000) + 's… (' + reconnAtt + '/' + MAX_R + ')';
       // Tenta refrescar ICE config, mas usa _lastIceServers como fallback garantido
-      fetch('/api/rdp/config/', { credentials: 'same-origin' })
+      fetch('/api/rdp/config/?machine=' + encodeURIComponent(machine) + '&mode=' + encodeURIComponent(connectionMode), { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (d) {
+          connectionMode = d.mode || connectionMode;
+          icePolicy = mapModeToIcePolicy(connectionMode);
           var servers = d.ice_servers || _lastIceServers;
           _lastIceServers = servers;
           setTimeout(function () { openConn(machine, token, servers); }, delay);
@@ -2065,7 +2086,7 @@
         try {
           fetch('/api/rdp/close/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-RDP-Token': sessToken, 'X-Machine-ID': connMachine, 'X-CSRFToken': getCookie('csrftoken') },
+            headers: { 'Content-Type': 'application/json', 'X-RDP-Token': sessToken, 'X-Machine-ID': connMachine, 'X-RDP-Session': rdpSessionId, 'X-CSRFToken': getCookie('csrftoken') },
             body: JSON.stringify({}),
             credentials: 'same-origin',
             keepalive: true   // garante envio mesmo se página estiver saindo
@@ -2087,8 +2108,34 @@
       paused = false; viewOnly = false; isSelf = false; screenLocked = false;
       _remoteClipboard = ''; _inVideoFocus = false;
       _lowFpsStreak = 0; _manualReconnect = false;
-      _lastIceServers = [];
+      _lastIceServers = []; rdpSessionId = '';
       $('sbmac').textContent = $('sbcodec').textContent = '—';
+    }
+
+    function fetchPolicy(machine) {
+      return fetch('/api/rdp/policy/?machine=' + encodeURIComponent(machine), {
+        credentials: 'same-origin',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') }
+      }).then(function (r) {
+        return r.json().then(function (d) {
+          if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+          return d;
+        });
+      });
+    }
+
+    function fetchSessionToken(machine, reason) {
+      return fetch('/api/rdp/session-token/?machine=' + encodeURIComponent(machine), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ machine: machine, reason: reason || '', connection_mode: connectionMode, quality: quality.toLowerCase() })
+      }).then(function (r) {
+        return r.json().then(function (d) {
+          if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+          return d;
+        });
+      });
     }
 
     // Fecha sessão ao fechar aba/janela
@@ -2526,25 +2573,39 @@
 
     selDest('explorer');
 
-    // Pré-preenche e auto-conecta via query string ?machine=&autotoken=&autoconnect=1
+    // Pré-preenche e auto-conecta via query string ?machine=&autoconnect=1
     (function () {
       var params = new URLSearchParams(window.location.search);
       var m = params.get('machine');
-      var autotoken = params.get('autotoken');
       var autoconnect = params.get('autoconnect');
+      var reason = params.get('reason') || 'Acesso remoto técnico';
 
       if (m) {
         $('inpmachine').value = m;
         chkSelf(m);
       }
-      if (autotoken) {
-        $('inptoken').value = autotoken;
-        // Remove token da URL para não ficar em histórico/favoritos
-        history.replaceState(null, '', window.location.pathname + (m ? '?machine=' + encodeURIComponent(m) : ''));
-      }
-      if (autoconnect === '1' && m && autotoken) {
-        setTimeout(doConnect, 400);
-      } else if (m && !autotoken) {
+      if (autoconnect === '1' && m) {
+        fetchPolicy(m)
+          .then(function (policy) {
+            connectionMode = policy.connection_mode || 'auto';
+            icePolicy = mapModeToIcePolicy(connectionMode);
+            quality = (policy.default_quality || 'auto').toUpperCase();
+            document.querySelectorAll('.qopt').forEach(function (e) { e.classList.toggle('on', e.dataset.q === quality); });
+            document.querySelectorAll('.iceopt').forEach(function (e) { e.classList.toggle('on', e.dataset.v === connectionMode); });
+            return fetchSessionToken(m, reason);
+          })
+          .then(function (data) {
+            connectionMode = data.connection_mode || connectionMode;
+            icePolicy = mapModeToIcePolicy(connectionMode);
+            quality = (data.quality || quality || 'auto').toUpperCase();
+            $('inptoken').value = data.token || '';
+            setTimeout(doConnect, 250);
+          })
+          .catch(function (e) {
+            setErr('Falha ao obter sessão segura: ' + e.message);
+            $('inptoken').focus();
+          });
+      } else if (m) {
         $('inptoken').focus();
       }
     })();

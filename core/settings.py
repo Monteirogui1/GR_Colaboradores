@@ -304,6 +304,13 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 RDP_SESSION_TIMEOUT       = 3600   # segundos de TTL da sessão
 RDP_MAX_SESSIONS_PER_USER = 3      # máximo de sessões simultâneas
+RDP_SESSION_TOKEN_TTL     = 120    # segundos de TTL para token efêmero do navegador
+RDP_DEFAULT_CONNECTION_MODE = "auto"  # auto|p2p_only|relay_only
+RDP_DEFAULT_QUALITY         = "auto"  # auto|high|medium|low
+RDP_REQUIRE_JUSTIFICATION   = True
+RDP_SILENT_ACCESS_ONLY      = True
+RDP_ENABLE_REVERSE_SIGNAL   = True
+RDP_SIGNAL_WAIT_TIMEOUT     = 12
 AGENT_IPC_PORT            = 7070   # porta IPC do agente
 AGENT_WEBRTC_PORT         = 7071
 RDP_TURN_CONFIG = {

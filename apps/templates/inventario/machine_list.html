@@ -121,20 +121,14 @@
 {% if user.is_staff %}
 <script>
 var _RDP_URL = "{% url 'remote_desktop' %}";
-var _MACHINE_TOKEN_URL = "{% url 'rdp:rdp_machine_token' %}";
 
 function rdpConnect(hostname) {
-    fetch(_MACHINE_TOKEN_URL + '?machine=' + encodeURIComponent(hostname))
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.error) { alert('Erro ao conectar: ' + data.error); return; }
-        var url = _RDP_URL
-            + '?machine=' + encodeURIComponent(hostname)
-            + '&autotoken=' + encodeURIComponent(data.token)
-            + '&autoconnect=1';
-        window.open(url, '_blank');
-    })
-    .catch(function(e) { alert('Falha ao obter token: ' + e.message); });
+    var reason = 'Acesso iniciado pela lista de máquinas';
+    var url = _RDP_URL
+        + '?machine=' + encodeURIComponent(hostname)
+        + '&reason=' + encodeURIComponent(reason)
+        + '&autoconnect=1';
+    window.open(url, '_blank');
 }
 </script>
 {% endif %}

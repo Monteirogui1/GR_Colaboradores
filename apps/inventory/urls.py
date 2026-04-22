@@ -36,6 +36,7 @@ from .views import (
     AgentMachineInfoAPIView, AgentDownloadLogAPIView, BulkRunCommandView,
     AgentUpdateScriptAPIView, AgentUpdateReportAPIView,
     AgentActivityAPIView, AgentActivityLogView,
+    AgentBootstrapManifestAPIView,
 )
 
 app_name = 'inventario'
@@ -172,6 +173,11 @@ urlpatterns = [
         "inventario/agent/update-report/",
         AgentUpdateReportAPIView.as_view(),
         name="api_update_report",
+    ),
+    path(
+        "inventario/agent/bootstrap-manifest/",
+        AgentBootstrapManifestAPIView.as_view(),
+        name="api_bootstrap_manifest",
     ),
 
     # Log de atividades
