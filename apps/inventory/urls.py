@@ -37,6 +37,7 @@ from .views import (
     AgentUpdateScriptAPIView, AgentUpdateReportAPIView,
     AgentActivityAPIView, AgentActivityLogView,
     AgentBootstrapManifestAPIView,
+    AgentCommandPullAPIView, AgentCommandResultAPIView,
 )
 
 app_name = 'inventario'
@@ -185,6 +186,16 @@ urlpatterns = [
         "inventario/agent/activity/",
         AgentActivityAPIView.as_view(),
         name="api_agent_activity",
+    ),
+    path(
+        "inventario/agent/command/pull/",
+        AgentCommandPullAPIView.as_view(),
+        name="api_agent_command_pull",
+    ),
+    path(
+        "inventario/agent/command/result/",
+        AgentCommandResultAPIView.as_view(),
+        name="api_agent_command_result",
     ),
     path(
         "maquinas/<int:pk>/atividades/",

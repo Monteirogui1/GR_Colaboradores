@@ -650,3 +650,61 @@ class LogAtividade(models.Model):
         if self.tipo == "app_iniciado":
             return f"{self.machine.hostname} | {self.app_nome} | {self.usuario_windows} | {ts}"
         return f"{self.machine.hostname} | {self.get_tipo_display()} | {self.usuario_windows} | {ts}"
+
+
+class RemoteCommandAudit(models.Model):
+    """Auditoria defensiva de comandos remotos enviados ao agente."""
+
+    STATUS_PENDING = "pending"
+    STATUS_SUCCESS = "success"
+    STATUS_FAILED = "failed"
+    STATUS_TIMEOUT = "timeout"
+    STATUS_OFFLINE = "offline"
+    STATUS_BLOCKED = "blocked"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pendente"),
+        (STATUS_SUCCESS, "Sucesso"),
+        (STATUS_FAILED, "Falhou"),
+        (STATUS_TIMEOUT, "Timeout"),
+        (STATUS_OFFLINE, "Offline"),
+        (STATUS_BLOCKED, "Bloqueado"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="remote_command_audits",
+    )
+    machine = models.ForeignKey(
+        "Machine",
+        on_delete=models.CASCADE,
+        related_name="remote_command_audits",
+    )
+    command_type = models.CharField(max_length=20)
+    command_preview = models.TextField(blank=True)
+    command_sha256 = models.CharField(max_length=64, db_index=True)
+    timeout_seconds = models.PositiveIntegerField(default=60)
+    source_ip = models.GenericIPAddressField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    exit_code = models.IntegerField(null=True, blank=True)
+    stdout = models.TextField(blank=True)
+    stderr = models.TextField(blank=True)
+    error = models.TextField(blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+        verbose_name = "Auditoria de Comando Remoto"
+        verbose_name_plural = "Auditorias de Comandos Remotos"
+        indexes = [
+            models.Index(fields=["machine", "started_at"]),
+            models.Index(fields=["user", "started_at"]),
+            models.Index(fields=["status", "started_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.machine.hostname} | {self.command_type} | {self.status} | {self.started_at:%d/%m/%Y %H:%M}"

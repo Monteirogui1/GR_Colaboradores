@@ -4,12 +4,16 @@ import os
 import re
 import json
 import requests
+import secrets
+import time
+import ipaddress
 from datetime import timedelta
 import datetime
 import logging
 import hashlib
 import datetime as dt
 from django.conf import settings
+from django.core.cache import cache
 from django.views import View
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -30,9 +34,225 @@ from rest_framework.views import APIView
 from django.db.models import Q
 from .forms import MachineForm, NotificationForm, BlockedSiteForm, MachineGroupForm, AgentTokenGenerateForm
 from .models import (Machine, BlockedSite, Notification, MachineGroup, AgentToken, AgentVersion, AgentTokenUsage,
-                     AgentDownloadLog, AgentUpdateReport, LogAtividade)
+                     AgentDownloadLog, AgentUpdateReport, LogAtividade, RemoteCommandAudit)
 
 logger = logging.getLogger(__name__)
+
+REMOTE_COMMAND_MAX_LENGTH = 8000
+REMOTE_COMMAND_OUTPUT_LIMIT = 20000
+REMOTE_COMMAND_REVERSE_WAIT_SECONDS = 70
+REMOTE_COMMAND_BLOCKLIST = [
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        r"\bformat\s+[a-z]:",
+        r"\bbcdedit\b",
+        r"\breg\s+delete\b",
+    )
+]
+
+
+def _agent_command_queue_key(machine_name: str) -> str:
+    return f"inventory:agent-command:queue:{machine_name.lower()}"
+
+
+def _agent_command_result_key(request_id: str) -> str:
+    return f"inventory:agent-command:result:{request_id}"
+
+
+def _agent_best_ip_key(machine_name: str, purpose: str) -> str:
+    return f"inventory:agent:best-ip:{purpose}:{machine_name.lower()}"
+
+
+def _remember_best_ip(machine, purpose: str, ip: str) -> None:
+    if ip:
+        cache.set(_agent_best_ip_key(machine.hostname, purpose), ip, timeout=3600)
+
+
+def _get_best_ip(machine, purpose: str) -> str:
+    return cache.get(_agent_best_ip_key(machine.hostname, purpose), "") or ""
+
+
+def _extract_ipv4_values(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        raw_values = value
+    else:
+        raw_values = re.split(r"[,;\s]+", str(value))
+
+    ips: list[str] = []
+    for raw in raw_values:
+        candidate = str(raw).strip().strip("[]")
+        if not candidate:
+            continue
+        try:
+            ip = ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        if ip.version != 4:
+            continue
+        if ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_unspecified:
+            continue
+        ips.append(str(ip))
+    return ips
+
+
+def _machine_ip_candidates(machine) -> list[str]:
+    candidates: list[str] = []
+
+    def add(value):
+        for ip in _extract_ipv4_values(value):
+            if ip not in candidates:
+                candidates.append(ip)
+
+    add(getattr(machine, "ip_address", ""))
+    network_info = getattr(machine, "network_info", None)
+    if isinstance(network_info, list):
+        for adapter in network_info:
+            if not isinstance(adapter, dict):
+                continue
+            add(adapter.get("ip"))
+            add(adapter.get("ip_address"))
+            add(adapter.get("ips"))
+    elif isinstance(network_info, dict):
+        add(network_info.get("ip"))
+        add(network_info.get("ip_address"))
+        add(network_info.get("ips"))
+        adapters = network_info.get("adapters")
+        if isinstance(adapters, list):
+            for adapter in adapters:
+                if isinstance(adapter, dict):
+                    add(adapter.get("ip"))
+                    add(adapter.get("ip_address"))
+                    add(adapter.get("ips"))
+    return candidates
+
+
+def _ordered_ip_candidates(machine, purpose: str) -> list[str]:
+    candidates = _machine_ip_candidates(machine)
+    best_ip = _get_best_ip(machine, purpose)
+    if best_ip and best_ip in candidates:
+        candidates.remove(best_ip)
+        candidates.insert(0, best_ip)
+    return candidates
+
+
+def _get_request_ip(request) -> str | None:
+    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    if xff:
+        return xff.split(",")[0].strip() or None
+    return request.META.get("REMOTE_ADDR") or None
+
+
+def _validate_remote_command(command: str) -> str | None:
+    if len(command) > REMOTE_COMMAND_MAX_LENGTH:
+        return f"Comando excede {REMOTE_COMMAND_MAX_LENGTH} caracteres."
+    for pattern in REMOTE_COMMAND_BLOCKLIST:
+        if pattern.search(command):
+            return "Comando bloqueado pela política de segurança."
+    return None
+
+
+def _create_remote_command_audit(request, machine, command: str, cmd_type: str, timeout: int):
+    return RemoteCommandAudit.objects.create(
+        user=request.user if request.user.is_authenticated else None,
+        machine=machine,
+        command_type=cmd_type,
+        command_preview=command[:500],
+        command_sha256=hashlib.sha256(command.encode("utf-8", errors="replace")).hexdigest(),
+        timeout_seconds=timeout,
+        source_ip=_get_request_ip(request),
+    )
+
+
+def _finish_remote_command_audit(audit, *, status_value: str, exit_code=None, stdout="", stderr="", error="", elapsed_ms=None):
+    if not audit:
+        return
+    audit.status = status_value
+    audit.exit_code = exit_code
+    audit.stdout = str(stdout or "")[:REMOTE_COMMAND_OUTPUT_LIMIT]
+    audit.stderr = str(stderr or "")[:REMOTE_COMMAND_OUTPUT_LIMIT]
+    audit.error = str(error or "")[:5000]
+    audit.completed_at = timezone.now()
+    audit.duration_ms = elapsed_ms
+    audit.save(update_fields=[
+        "status", "exit_code", "stdout", "stderr", "error", "completed_at", "duration_ms"
+    ])
+
+
+def _enqueue_reverse_command(machine, command: str, cmd_type: str, timeout: int) -> str:
+    request_id = secrets.token_hex(16)
+    queue_key = _agent_command_queue_key(machine.hostname)
+    queue = cache.get(queue_key, [])
+    if not isinstance(queue, list):
+        queue = []
+    queue.append({
+        "request_id": request_id,
+        "type": cmd_type,
+        "script": command,
+        "timeout": timeout,
+        "created_at": int(time.time()),
+    })
+    cache.set(queue_key, queue[-20:], timeout=max(timeout + 300, 600))
+    return request_id
+
+
+def _wait_reverse_command_result(request_id: str, wait_seconds: int = REMOTE_COMMAND_REVERSE_WAIT_SECONDS) -> dict:
+    result_key = _agent_command_result_key(request_id)
+    deadline = time.monotonic() + wait_seconds
+    while time.monotonic() < deadline:
+        result = cache.get(result_key)
+        if result:
+            cache.delete(result_key)
+            return result
+        time.sleep(0.5)
+    raise TimeoutError("Timeout aguardando resultado via canal reverso")
+
+
+def _run_reverse_command(machine, command: str, cmd_type: str, timeout: int) -> dict:
+    request_id = _enqueue_reverse_command(machine, command, cmd_type, timeout)
+    result = _wait_reverse_command_result(request_id, wait_seconds=timeout + 10)
+    result.setdefault("request_id", request_id)
+    return result
+
+
+def _post_agent_command_direct(machine, token_hash: str, command: str, cmd_type: str, timeout: int) -> dict:
+    candidates = _ordered_ip_candidates(machine, "command")
+    if not candidates:
+        raise requests.exceptions.ConnectionError("Máquina sem IP candidato para conexão direta")
+
+    headers = {"Authorization": f"Bearer {token_hash}"}
+    connect_timeout = float(getattr(settings, "AGENT_DIRECT_CONNECT_TIMEOUT", 1.0))
+    last_error = None
+    started = time.monotonic()
+
+    for ip in candidates:
+        try:
+            resp = requests.post(
+                f"http://{ip}:7071/command",
+                json={"type": cmd_type, "script": command, "timeout": timeout},
+                headers=headers,
+                timeout=(connect_timeout, timeout + 5),
+            )
+            data = resp.json()
+            data["_transport"] = "direct"
+            data["_agent_ip"] = ip
+            data["_status_code"] = resp.status_code
+            data["_elapsed_ms"] = int((time.monotonic() - started) * 1000)
+            data["_tried_ips"] = candidates
+            _remember_best_ip(machine, "command", ip)
+            return data
+        except requests.exceptions.ReadTimeout:
+            raise
+        except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout) as exc:
+            last_error = exc
+            continue
+
+    err = requests.exceptions.ConnectionError(
+        f"Agente inacessível em todos os IPs candidatos: {', '.join(candidates)}"
+    )
+    err.__cause__ = last_error
+    raise err
 
 
 # ============================================================================
@@ -362,7 +582,6 @@ class MachineCheckinView(View):
         return JsonResponse(list(sites), safe=False)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class RunCommandView(LoginRequiredMixin, View):
 
     def handle_no_permission(self):
@@ -386,6 +605,19 @@ class RunCommandView(LoginRequiredMixin, View):
 
         if not cmd:
             return JsonResponse({'error': 'Comando obrigatório'}, status=400)
+        if cmd_type not in ("powershell", "cmd"):
+            return JsonResponse({'error': "Tipo inválido. Use 'powershell' ou 'cmd'."}, status=400)
+
+        blocked_reason = _validate_remote_command(cmd)
+        audit = _create_remote_command_audit(request, machine, cmd, cmd_type, 60)
+        if blocked_reason:
+            _finish_remote_command_audit(
+                audit,
+                status_value=RemoteCommandAudit.STATUS_BLOCKED,
+                exit_code=-1,
+                error=blocked_reason,
+            )
+            return JsonResponse({'error': blocked_reason}, status=400)
 
         # Busca token ativo para autenticar na chamada ao agente
         token_obj = None
@@ -400,48 +632,110 @@ class RunCommandView(LoginRequiredMixin, View):
         except Exception:
             pass
 
-        # Fallback: qualquer token ativo
-        if token_obj is None:
-            token_obj = AgentToken.objects.filter(is_active=True).first()
-
         if not token_obj:
+            _finish_remote_command_audit(
+                audit,
+                status_value=RemoteCommandAudit.STATUS_FAILED,
+                exit_code=-1,
+                error='Nenhum token ativo vinculado a esta máquina',
+            )
             return JsonResponse(
-                {'error': 'Nenhum token ativo disponível para autenticar no agente'},
+                {'error': 'Nenhum token ativo vinculado a esta máquina'},
                 status=500
             )
 
-        headers = {'Authorization': f'Bearer {token_obj.token_hash}'}
-
         try:
-            import requests as req
-            resp = req.post(
-                f"http://{machine.ip_address}:7071/command",
-                json={
-                    'type':    cmd_type,
-                    'script':  cmd,
-                    'timeout': 60,
-                },
-                headers=headers,
-                timeout=65,
+            import time as _time
+            t0 = _time.monotonic()
+            data = _post_agent_command_direct(machine, token_obj.token_hash, cmd, cmd_type, 60)
+            elapsed_ms = data.get('_elapsed_ms') or int((_time.monotonic() - t0) * 1000)
+            status_value = (
+                RemoteCommandAudit.STATUS_SUCCESS
+                if data.get('_status_code') == 200 and data.get('exit_code', -1) == 0
+                else RemoteCommandAudit.STATUS_FAILED
             )
-            data = resp.json()
+            _finish_remote_command_audit(
+                audit,
+                status_value=status_value,
+                exit_code=data.get('exit_code', -1),
+                stdout=data.get('stdout', ''),
+                stderr=data.get('stderr', ''),
+                error=data.get('error', ''),
+                elapsed_ms=elapsed_ms,
+            )
             return JsonResponse({
                 'stdout':    data.get('stdout', ''),
                 'stderr':    data.get('stderr', ''),
                 'exit_code': data.get('exit_code', -1),
                 'error':     data.get('error', ''),
+                'agent_ip':  data.get('_agent_ip', machine.ip_address),
+                'transport': data.get('_transport', 'direct'),
             })
-        except req.exceptions.ConnectionError:
-            return JsonResponse(
-                {'error': f'Agente offline ou inacessível ({machine.ip_address}:7071)'},
-                status=503
+        except requests.exceptions.ConnectionError:
+            try:
+                import time as _time
+                t0 = _time.monotonic()
+                data = _run_reverse_command(machine, cmd, cmd_type, 60)
+                elapsed_ms = int((_time.monotonic() - t0) * 1000)
+                status_value = (
+                    RemoteCommandAudit.STATUS_SUCCESS
+                    if data.get('exit_code', -1) == 0 and not data.get('error')
+                    else RemoteCommandAudit.STATUS_FAILED
+                )
+                _finish_remote_command_audit(
+                    audit,
+                    status_value=status_value,
+                    exit_code=data.get('exit_code', -1),
+                    stdout=data.get('stdout', ''),
+                    stderr=data.get('stderr', ''),
+                    error=data.get('error', ''),
+                    elapsed_ms=elapsed_ms,
+                )
+                return JsonResponse({
+                    'stdout':    data.get('stdout', ''),
+                    'stderr':    data.get('stderr', ''),
+                    'exit_code': data.get('exit_code', -1),
+                    'error':     data.get('error', ''),
+                    'transport': 'reverse',
+                })
+            except TimeoutError as reverse_timeout:
+                _finish_remote_command_audit(
+                    audit,
+                    status_value=RemoteCommandAudit.STATUS_TIMEOUT,
+                    exit_code=-1,
+                    error=str(reverse_timeout),
+                )
+                return JsonResponse(
+                    {'error': 'Agente offline ou sem polling reverso ativo', 'tried_ips': _machine_ip_candidates(machine)},
+                    status=504
+                )
+            except Exception as reverse_error:
+                _finish_remote_command_audit(
+                    audit,
+                    status_value=RemoteCommandAudit.STATUS_FAILED,
+                    exit_code=-1,
+                    error=str(reverse_error),
+                )
+                return JsonResponse({'error': str(reverse_error)}, status=500)
+
+        except requests.exceptions.Timeout:
+            _finish_remote_command_audit(
+                audit,
+                status_value=RemoteCommandAudit.STATUS_TIMEOUT,
+                exit_code=-1,
+                error='Timeout — agente não respondeu em 65s',
             )
-        except req.exceptions.Timeout:
             return JsonResponse(
                 {'error': 'Timeout — agente não respondeu em 65s'},
                 status=504
             )
         except Exception as e:
+            _finish_remote_command_audit(
+                audit,
+                status_value=RemoteCommandAudit.STATUS_FAILED,
+                exit_code=-1,
+                error=str(e),
+            )
             return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -513,6 +807,9 @@ class BulkRunCommandView(LoginRequiredMixin, TemplateView):
             return JsonResponse({"error": "Comando não pode estar vazio."}, status=400)
         if cmd_type not in ("powershell", "cmd"):
             return JsonResponse({"error": "cmd_type inválido. Use 'powershell' ou 'cmd'."}, status=400)
+        blocked_reason = _validate_remote_command(command)
+        if blocked_reason:
+            return JsonResponse({"error": blocked_reason}, status=400)
         timeout     = max(5, min(timeout, 120))
         max_workers = max(1, min(max_workers, 30))
 
@@ -529,8 +826,9 @@ class BulkRunCommandView(LoginRequiredMixin, TemplateView):
         t0 = _time.monotonic()
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            source_ip = _get_request_ip(request)
             futures = {
-                executor.submit(self._run_on_machine, m, command, cmd_type, timeout): m
+                executor.submit(self._run_on_machine, m, command, cmd_type, timeout, request.user, source_ip): m
                 for m in machines
             }
             results = []
@@ -622,9 +920,9 @@ class BulkRunCommandView(LoginRequiredMixin, TemplateView):
                 return usage.agent_token
         except Exception:
             pass
-        return AgentToken.objects.filter(is_active=True).first()
+        return None
 
-    def _run_on_machine(self, machine, command, cmd_type, timeout):
+    def _run_on_machine(self, machine, command, cmd_type, timeout, user=None, source_ip=None):
         """
         Executa o comando em uma máquina via HTTP 7071/command — mesmo protocolo do RunCommandView.
 
@@ -645,46 +943,132 @@ class BulkRunCommandView(LoginRequiredMixin, TemplateView):
             "hostname":   machine.hostname,
             "ip_address": machine.ip_address,
         }
+        audit = RemoteCommandAudit.objects.create(
+            user=user if getattr(user, "is_authenticated", False) else None,
+            machine=machine,
+            command_type=cmd_type,
+            command_preview=command[:500],
+            command_sha256=hashlib.sha256(command.encode("utf-8", errors="replace")).hexdigest(),
+            timeout_seconds=timeout,
+            source_ip=source_ip,
+        )
         token_obj = self._get_token_for_machine(machine)
         if not token_obj:
+            _finish_remote_command_audit(
+                audit,
+                status_value=RemoteCommandAudit.STATUS_FAILED,
+                exit_code=-1,
+                error="Nenhum token ativo vinculado a esta máquina",
+            )
             return {**base, "status": "skipped", "exit_code": -1,
                     "stdout": "", "stderr": "",
-                    "error": "Nenhum token ativo disponível", "elapsed_ms": 0}
+                    "error": "Nenhum token ativo vinculado a esta máquina", "elapsed_ms": 0}
 
-        headers = {"Authorization": f"Bearer {token_obj.token_hash}"}
         t0 = _time.monotonic()
 
         try:
-            resp = req.post(
-                f"http://{machine.ip_address}:7071/command",
-                json={"type": cmd_type, "script": command, "timeout": timeout},
-                headers=headers,
-                timeout=timeout + 5,
+            data = _post_agent_command_direct(machine, token_obj.token_hash, command, cmd_type, timeout)
+            elapsed = data.get("_elapsed_ms") or int((_time.monotonic() - t0) * 1000)
+            status_value = (
+                RemoteCommandAudit.STATUS_SUCCESS
+                if data.get("_status_code") == 200 and data.get("exit_code", -1) == 0
+                else RemoteCommandAudit.STATUS_FAILED
             )
-            elapsed = int((_time.monotonic() - t0) * 1000)
-            data    = resp.json()
+            _finish_remote_command_audit(
+                audit,
+                status_value=status_value,
+                exit_code=data.get("exit_code", -1),
+                stdout=data.get("stdout", ""),
+                stderr=data.get("stderr", ""),
+                error=data.get("error", ""),
+                elapsed_ms=elapsed,
+            )
             return {
                 **base,
-                "status":     "ok" if resp.status_code == 200 else "error",
+                "status":     "ok" if data.get("_status_code") == 200 else "error",
                 "exit_code":  data.get("exit_code", -1),
                 "stdout":     data.get("stdout", ""),
                 "stderr":     data.get("stderr", ""),
                 "error":      data.get("error", ""),
                 "elapsed_ms": elapsed,
+                "agent_ip":   data.get("_agent_ip", machine.ip_address),
+                "transport":  data.get("_transport", "direct"),
             }
         except req.exceptions.ConnectionError:
             elapsed = int((_time.monotonic() - t0) * 1000)
-            return {**base, "status": "offline", "exit_code": -1,
-                    "stdout": "", "stderr": "",
-                    "error": f"Agente inacessível ({machine.ip_address}:7071)",
-                    "elapsed_ms": elapsed}
+            try:
+                reverse_t0 = _time.monotonic()
+                data = _run_reverse_command(machine, command, cmd_type, timeout)
+                elapsed = int((_time.monotonic() - reverse_t0) * 1000)
+                status_value = (
+                    RemoteCommandAudit.STATUS_SUCCESS
+                    if data.get("exit_code", -1) == 0 and not data.get("error")
+                    else RemoteCommandAudit.STATUS_FAILED
+                )
+                _finish_remote_command_audit(
+                    audit,
+                    status_value=status_value,
+                    exit_code=data.get("exit_code", -1),
+                    stdout=data.get("stdout", ""),
+                    stderr=data.get("stderr", ""),
+                    error=data.get("error", ""),
+                    elapsed_ms=elapsed,
+                )
+                return {
+                    **base,
+                    "status": "ok" if status_value == RemoteCommandAudit.STATUS_SUCCESS else "error",
+                    "exit_code": data.get("exit_code", -1),
+                    "stdout": data.get("stdout", ""),
+                    "stderr": data.get("stderr", ""),
+                    "error": data.get("error", ""),
+                    "elapsed_ms": elapsed,
+                    "transport": "reverse",
+                }
+            except TimeoutError as reverse_timeout:
+                _finish_remote_command_audit(
+                    audit,
+                    status_value=RemoteCommandAudit.STATUS_TIMEOUT,
+                    exit_code=-1,
+                    error=str(reverse_timeout),
+                    elapsed_ms=elapsed,
+                )
+                return {**base, "status": "offline", "exit_code": -1,
+                        "stdout": "", "stderr": "",
+                        "error": "Agente offline ou sem polling reverso ativo",
+                        "elapsed_ms": elapsed, "transport": "reverse"}
+            except Exception as reverse_error:
+                _finish_remote_command_audit(
+                    audit,
+                    status_value=RemoteCommandAudit.STATUS_FAILED,
+                    exit_code=-1,
+                    error=str(reverse_error),
+                    elapsed_ms=elapsed,
+                )
+                return {**base, "status": "error", "exit_code": -1,
+                        "stdout": "", "stderr": "", "error": str(reverse_error),
+                        "elapsed_ms": elapsed, "transport": "reverse"}
+
         except req.exceptions.Timeout:
             elapsed = int((_time.monotonic() - t0) * 1000)
+            _finish_remote_command_audit(
+                audit,
+                status_value=RemoteCommandAudit.STATUS_TIMEOUT,
+                exit_code=-1,
+                error=f"Timeout após {timeout}s",
+                elapsed_ms=elapsed,
+            )
             return {**base, "status": "error", "exit_code": -1,
                     "stdout": "", "stderr": "",
                     "error": f"Timeout após {timeout}s", "elapsed_ms": elapsed}
         except Exception as exc:
             elapsed = int((_time.monotonic() - t0) * 1000)
+            _finish_remote_command_audit(
+                audit,
+                status_value=RemoteCommandAudit.STATUS_FAILED,
+                exit_code=-1,
+                error=str(exc),
+                elapsed_ms=elapsed,
+            )
             return {**base, "status": "error", "exit_code": -1,
                     "stdout": "", "stderr": "", "error": str(exc),
                     "elapsed_ms": elapsed}
@@ -1589,7 +1973,7 @@ class AgentUpdateScriptAPIView(AgentTokenRequiredMixin, APIView):
 param(
     [Parameter(Mandatory=$true)][string]$NewExe,
     [Parameter(Mandatory=$true)][string]$CurrentExe,
-    [string]$ServiceName = "GRAgentService",
+    [string]$ServiceName = "InventoryAgent",
     [string]$ReportUrl   = "{report_url}",
     [string]$Token       = "{token_hash}"
 )
@@ -2020,6 +2404,74 @@ class AgentActivityAPIView(AgentTokenRequiredMixin, APIView):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
+class AgentCommandPullAPIView(AgentTokenRequiredMixin, APIView):
+    """
+    Canal reverso para comandos remotos.
+
+    O agente faz polling outbound neste endpoint. Isso evita depender de acesso
+    inbound ao host/porta 7071 quando há NAT, VPN, firewall ou VLAN filtrando.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        agent_token, error_response = self._authenticate(request)
+        if error_response:
+            return error_response
+
+        machine_name = self._get_machine_name(request, agent_token)
+        if not machine_name:
+            return Response({"ok": False, "error": "X-Machine-Name ausente."}, status=status.HTTP_400_BAD_REQUEST)
+
+        queue_key = _agent_command_queue_key(machine_name)
+        queue = cache.get(queue_key, [])
+        if not queue:
+            return Response({"ok": True, "has_command": False})
+
+        command = queue.pop(0)
+        if queue:
+            cache.set(queue_key, queue, timeout=600)
+        else:
+            cache.delete(queue_key)
+
+        return Response({"ok": True, "has_command": True, "command": command})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AgentCommandResultAPIView(AgentTokenRequiredMixin, APIView):
+    """Recebe o resultado de um comando executado via canal reverso."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        agent_token, error_response = self._authenticate(request)
+        if error_response:
+            return error_response
+
+        request_id = str(request.data.get("request_id", "")).strip()
+        if not request_id:
+            return Response({"ok": False, "error": "request_id obrigatório."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            exit_code = int(request.data.get("exit_code", -1))
+        except (TypeError, ValueError):
+            exit_code = -1
+
+        result = {
+            "request_id": request_id,
+            "stdout": str(request.data.get("stdout", ""))[:REMOTE_COMMAND_OUTPUT_LIMIT],
+            "stderr": str(request.data.get("stderr", ""))[:REMOTE_COMMAND_OUTPUT_LIMIT],
+            "exit_code": exit_code,
+            "error": str(request.data.get("error", ""))[:5000],
+            "executed_at": request.data.get("executed_at"),
+        }
+        cache.set(_agent_command_result_key(request_id), result, timeout=300)
+        return Response({"ok": True})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class AgentActivityLogView(LoginRequiredMixin, ListView):
     """
     Lista os logs de atividade de uma máquina específica.
@@ -2074,7 +2526,7 @@ class AgentHealthCheckAPIView(APIView):
     permission_classes = []
 
     def get(self, request):
-        return Response({'status': 'healthy', 'timestamp': timezone.now().isoformat()})
+        return Response({'ok': True, 'status': 'ok', 'health': 'healthy', 'timestamp': timezone.now().isoformat()})
 
 class BulkNotificationCreateView(LoginRequiredMixin, View):
     """Envia a mesma notificação para múltiplas máquinas ou grupos"""

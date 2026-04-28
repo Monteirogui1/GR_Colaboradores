@@ -313,6 +313,7 @@ RDP_ENABLE_REVERSE_SIGNAL   = True
 RDP_SIGNAL_WAIT_TIMEOUT     = 12
 AGENT_IPC_PORT            = 7070   # porta IPC do agente
 AGENT_WEBRTC_PORT         = 7071
+AGENT_DIRECT_CONNECT_TIMEOUT = float(os.environ.get('AGENT_DIRECT_CONNECT_TIMEOUT', '1.0'))
 RDP_TURN_CONFIG = {
     'host':        os.environ.get('TURN_HOST',        '192.168.100.247'),
     'port':        int(os.environ.get('TURN_PORT',        '3478')),

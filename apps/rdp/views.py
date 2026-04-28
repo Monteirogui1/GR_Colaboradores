@@ -1,8 +1,10 @@
 import base64
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
+import re
 import secrets
 import time
 from functools import wraps
@@ -14,6 +16,7 @@ from django.core.cache import cache
 from django.http import JsonResponse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from django.views import View
 
 from apps.inventory.models import AgentTokenUsage, Machine
@@ -50,11 +53,98 @@ def _signal_answer_key(request_id: str) -> str:
     return f"rdp:signal:answer:{request_id}"
 
 
+def _agent_best_ip_key(machine_name: str, purpose: str) -> str:
+    return f"inventory:agent:best-ip:{purpose}:{machine_name.lower()}"
+
+
+def _remember_best_ip(machine: Machine, purpose: str, ip: str) -> None:
+    if ip:
+        cache.set(_agent_best_ip_key(machine.hostname, purpose), ip, timeout=3600)
+
+
+def _get_best_ip(machine: Machine, purpose: str) -> str:
+    return cache.get(_agent_best_ip_key(machine.hostname, purpose), "") or ""
+
+
 def _get_client_ip(request) -> str | None:
     xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
     if xff:
         return xff.split(",")[0].strip() or None
     return request.META.get("REMOTE_ADDR") or None
+
+
+def _extract_ipv4_values(value) -> list[str]:
+    if value is None:
+        return []
+    raw_values = value if isinstance(value, (list, tuple, set)) else re.split(r"[,;\s]+", str(value))
+    ips = []
+    for raw in raw_values:
+        candidate = str(raw).strip().strip("[]")
+        if not candidate:
+            continue
+        try:
+            ip = ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        if ip.version != 4:
+            continue
+        if ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_unspecified:
+            continue
+        ips.append(str(ip))
+    return ips
+
+
+def _machine_ip_candidates(machine: Machine) -> list[str]:
+    candidates = []
+
+    def add(value):
+        for ip in _extract_ipv4_values(value):
+            if ip not in candidates:
+                candidates.append(ip)
+
+    add(getattr(machine, "ip_address", ""))
+    network_info = getattr(machine, "network_info", None)
+    if isinstance(network_info, list):
+        for adapter in network_info:
+            if isinstance(adapter, dict):
+                add(adapter.get("ip"))
+                add(adapter.get("ip_address"))
+                add(adapter.get("ips"))
+    elif isinstance(network_info, dict):
+        add(network_info.get("ip"))
+        add(network_info.get("ip_address"))
+        add(network_info.get("ips"))
+        adapters = network_info.get("adapters")
+        if isinstance(adapters, list):
+            for adapter in adapters:
+                if isinstance(adapter, dict):
+                    add(adapter.get("ip"))
+                    add(adapter.get("ip_address"))
+                    add(adapter.get("ips"))
+    return candidates
+
+
+def _ordered_ip_candidates(machine: Machine, purpose: str) -> list[str]:
+    candidates = _machine_ip_candidates(machine)
+    best_ip = _get_best_ip(machine, purpose)
+    if best_ip and best_ip in candidates:
+        candidates.remove(best_ip)
+        candidates.insert(0, best_ip)
+    return candidates
+
+
+def _agent_get(machine: Machine, path: str, headers: dict | None = None, timeout: int = 4):
+    last_error = None
+    connect_timeout = float(getattr(settings, "AGENT_DIRECT_CONNECT_TIMEOUT", 1.0))
+    for ip in _ordered_ip_candidates(machine, "rdp"):
+        try:
+            resp = req_lib.get(f"http://{ip}:{WEBRTC_PORT}{path}", headers=headers or {}, timeout=(connect_timeout, timeout))
+            _remember_best_ip(machine, "rdp", ip)
+            return resp
+        except (req_lib.exceptions.ConnectionError, req_lib.exceptions.Timeout) as exc:
+            last_error = exc
+            continue
+    raise req_lib.exceptions.ConnectionError("Agente inacessível nos IPs candidatos") from last_error
 
 
 def _audit(event_type: str, request, machine: Machine, session_token=None, session_id: str = "", reason: str = "", mode: str = "auto"):
@@ -338,7 +428,7 @@ class RDPSessionTokenView(View):
         )
 
     def get(self, request):
-        return self.post(request)
+        return JsonResponse({"error": "Método não permitido"}, status=405)
 
 
 @method_decorator(login_required, name="dispatch")
@@ -402,13 +492,13 @@ class RDPOfferView(View):
         sdp: str,
         codec_hint: str = "auto",
     ) -> dict:
-        if ENABLE_REVERSE_SIGNAL:
+        has_best_direct_ip = bool(_get_best_ip(machine, "rdp"))
+        if ENABLE_REVERSE_SIGNAL and not has_best_direct_ip:
             answer = self._forward_offer_via_reverse_signal(session_token, machine, sdp, codec_hint)
             if answer is not None:
                 return answer
 
         token_hash = session_token.agent_token.token_hash
-        url = f"http://{machine.ip_address}:{WEBRTC_PORT}/webrtc/offer"
         headers = {
             "Authorization": f"Bearer {token_hash}",
             "X-RDP-Connection-Mode": session_token.requested_mode,
@@ -421,12 +511,30 @@ class RDPOfferView(View):
             "connection_mode": session_token.requested_mode,
             "quality": session_token.requested_quality,
         }
-        response = req_lib.post(url, json=payload, headers=headers, timeout=15)
-        response.raise_for_status()
-        answer = response.json()
-        if "sdp" not in answer or answer.get("type") != "answer":
-            raise ValueError("Resposta inválida do agente")
-        return answer
+        last_error = None
+        connect_timeout = float(getattr(settings, "AGENT_DIRECT_CONNECT_TIMEOUT", 1.0))
+        for ip in _ordered_ip_candidates(machine, "rdp"):
+            try:
+                response = req_lib.post(
+                    f"http://{ip}:{WEBRTC_PORT}/webrtc/offer",
+                    json=payload,
+                    headers=headers,
+                    timeout=(connect_timeout, 15),
+                )
+                response.raise_for_status()
+                answer = response.json()
+                if "sdp" not in answer or answer.get("type") != "answer":
+                    raise ValueError("Resposta inválida do agente")
+                _remember_best_ip(machine, "rdp", ip)
+                return answer
+            except (req_lib.exceptions.ConnectionError, req_lib.exceptions.Timeout) as exc:
+                last_error = exc
+                continue
+        if ENABLE_REVERSE_SIGNAL and has_best_direct_ip:
+            answer = self._forward_offer_via_reverse_signal(session_token, machine, sdp, codec_hint)
+            if answer is not None:
+                return answer
+        raise req_lib.exceptions.ConnectionError("Agente inacessível nos IPs candidatos") from last_error
 
     def _forward_offer_via_reverse_signal(
         self,
@@ -482,9 +590,12 @@ class RDPInfoView(View):
         if not _validate_session_token(token, machine, request.user):
             return JsonResponse({"error": "Token de sessão inválido"}, status=403)
 
+        agent_token = _get_online_agent_token(machine)
+        agent_headers = {"Authorization": f"Bearer {agent_token.token_hash}"} if agent_token else {}
+
         if action == "explorer_path":
             try:
-                resp = req_lib.get(f"http://{machine.ip_address}:{IPC_PORT}/explorer/path", timeout=4)
+                resp = _agent_get(machine, "/explorer/path", headers=agent_headers, timeout=4)
                 if resp.ok:
                     data = resp.json()
                     return JsonResponse({"path": data.get("path", "downloads")})
@@ -493,7 +604,7 @@ class RDPInfoView(View):
                 return JsonResponse({"path": "downloads", "error": str(exc)})
 
         try:
-            resp = req_lib.get(f"http://{machine.ip_address}:{IPC_PORT}/status", timeout=3)
+            resp = _agent_get(machine, "/status", headers=agent_headers, timeout=3)
             data = resp.json() if resp.ok else {}
             screen = data.get("screen", {})
             return JsonResponse(
@@ -569,15 +680,21 @@ class RDPSessionsView(View):
         return JsonResponse({"sessions": sessions, "max": MAX_SESSIONS})
 
 
-@method_decorator(login_required, name="dispatch")
 class RDPConfigView(View):
     def get(self, request):
+        machine_id = request.GET.get("machine", "").strip()
+        agent_machine = request.META.get("HTTP_X_MACHINE_NAME", "").strip()
+        is_agent = bool(agent_machine and _validate_agent_signal_auth(request, agent_machine))
+        if not request.user.is_authenticated and not is_agent:
+            return JsonResponse({"error": "Autenticação necessária"}, status=401)
+
         cfg = getattr(settings, "RDP_TURN_CONFIG", {})
         host = cfg.get("host", "")
         port = cfg.get("port", 3478)
 
         mode = _sanitize_mode(request.GET.get("mode", RDPMachinePolicy.MODE_AUTO))
-        machine_id = request.GET.get("machine", "").strip()
+        if not machine_id and is_agent:
+            machine_id = agent_machine
         if machine_id:
             machine = Machine.objects.filter(hostname=machine_id).first()
             if machine:
@@ -586,7 +703,8 @@ class RDPConfigView(View):
                     mode = policy.connection_mode
 
         ttl = int(time.time()) + 3600
-        turn_user = f"{ttl}:{request.user.pk}"
+        turn_identity = request.user.pk if request.user.is_authenticated else f"agent-{agent_machine}"
+        turn_user = f"{ttl}:{turn_identity}"
         secret = cfg.get("credential", "")
         turn_pass = hmac.new(secret.encode(), turn_user.encode(), hashlib.sha1).digest()
         turn_pass_b64 = base64.b64encode(turn_pass).decode()
@@ -626,6 +744,7 @@ class RDPConfigView(View):
         return resp
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class RDPAgentSignalPullView(View):
     def post(self, request):
         machine_name = request.META.get("HTTP_X_MACHINE_NAME", "").strip()
@@ -643,6 +762,7 @@ class RDPAgentSignalPullView(View):
         return JsonResponse({"ok": True, "has_offer": True, "offer": offer})
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class RDPAgentSignalAnswerView(View):
     def post(self, request):
         machine_name = request.META.get("HTTP_X_MACHINE_NAME", "").strip()
